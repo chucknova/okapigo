@@ -4,3 +4,10 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# pnpm 11 blocks dependencies from running install scripts unless approved here (a defence
+# against malicious packages). Only approve packages that genuinely need a build step.
+allowBuilds:
+  # Prisma's install scripts download the query engine and schema tools for your platform.
+  '@prisma/engines': true
+  prisma: true

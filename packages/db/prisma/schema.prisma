@@ -1,0 +1,114 @@
+// schema.prisma — the single source of truth for OkapiGo's database tables.
+//
+// How this file is used:
+//   1. You edit the models below.
+//   2. `pnpm db:migrate --name <what-changed>` compares this file with the database and writes
+//      a SQL migration into prisma/migrations/. Those SQL files are committed, so every
+//      machine (yours, CI, the demo host) builds exactly the same database.
+//   3. Prisma regenerates the client, so `prisma.user.findMany()` etc. match these models.
+//
+// Conventions used throughout:
+//   - Model names are singular PascalCase (User); @@map gives snake_case plural table names
+//     (users). Field names are camelCase in JavaScript (operatorId) and @map makes the
+//     column snake_case (operator_id). snake_case is the usual PostgreSQL style and means
+//     raw SQL (which we'll write for row locks and ledger checks) needs no "quoted" names.
+//   - Every business row carries `operatorId`. The operator is the TENANT: one tour company.
+//     The MVP has one operator (Ìrìn Lagos Tours), but "visitor sandboxes" in the PRD create
+//     a throwaway copy per visitor, so isolation between operators matters from day one.
+//   - IDs are UUIDs: safe to expose in URLs (not guessable like 1, 2, 3) and can be created
+//     offline by the PWA later without clashing.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Operator: the tenant (a tour company using OkapiGo)
+// ---------------------------------------------------------------------------
+model Operator {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  // Used in public URLs, e.g. okapigo.app/irin-lagos-tours. Unique across all operators.
+  slug         String   @unique
+  // ISO 4217 currency code. NGN only in the MVP; USD/GBP arrive in v1.
+  currency     String   @default("NGN") @db.Char(3)
+  // IANA time zone. Departure times are shown in the operator's local time.
+  timeZone     String   @default("Africa/Lagos") @map("time_zone")
+  // Which of the 2–3 generated website styles the operator picked (MKT-08, session 10+).
+  websiteStyle String   @default("classic") @map("website_style")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  roles Role[]
+  users User[]
+
+  @@map("operators")
+}
+
+// ---------------------------------------------------------------------------
+// Role: a named set of permissions (ACC-05)
+// ---------------------------------------------------------------------------
+// Each operator gets three PRESET roles (owner, manager, guide) and can create CUSTOM
+// roles. A role's `permissions` is a JSON object mapping a module to an access level:
+//   { "bookings": "edit", "products": "view", "payments": "none", ... }
+// Session 3 adds the middleware that enforces these on every API route.
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  operatorId  String   @map("operator_id") @db.Uuid
+  // A stable machine name ("owner", "manager", "guide", or e.g. "front-desk").
+  key         String
+  name        String
+  // true for the three built-in roles: they can't be deleted or renamed.
+  isPreset    Boolean  @default(false) @map("is_preset")
+  // JSONB: flexible shape, still queryable in PostgreSQL. Validated with Zod in the API.
+  permissions Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // onDelete: Cascade = deleting an operator deletes its roles (used by sandbox cleanup).
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  users    User[]
+
+  // Role keys are unique *within* an operator: two operators can each have a "guide" role.
+  @@unique([operatorId, key])
+  // Needed so User can reference (role id + operator id) together. See User.role below.
+  @@unique([id, operatorId])
+  @@map("roles")
+}
+
+// ---------------------------------------------------------------------------
+// User: a STAFF member who signs in (owner, manager, guide, ...)
+// ---------------------------------------------------------------------------
+// Guests do not have accounts in the MVP; they're stored with their bookings (session 7).
+model User {
+  id         String   @id @default(uuid()) @db.Uuid
+  operatorId String   @map("operator_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  name       String
+  // Staff sign in with a one-time code sent to email OR phone (ACC-01), so each is optional
+  // but at least one must be present. That rule is a CHECK constraint added in the migration
+  // SQL, because Prisma's schema language can't express it.
+  // Unique across the whole platform: a code sent to an address must identify one person.
+  email      String?  @unique
+  // Stored in E.164 format, e.g. +2348031234567, so the same number is always written the same way.
+  phone      String?  @unique
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  // A COMPOSITE foreign key: the user's (roleId, operatorId) must match a role's
+  // (id, operatorId). This makes it IMPOSSIBLE, at the database level, to give a Lagos
+  // Tours staff member a role that belongs to another operator. A bug in our code can't
+  // bypass it, which is the point of putting the rule in the database.
+  // onDelete: Restrict = you can't delete a role while staff still hold it.
+  role Role @relation(fields: [roleId, operatorId], references: [id, operatorId], onDelete: Restrict)
+
+  @@index([operatorId])
+  @@map("users")
+}
