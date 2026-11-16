@@ -5,12 +5,19 @@
   "description": "Code shared by the API and every app: permissions, and later validation schemas, the pricing pipeline and the policy engine",
   "type": "module",
   "exports": {
-    "./permissions": "./src/permissions.js"
+    "./permissions": "./src/permissions.js",
+    "./contact": "./src/contact.js",
+    "./schemas/auth": "./src/schemas/auth.js",
+    "./schemas/roles": "./src/schemas/roles.js",
+    "./slug": "./src/slug.js"
   },
   "scripts": {
     "test": "vitest run"
   },
   "devDependencies": {
     "vitest": "5.1.0"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
   }
 }

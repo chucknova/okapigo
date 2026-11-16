@@ -29,6 +29,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@okapigo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@okapigo/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       express:
         specifier: ^5.3.0
         version: 5.3.0
@@ -38,9 +44,6 @@ importers:
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
       pino:
         specifier: ^10.4.0
         version: 10.4.0
@@ -81,6 +84,10 @@ importers:
         version: 5.1.0(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0))
 
   packages/shared:
+    dependencies:
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
     devDependencies:
       vitest:
         specifier: 5.1.0
