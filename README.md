@@ -4,8 +4,8 @@ Booking, payments and operations for Nigerian tour operators. This is the MVP, a
 project that runs one fictional business, **Ìrìn Lagos Tours**, from a guest finding a tour to a
 guide checking that guest in with no signal.
 
-> Status: **session 3 of 18**. Repository, CI, database, and staff sign-in with one-time codes,
-> roles and permissions.
+> Status: **session 4 of 19**. Repository, CI, database, staff sign-in with roles and
+> permissions, and the tour catalogue (products, prices, add-ons) with Ìrìn's five tours.
 > Learning notes for each session live in [`docs/learning/`](docs/learning/).
 
 ## Requirements
@@ -68,7 +68,7 @@ Seeded staff: `adaeze@` (owner), `tunde@` (manager), `kemi@`, `chinedu@`, `halim
 | --------------------- | ------------------------------------------------------------- |
 | `apps/api`            | Express API. The only thing that writes to PostgreSQL         |
 | `packages/db`         | Prisma schema, migrations, seed script, database client       |
-| `packages/shared`     | Code shared by every app (permissions so far)                 |
+| `packages/shared`     | Code shared by every app: permissions, money, schemas         |
 | `docs/learning/`      | One learning note per build session                           |
 | `docs/parking-lot.md` | Ideas that are out of MVP scope                               |
 | `docker-compose.yml`  | Local PostgreSQL 17 + Redis 7                                 |
