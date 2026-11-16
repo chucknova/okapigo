@@ -41,6 +41,9 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://okapigo:okapigo@localhost:5432/okapigo
       REDIS_URL: redis://localhost:6379
+      # A throwaway value just for CI tests. Real secrets would come from GitHub's encrypted
+      # "secrets", but tests don't need a real one.
+      AUTH_SECRET: ci-only-test-secret-0123456789abcdef0123456789
 
     steps:
       - uses: actions/checkout@v4
