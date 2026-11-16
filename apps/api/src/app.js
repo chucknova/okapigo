@@ -19,6 +19,8 @@ import { rolesRouter } from './routes/roles.js';
 import { staffRouter } from './routes/staff.js';
 import { productsRouter } from './routes/products.js';
 import { schedulesRouter } from './routes/schedules.js';
+import { quotesRouter } from './routes/quotes.js';
+import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
 import { createOtpService } from './auth/otp-service.js';
@@ -38,6 +40,7 @@ export function createApp({ logger, prisma, redis, otpSender, authSecret }) {
   const sessions = createSessionService({ prisma });
   const otp = createOtpService({ prisma, otpSender, authSecret });
   const authenticate = requireAuth(sessions);
+  const quotes = createQuoteService({ prisma });
 
   const app = express();
 
@@ -84,6 +87,7 @@ export function createApp({ logger, prisma, redis, otpSender, authSecret }) {
   api.use(staffRouter({ prisma, sessions }));
   api.use(productsRouter({ prisma }));
   api.use(schedulesRouter({ prisma }));
+  api.use(quotesRouter({ quotes }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 
