@@ -14,6 +14,7 @@
  *   Badagry           → deposits, payment links, balance reminders (30% deposit, session 10)
  *
  * Prices are written in NAIRA here for readability and converted to kobo with nairaToKobo.
+ * `schedule` says when each tour runs; the seed turns it into 60 days of departures.
  * Photos are added in the polish session (18), with images we have the rights to use.
  */
 import { nairaToKobo } from '@okapigo/shared/money';
@@ -49,6 +50,8 @@ const categories = ({ adult, child, infant = 0 }) => [
 export const TOURS = [
   {
     slug: 'lagos-island-heritage-walk',
+    // Daily at 09:00, closed on Christmas Day (an exception date).
+    schedule: { daysOfWeek: [0, 1, 2, 3, 4, 5, 6], times: ['09:00'], skipChristmas: true },
     title: 'Lagos Island Heritage Walk',
     summary:
       'Three unhurried hours through old Lagos: Tinubu Square, the Brazilian Quarter, the Cathedral and Freedom Park.',
@@ -102,6 +105,8 @@ export const TOURS = [
   },
   {
     slug: 'lagos-street-food-crawl',
+    // Thursday to Saturday evenings.
+    schedule: { daysOfWeek: [4, 5, 6], times: ['18:30'] },
     title: 'Lagos Street Food Crawl',
     summary: 'An evening of suya, boli, amala and puff-puff across Yaba and Surulere.',
     description:
@@ -152,6 +157,8 @@ export const TOURS = [
   },
   {
     slug: 'lekki-nature-and-craft',
+    // Wednesday and Saturday mornings.
+    schedule: { daysOfWeek: [3, 6], times: ['08:00'] },
     title: 'Lekki Nature and Craft Half-Day',
     summary:
       'Canopy walk at the Lekki Conservation Centre and an hour at the Lekki Arts and Crafts Market, with hotel pickup.',
@@ -184,6 +191,8 @@ export const TOURS = [
   },
   {
     slug: 'tarkwa-bay-beach-and-lagoon',
+    // Weekends only.
+    schedule: { daysOfWeek: [0, 6], times: ['10:00'] },
     title: 'Tarkwa Bay Beach and Lagoon Trip',
     summary: 'A weekend boat ride across the Lagos lagoon to the sheltered beach at Tarkwa Bay.',
     description:
@@ -231,6 +240,8 @@ export const TOURS = [
   },
   {
     slug: 'badagry-heritage-day-trip',
+    // Saturdays, early start.
+    schedule: { daysOfWeek: [6], times: ['07:00'] },
     title: 'Badagry Heritage Day Trip',
     summary:
       'A full day in Badagry: the Point of No Return, the slave relics museum and the First Storey Building.',

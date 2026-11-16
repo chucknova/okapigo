@@ -227,6 +227,8 @@ model Product {
   operator        Operator        @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   priceCategories PriceCategory[]
   addOns          AddOn[]
+  schedules       Schedule[]
+  departures      Departure[]
 
   @@unique([operatorId, slug])
   // Lets children reference (product id + operator id) together: same tenant-safety
@@ -286,4 +288,78 @@ model AddOn {
   product Product @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
 
   @@map("add_ons")
+}
+
+// ===========================================================================
+// SCHEDULES AND DEPARTURES (INV-03)
+// ===========================================================================
+//
+//   Schedule  = a RULE   "Heritage Walk, daily at 09:00 from 1 Dec, except 25 Dec"
+//   Departure = an EVENT "Heritage Walk, Tue 2 Dec 2026, 09:00 Lagos", with its own seats
+//
+// Departures are generated from schedules for a rolling window (60 days ahead) by
+// syncScheduleDepartures() in src/departures.js. Guests book DEPARTURES, never schedules.
+
+// ---------------------------------------------------------------------------
+// Schedule: a repeating rule for when a product runs
+// ---------------------------------------------------------------------------
+model Schedule {
+  id         String     @id @default(uuid()) @db.Uuid
+  operatorId String     @map("operator_id") @db.Uuid
+  productId  String     @map("product_id") @db.Uuid
+  // Calendar dates (no time of day), in the operator's time zone.
+  startDate  DateTime   @map("start_date") @db.Date
+  endDate    DateTime?  @map("end_date") @db.Date
+  // Weekdays that run: 0 = Sunday … 6 = Saturday. Daily = all seven.
+  daysOfWeek Int[]      @map("days_of_week")
+  // Local start times, "HH:MM", in the operator's time zone.
+  times      String[]
+  // Seats per departure; null = use the product's defaultCapacity.
+  capacity   Int?
+  // "Exceptions per date": dates the rule would produce but which don't run.
+  skipDates  DateTime[] @default([]) @map("skip_dates") @db.Date
+  // Inactive schedules stop generating; their future EMPTY departures are removed.
+  isActive   Boolean    @default(true) @map("is_active")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product    Product     @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  departures Departure[]
+
+  @@map("schedules")
+}
+
+// ---------------------------------------------------------------------------
+// Departure: one bookable occurrence of a product (INV-02, INV-03)
+// ---------------------------------------------------------------------------
+// The most important row for "never sell the same seat twice". From session 6, holds and
+// bookings LOCK this row (SELECT … FOR UPDATE) while they change the seat counts, and the
+// CHECK constraint below is the last line of defence: the database refuses any write that
+// would put more people on a departure than it has seats.
+model Departure {
+  id         String   @id @default(uuid()) @db.Uuid
+  operatorId String   @map("operator_id") @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  // Set for departures generated from a schedule; null for one-off ("custom") departures.
+  scheduleId String?  @map("schedule_id") @db.Uuid
+  startsAt   DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt     DateTime @map("ends_at") @db.Timestamptz(3)
+  capacity   Int
+  seatsSold  Int      @default(0) @map("seats_sold")
+  seatsHeld  Int      @default(0) @map("seats_held")
+  // "scheduled" = running; "cancelled" = called off (e.g. weather at Tarkwa Bay).
+  status     String   @default("scheduled")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product  Product   @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  // SetNull: if a schedule row were ever deleted, its departures (and their bookings) stay.
+  schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
+  // A product can't have two departures at the same moment. This also makes generating
+  // departures idempotent: running the generator twice can't create duplicates.
+  @@unique([productId, startsAt])
+  // The availability query: "departures of product X between these dates".
+  @@index([operatorId, startsAt])
+  @@map("departures")
 }

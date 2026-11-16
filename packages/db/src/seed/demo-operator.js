@@ -17,6 +17,8 @@
  */
 import { createOperatorWithPresetRoles } from '../operators.js';
 import { TOURS } from './tours.js';
+import { syncScheduleDepartures } from '../departures.js';
+import { localDate, stringToDate } from '@okapigo/shared/time';
 
 export const DEFAULT_SLUG = 'irin-lagos-tours';
 
@@ -37,12 +39,12 @@ const STAFF = [
  * Creates the operator, its preset roles and its staff, all-or-nothing.
  *
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ slug?: string }} [options]
+ * @param {{ slug?: string, now?: Date }} [options] `now` lets tests pin the calendar
  */
-export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG } = {}) {
+export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new Date() } = {}) {
   // $transaction: either EVERY row below is written, or (on any error) NONE are.
   // A half-created business (operator but no staff) would be worse than nothing.
-  return prisma.$transaction(async (tx) => {
+  const { operator, scheduleIds } = await prisma.$transaction(async (tx) => {
     // The operator and its owner/manager/guide roles (shared with real sign-ups).
     const { operator, roleIds } = await createOperatorWithPresetRoles(tx, {
       name: 'Ìrìn Lagos Tours',
@@ -63,9 +65,15 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG } = {}) {
       })),
     });
 
-    // The five tours, each with its price categories and add-ons (nested create).
-    for (const { prices, addOns, ...product } of TOURS) {
-      await tx.product.create({
+    // Schedules start "today" in Lagos, so the demo always has upcoming departures.
+    const today = localDate(now, operator.timeZone);
+    const christmas = nextChristmas(today);
+    /** @type {string[]} */
+    const scheduleIds = [];
+
+    // The five tours, each with its price categories, add-ons and schedule (nested create).
+    for (const { prices, addOns, schedule, ...product } of TOURS) {
+      const created = await tx.product.create({
         data: {
           ...product,
           // With nested writes, Prisma wants relations written as `connect`, not raw ids.
@@ -74,10 +82,36 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG } = {}) {
           // composite key (productId and operatorId) from the parent product itself.
           priceCategories: { create: prices },
           addOns: { create: addOns },
+          schedules: {
+            // (No operatorId here: nested children inherit it from the product.)
+            create: {
+              startDate: stringToDate(today),
+              daysOfWeek: schedule.daysOfWeek,
+              times: schedule.times,
+              skipDates: schedule.skipChristmas ? [stringToDate(christmas)] : [],
+            },
+          },
         },
+        include: { schedules: true },
       });
+      scheduleIds.push(created.schedules[0].id);
     }
 
-    return operator;
+    return { operator, scheduleIds };
   });
+
+  // Turn each schedule into departures for the next 60 days. (Each sync runs in its own
+  // transaction; if one failed, re-running the seed after a reset fixes it.)
+  for (const id of scheduleIds) await syncScheduleDepartures(prisma, id, { now });
+
+  return operator;
+}
+
+/**
+ * The next 25 December on or after `today` ('YYYY-MM-DD'), e.g. '2026-12-25'.
+ * @param {string} today
+ */
+function nextChristmas(today) {
+  const thisYear = `${today.slice(0, 4)}-12-25`;
+  return today <= thisYear ? thisYear : `${Number(today.slice(0, 4)) + 1}-12-25`;
 }

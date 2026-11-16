@@ -5,4 +5,5 @@
  */
 export { createPrismaClient } from './client.js';
 export { createOperatorWithPresetRoles } from './operators.js';
+export { syncScheduleDepartures, listAvailability, HORIZON_DAYS } from './departures.js';
 export { seedDemoOperator, DEFAULT_SLUG } from './seed/demo-operator.js';
