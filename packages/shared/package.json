@@ -9,7 +9,10 @@
     "./contact": "./src/contact.js",
     "./schemas/auth": "./src/schemas/auth.js",
     "./schemas/roles": "./src/schemas/roles.js",
-    "./slug": "./src/slug.js"
+    "./slug": "./src/slug.js",
+    "./money": "./src/money.js",
+    "./catalogue": "./src/catalogue.js",
+    "./schemas/products": "./src/schemas/products.js"
   },
   "scripts": {
     "test": "vitest run"
