@@ -40,6 +40,11 @@ model Operator {
   timeZone     String   @default("Africa/Lagos") @map("time_zone")
   // Which of the 2–3 generated website styles the operator picked (MKT-08, session 10+).
   websiteStyle String   @default("classic") @map("website_style")
+  // Tax and fee settings fed into the pricing pipeline (packages/shared/src/pricing.js).
+  // Shape: { tax: { name, basisPoints, inclusive } | null, fees: [{ name, type, ... }] }
+  // validated by OperatorPricingSchema. Default: prices INCLUDE 7.5% VAT, no extra fees.
+  // (Illustrative: not tax advice.)
+  pricing      Json     @default("{\"tax\": {\"name\": \"VAT\", \"basisPoints\": 750, \"inclusive\": true}, \"fees\": []}")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
