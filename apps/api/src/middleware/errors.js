@@ -20,11 +20,13 @@ export class HttpError extends Error {
    * @param {number} status
    * @param {string} code
    * @param {string} message
+   * @param {Record<string, unknown>} [details] extra fields for the client, e.g. validation issues
    */
-  constructor(status, code, message) {
+  constructor(status, code, message, details) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -43,7 +45,19 @@ export function notFound(req, _res, next) {
  */
 export function errorHandler(err, req, res, _next) {
   if (err instanceof HttpError) {
-    res.status(err.status).json({ error: { code: err.code, message: err.message } });
+    res
+      .status(err.status)
+      .json({ error: { code: err.code, message: err.message, ...err.details } });
+    return;
+  }
+
+  // Prisma P2002 = a UNIQUE constraint said no. Usually our code checks first and returns a
+  // friendly 409, but two requests racing each other can both pass that check; then the
+  // database is the referee. Answer 409 Conflict instead of a scary 500.
+  if (err?.code === 'P2002') {
+    res.status(409).json({
+      error: { code: 'CONFLICT', message: 'That already exists. Refresh and try again.' },
+    });
     return;
   }
 

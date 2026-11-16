@@ -12,7 +12,9 @@
  */
 import { loadConfig } from './config.js';
 import { createLogger } from './lib/logger.js';
-import { createDbPool, createRedis } from './lib/connections.js';
+import { createPrismaClient } from '@okapigo/db';
+import { createRedis } from './lib/connections.js';
+import { createLogOtpSender } from './auth/otp-sender.js';
 import { createApp } from './app.js';
 
 const config = loadConfig();
@@ -21,15 +23,16 @@ const logger = createLogger({
   pretty: config.NODE_ENV === 'development',
 });
 
-const db = createDbPool(config.DATABASE_URL);
+const prisma = createPrismaClient(config.DATABASE_URL);
 const redis = createRedis(config.REDIS_URL);
+// Development only: sign-in codes appear in this terminal. Real senders arrive in session 13.
+const otpSender = createLogOtpSender(logger, { nodeEnv: config.NODE_ENV });
 
 // Without an 'error' listener, a lost Redis connection would crash the whole process.
 // We log it instead; the health check reports Redis as down and ioredis reconnects.
 redis.on('error', (err) => logger.warn({ err: err.message }, 'redis connection error'));
-db.on('error', (err) => logger.warn({ err: err.message }, 'postgres pool error'));
 
-const app = createApp({ logger, db, redis });
+const app = createApp({ logger, prisma, redis, otpSender, authSecret: config.AUTH_SECRET });
 
 const server = app.listen(config.API_PORT, () => {
   logger.info(`API listening on http://localhost:${config.API_PORT}`);
@@ -40,7 +43,7 @@ async function shutdown(signal) {
   logger.info({ signal }, 'shutting down');
   // Stop accepting new connections. The callback runs once existing requests finish.
   server.close(async () => {
-    await Promise.allSettled([db.end(), redis.quit()]);
+    await Promise.allSettled([prisma.$disconnect(), redis.quit()]);
     logger.info('shutdown complete');
     process.exit(0);
   });

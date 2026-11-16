@@ -23,8 +23,9 @@ export default [
     },
     rules: {
       // Unused vars are usually leftovers; allow `_name` for "intentionally unused"
-      // (e.g. Express needs all 4 args on an error handler even if we don't use `next`).
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // (e.g. Express needs all 4 args on an error handler even if we don't use `next`, or
+      // `const { secret: _secret, ...safe } = obj` to copy an object minus one field).
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       // Use the logger, not console, so logs stay structured (see apps/api/src/lib/logger.js).
       'no-console': 'warn',
     },

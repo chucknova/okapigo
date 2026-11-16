@@ -7,6 +7,7 @@ import { loadConfig } from '../src/config.js';
 const valid = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
   REDIS_URL: 'redis://localhost:6379',
+  AUTH_SECRET: 'x'.repeat(32),
 };
 
 describe('loadConfig', () => {
@@ -23,6 +24,10 @@ describe('loadConfig', () => {
 
   it('fails with a message naming the missing variable', () => {
     expect(() => loadConfig({ REDIS_URL: valid.REDIS_URL })).toThrow(/DATABASE_URL/);
+  });
+
+  it('rejects a short AUTH_SECRET', () => {
+    expect(() => loadConfig({ ...valid, AUTH_SECRET: 'too-short' })).toThrow(/AUTH_SECRET/);
   });
 
   it('rejects a database URL that is not PostgreSQL', () => {

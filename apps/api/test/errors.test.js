@@ -4,10 +4,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
-import { createApp } from '../src/app.js';
-import { silentLogger, healthyDb, healthyRedis } from './helpers.js';
+import { buildApp } from './helpers.js';
 
-const app = createApp({ logger: silentLogger, db: healthyDb, redis: healthyRedis });
+const app = buildApp();
 
 describe('error handling', () => {
   it('returns a JSON 404 for unknown routes', async () => {

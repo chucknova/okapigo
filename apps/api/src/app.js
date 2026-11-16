@@ -13,16 +13,30 @@ import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { randomUUID } from 'node:crypto';
 import { healthRouter } from './routes/health.js';
+import { authRouter } from './routes/auth.js';
+import { meRouter } from './routes/me.js';
+import { rolesRouter } from './routes/roles.js';
+import { staffRouter } from './routes/staff.js';
 import { notFound, errorHandler } from './middleware/errors.js';
+import { requireAuth } from './middleware/auth.js';
+import { createOtpService } from './auth/otp-service.js';
+import { createSessionService } from './auth/session-service.js';
 
 /**
  * @param {{
  *   logger: import('pino').Logger,
- *   db: { query: (sql: string) => Promise<unknown> },
+ *   prisma: import('@prisma/client').PrismaClient,
  *   redis: { ping: () => Promise<unknown> },
+ *   otpSender: import('./auth/otp-sender.js').OtpSender,
+ *   authSecret: string,
  * }} deps
  */
-export function createApp({ logger, db, redis }) {
+export function createApp({ logger, prisma, redis, otpSender, authSecret }) {
+  // Services hold the business logic; routes stay thin (parse input → call service → reply).
+  const sessions = createSessionService({ prisma });
+  const otp = createOtpService({ prisma, otpSender, authSecret });
+  const authenticate = requireAuth(sessions);
+
   const app = express();
 
   // Don't advertise "X-Powered-By: Express" to the world.
@@ -54,9 +68,20 @@ export function createApp({ logger, db, redis }) {
   // Parse JSON request bodies. The size limit stops someone sending a 1 GB body.
   app.use(express.json({ limit: '100kb' }));
 
-  // --- Routes ---------------------------------------------------------------
-  app.use(healthRouter({ db, redis }));
-  // Future sessions mount more routers here (auth, products, bookings, ...).
+  // --- Public routes (no sign-in needed) --------------------------------------
+  app.use(healthRouter({ prisma, redis }));
+  app.use(authRouter({ prisma, otp, sessions, requireAuth: authenticate }));
+
+  // --- Staff API: everything under /api requires sign-in ----------------------
+  // DEFAULT DENY: `authenticate` runs before every /api route, so a route added here later
+  // can't be left open by accident. Each router then checks its module permission.
+  const api = express.Router();
+  api.use(authenticate);
+  api.use(meRouter({ prisma }));
+  api.use(rolesRouter({ prisma }));
+  api.use(staffRouter({ prisma, sessions }));
+  // Future sessions mount more routers here (products, bookings, payments, ...).
+  app.use('/api', api);
 
   // --- Errors (must come after all routes) -----------------------------------
   app.use(notFound);

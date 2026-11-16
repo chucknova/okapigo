@@ -1,28 +1,15 @@
 // @ts-check
 /**
- * connections.js — opens the connections to PostgreSQL and Redis.
+ * connections.js — opens the connection to Redis.
  *
- * These are created once in server.js and *passed into* the app (see app.js). The app
- * never creates its own connections. That is "dependency injection": tests can hand
- * the app fake connections, e.g. one that always fails, to test the "database is down"
- * path without actually stopping the database.
+ * Connections are created once in server.js and *passed into* the app (see app.js). The
+ * app never creates its own. That is "dependency injection": tests can hand the app fake
+ * connections, e.g. one that always fails, to test the "Redis is down" path.
  *
- * Note: from session 2, Prisma will be our main way of talking to PostgreSQL. This
- * plain `pg` pool stays as a tiny, dependency-light way for the health check to ask
- * "is the database reachable?".
+ * PostgreSQL connections come from Prisma: createPrismaClient() in @okapigo/db.
+ * (Session 1 had a separate `pg` pool just for the health check; one pool is simpler.)
  */
-import pg from 'pg';
 import { Redis } from 'ioredis';
-
-/** @param {string} databaseUrl */
-export function createDbPool(databaseUrl) {
-  return new pg.Pool({
-    connectionString: databaseUrl,
-    max: 5, // the health check needs very few connections
-    // Give up connecting after 2s instead of hanging. A slow health check is a failed one.
-    connectionTimeoutMillis: 2000,
-  });
-}
 
 /** @param {string} redisUrl */
 export function createRedis(redisUrl) {

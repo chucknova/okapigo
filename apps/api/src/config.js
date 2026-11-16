@@ -22,6 +22,10 @@ const EnvSchema = z.object({
   // No defaults here on purpose: the app must be told where its data lives.
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+
+  // Server-side secret mixed into one-time-code hashes (see lib/secrets.js). Long and random;
+  // generate one with:  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
 });
 
 /**

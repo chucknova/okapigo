@@ -8,31 +8,27 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { createApp } from '../src/app.js';
-import { loadConfig } from '../src/config.js';
-import { createDbPool, createRedis } from '../src/lib/connections.js';
-import { silentLogger } from './helpers.js';
+import { createPrismaClient } from '@okapigo/db';
+import { createRedis } from '../src/lib/connections.js';
+import { buildApp } from './helpers.js';
 
 describe('GET /health (real PostgreSQL + Redis)', () => {
-  /** @type {ReturnType<typeof createDbPool>} */ let db;
-  /** @type {ReturnType<typeof createRedis>} */ let redis;
+  let prisma;
+  let redis;
 
   beforeAll(() => {
-    const config = loadConfig();
-    db = createDbPool(config.DATABASE_URL);
-    redis = createRedis(config.REDIS_URL);
+    prisma = createPrismaClient(process.env.DATABASE_URL);
+    redis = createRedis(process.env.REDIS_URL);
   });
 
   // Always close connections, or Vitest waits for them and the run never finishes.
   afterAll(async () => {
-    await db?.end();
+    await prisma?.$disconnect();
     await redis?.quit();
   });
 
   it('reports both services as ok', async () => {
-    const app = createApp({ logger: silentLogger, db, redis });
-
-    const res = await request(app).get('/health');
+    const res = await request(buildApp({ prisma, redis })).get('/health');
 
     expect(res.body).toEqual({ status: 'ok', checks: { db: 'ok', redis: 'ok' } });
   });

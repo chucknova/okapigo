@@ -3,17 +3,16 @@
  *
  * Supertest's `request(app)` sends HTTP requests straight to the Express app in memory,
  * with no port and no running server. Because createApp() takes its dependencies as
- * arguments, we can hand it fakes and test what happens when PostgreSQL or Redis is down,
+ * arguments (buildApp in helpers.js fills in fakes), we can hand it fakes and test what happens when PostgreSQL or Redis is down,
  * without actually breaking anything.
  */
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
-import { createApp } from '../src/app.js';
-import { silentLogger, healthyDb, healthyRedis, failing } from './helpers.js';
+import { buildApp, failing } from './helpers.js';
 
 describe('GET /health', () => {
   it('returns 200 when the database and Redis are reachable', async () => {
-    const app = createApp({ logger: silentLogger, db: healthyDb, redis: healthyRedis });
+    const app = buildApp();
 
     const res = await request(app).get('/health');
 
@@ -22,7 +21,7 @@ describe('GET /health', () => {
   });
 
   it('returns 503 and names the failing dependency when the database is down', async () => {
-    const app = createApp({ logger: silentLogger, db: failing, redis: healthyRedis });
+    const app = buildApp({ prisma: failing });
 
     const res = await request(app).get('/health');
 
@@ -31,7 +30,7 @@ describe('GET /health', () => {
   });
 
   it('returns 503 when Redis is down', async () => {
-    const app = createApp({ logger: silentLogger, db: healthyDb, redis: failing });
+    const app = buildApp({ redis: failing });
 
     const res = await request(app).get('/health');
 
@@ -40,7 +39,7 @@ describe('GET /health', () => {
   });
 
   it('sends back a request ID, reusing one the caller provides', async () => {
-    const app = createApp({ logger: silentLogger, db: healthyDb, redis: healthyRedis });
+    const app = buildApp();
 
     const fresh = await request(app).get('/health');
     expect(fresh.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/); // a new UUID

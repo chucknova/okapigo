@@ -39,17 +39,17 @@ async function probe(check) {
 
 /**
  * @param {{
- *   db: { query: (sql: string) => Promise<unknown> },
+ *   prisma: { $queryRaw: (strings: TemplateStringsArray) => Promise<unknown> },
  *   redis: { ping: () => Promise<unknown> },
  * }} deps
  */
-export function healthRouter({ db, redis }) {
+export function healthRouter({ prisma, redis }) {
   const router = Router();
 
   router.get('/health', async (_req, res) => {
     // Run both checks at the same time rather than one after the other.
     const [dbStatus, redisStatus] = await Promise.all([
-      probe(() => db.query('SELECT 1')),
+      probe(() => prisma.$queryRaw`SELECT 1`),
       probe(() => redis.ping()),
     ]);
 
