@@ -1,0 +1,16 @@
+{
+  "name": "@okapigo/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Code shared by the API and every app: permissions, and later validation schemas, the pricing pipeline and the policy engine",
+  "type": "module",
+  "exports": {
+    "./permissions": "./src/permissions.js"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "5.1.0"
+  }
+}
