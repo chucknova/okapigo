@@ -1,0 +1,45 @@
+# Local infrastructure for development: PostgreSQL (our database) and Redis (job queue).
+#
+#   pnpm services:up      start both and wait until they are healthy
+#   pnpm services:down    stop them (data is kept in the named volumes below)
+#   pnpm services:reset   stop them AND delete all data, then start fresh
+#
+# Only infrastructure runs in Docker. Our own Node apps run directly on your Mac with
+# `pnpm dev`, so file changes reload instantly and debugging is simple.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: okapigo
+      POSTGRES_PASSWORD: okapigo # local-only password; never used outside your machine
+      POSTGRES_DB: okapigo
+    ports:
+      - '5432:5432'
+    volumes:
+      # A named volume keeps the data when the container is recreated.
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # "healthy" means Postgres is accepting connections, not just that the container started.
+      test: ['CMD-SHELL', 'pg_isready -U okapigo -d okapigo']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    # appendonly = write every change to disk, so queued jobs survive a restart.
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:
+  redis-data:
