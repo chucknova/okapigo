@@ -4,9 +4,9 @@ Booking, payments and operations for Nigerian tour operators. This is the MVP, a
 project that runs one fictional business, **Ìrìn Lagos Tours**, from a guest finding a tour to a
 guide checking that guest in with no signal.
 
-> Status: **session 7 of 20**. Repository, CI, database, staff sign-in with roles and
-> permissions, the tour catalogue, schedules with live availability, the pricing pipeline, and
-> checkout holds with row locks and background jobs (zero oversells, proven by tests).
+> Status: **session 8 of 21**. Staff sign-in with roles, the tour catalogue, schedules with live
+> availability, the pricing pipeline, checkout holds with zero oversells, and bookings with a
+> lifecycle, travellers and a timeline.
 > Learning notes for each session live in [`docs/learning/`](docs/learning/).
 
 ## Requirements
