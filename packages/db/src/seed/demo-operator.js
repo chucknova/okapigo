@@ -18,6 +18,7 @@
 import { createOperatorWithPresetRoles } from '../operators.js';
 import { TOURS } from './tours.js';
 import { syncScheduleDepartures } from '../departures.js';
+import { createPolicy } from '../policies.js';
 import { localDate, stringToDate } from '@okapigo/shared/time';
 
 export const DEFAULT_SLUG = 'irin-lagos-tours';
@@ -96,6 +97,26 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
       });
       scheduleIds.push(created.schedules[0].id);
     }
+
+    // Ìrìn's cancellation policy, as in the PRD: full refund 48 h or more before, 50% from
+    // 24 to 48 h, nothing after (or for no-shows); deposits are non-refundable.
+    const { policy } = await createPolicy(tx, {
+      operatorId: operator.id,
+      name: 'Standard',
+      terms: {
+        rules: [
+          { hoursBefore: 48, refundBasisPoints: 10_000 },
+          { hoursBefore: 24, refundBasisPoints: 5_000 },
+          { hoursBefore: 0, refundBasisPoints: 0 },
+        ],
+        noShowRefundBasisPoints: 0,
+        depositRefundable: false,
+      },
+    });
+    await tx.product.updateMany({
+      where: { operatorId: operator.id },
+      data: { cancellationPolicyId: policy.id },
+    });
 
     return { operator, scheduleIds };
   });

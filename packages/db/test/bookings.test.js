@@ -14,6 +14,7 @@ import {
   releaseHold,
   createHold,
   syncScheduleDepartures,
+  markNoShow,
   BookingError,
 } from '../src/index.js';
 
@@ -216,15 +217,12 @@ describe('the state machine', () => {
       actor: STAFF,
     });
 
+    // Two staff mark it "completed" while two others mark it "no-show", all at once.
+    const args = { operatorId: ctx.operator.id, bookingId: booking.id, actor: STAFF };
     const results = await Promise.all(
       ['completed', 'no_show', 'completed', 'no_show'].map((to) =>
         outcome(
-          setBookingStatus(prisma, {
-            operatorId: ctx.operator.id,
-            bookingId: booking.id,
-            to,
-            actor: STAFF,
-          }),
+          to === 'no_show' ? markNoShow(prisma, args) : setBookingStatus(prisma, { ...args, to }),
         ),
       ),
     );
@@ -296,5 +294,25 @@ describe('travellers (BKG-25)', () => {
       type: 'traveller_updated',
       data: { changed: { name: ['Guest 1', 'Ngozi Obi'], dietaryNeeds: ['vegetarian', 'vegan'] } },
     });
+  });
+});
+
+describe('setBookingStatus', () => {
+  it('refuses statuses that have their own action (they work out refunds)', async () => {
+    const ctx = await setup();
+    const { booking } = await book(ctx);
+    await confirmBooking(prisma, {
+      operatorId: ctx.operator.id,
+      bookingId: booking.id,
+      actor: STAFF,
+    });
+
+    const args = { operatorId: ctx.operator.id, bookingId: booking.id, actor: STAFF };
+    expect(await outcome(setBookingStatus(prisma, { ...args, to: 'no_show' }))).toBe(
+      'NOT_A_MANUAL_STATUS',
+    );
+    expect(await outcome(setBookingStatus(prisma, { ...args, to: 'cancelled' }))).toBe(
+      'NOT_A_MANUAL_STATUS',
+    );
   });
 });

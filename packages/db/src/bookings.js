@@ -12,6 +12,7 @@
  */
 import { generateReference, referencePrefix } from '@okapigo/shared/reference';
 import { createHoldInTx } from './holds.js';
+import { currentPolicyVersion } from './policies.js';
 import { BookingError, transitionBookingInTx } from './booking-lifecycle.js';
 
 const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
@@ -67,9 +68,17 @@ export async function createBooking(prisma, input) {
           now,
         });
 
+        // Pin the cancellation terms in force right now (BKG-26). Later policy changes
+        // create new versions and never affect this booking.
+        const product = await tx.product.findUniqueOrThrow({ where: { id: input.productId } });
+        const policyVersion = product.cancellationPolicyId
+          ? await currentPolicyVersion(tx, product.cancellationPolicyId)
+          : null;
+
         const booking = await tx.booking.create({
           data: {
             operatorId: input.operatorId,
+            policyVersionId: policyVersion?.id ?? null,
             reference: generateReference(prefix),
             departureId: input.departureId,
             productId: input.productId,
@@ -178,7 +187,7 @@ export async function secureBookingInTx(tx, { booking, to, actor, now = new Date
  * @param {string} operatorId
  * @param {string} bookingId
  */
-async function findOwnBooking(tx, operatorId, bookingId) {
+export async function findOwnBooking(tx, operatorId, bookingId) {
   const booking = await tx.booking.findFirst({ where: { id: bookingId, operatorId } });
   if (!booking) throw new BookingError('NOT_FOUND', 'Booking not found.');
   return booking;
@@ -202,14 +211,25 @@ export function confirmBooking(prisma, { operatorId, bookingId, actor, now }) {
   }, TX_OPTIONS);
 }
 
-/** The status changes staff may make directly. (Payments and cancellations have their own flows.) */
-export const MANUAL_STATUSES = /** @type {const} */ (['completed', 'no_show']);
+/**
+ * The status changes staff may make directly. Everything else has its own flow:
+ * payments (session 10), cancelling and no-shows (cancellations.js: they work out refunds).
+ */
+export const MANUAL_STATUSES = /** @type {const} */ (['completed']);
 
 /**
  * @param {import('@prisma/client').PrismaClient} prisma
  * @param {{ operatorId: string, bookingId: string, to: typeof MANUAL_STATUSES[number], actor: Actor }} input
  */
-export function setBookingStatus(prisma, { operatorId, bookingId, to, actor }) {
+export async function setBookingStatus(prisma, { operatorId, bookingId, to, actor }) {
+  // Guard in the FUNCTION, not just the API schema: a no-show or cancellation set here would
+  // skip the refund calculation. (Session 9: a test was doing exactly that, unnoticed.)
+  if (!(/** @type {readonly string[]} */ (MANUAL_STATUSES).includes(to))) {
+    throw new BookingError(
+      'NOT_A_MANUAL_STATUS',
+      `"${to}" has its own action (it works out refunds). Use that instead.`,
+    );
+  }
   return prisma.$transaction(async (tx) => {
     await findOwnBooking(tx, operatorId, bookingId);
     return transitionBookingInTx(tx, { bookingId, to, actor });

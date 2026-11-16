@@ -11,8 +11,15 @@ export {
   listAvailability,
   HORIZON_DAYS,
 } from './departures.js';
-export { createHold, releaseHold, expireDueHolds, HoldError } from './holds.js';
+export { createHold, releaseHold, releaseHoldInTx, expireDueHolds, HoldError } from './holds.js';
 export { BookingError, transitionBookingInTx } from './booking-lifecycle.js';
+export { createPolicy, addPolicyVersion, currentPolicyVersion } from './policies.js';
+export {
+  previewCancellation,
+  cancelBooking,
+  markNoShow,
+  cancelDeparture,
+} from './cancellations.js';
 export {
   createBooking,
   confirmBooking,

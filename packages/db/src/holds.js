@@ -186,36 +186,52 @@ export async function createHoldInTx(tx, input) {
  *
  * @returns {Promise<boolean>} true if THIS call released it; false if it was already ended
  */
-export async function releaseHold(prisma, holdId, { reason, now = new Date() }) {
-  return prisma.$transaction(async (tx) => {
-    /** @type {Array<{ departure_id: string, seats: number }>} */
-    const ended =
-      reason === 'expired'
-        ? await tx.$queryRaw`
-            UPDATE holds SET status = 'expired', ended_at = ${now}
-             WHERE id = ${holdId}::uuid AND status = 'active' AND expires_at <= ${now}
-         RETURNING departure_id, seats`
-        : await tx.$queryRaw`
-            UPDATE holds SET status = 'released', ended_at = ${now}
-             WHERE id = ${holdId}::uuid AND status = 'active'
-         RETURNING departure_id, seats`;
-    if (ended.length === 0) return false; // already ended (or not due): nothing to give back
+export function releaseHold(prisma, holdId, options) {
+  return prisma.$transaction((tx) => releaseHoldInTx(tx, holdId, options), TX_OPTIONS);
+}
 
-    await tx.$executeRaw`
-      UPDATE departures SET seats_held = seats_held - ${ended[0].seats}, updated_at = now()
-       WHERE id = ${ended[0].departure_id}::uuid`;
+/**
+ * releaseHold inside the caller's transaction (used when cancelling a booking or a whole
+ * departure, so everything commits together).
+ *
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ * @param {string} holdId
+ * @param {{ reason: 'released' | 'expired', now?: Date, actor?: import('./booking-lifecycle.js').Actor, bookingEventData?: Record<string, unknown> }} options
+ *   actor / bookingEventData: who released it and why, recorded on the booking's timeline
+ *   (defaults: the system, reason "hold_expired" / "hold_released").
+ */
+export async function releaseHoldInTx(
+  tx,
+  holdId,
+  { reason, now = new Date(), actor, bookingEventData },
+) {
+  /** @type {Array<{ departure_id: string, seats: number }>} */
+  const ended =
+    reason === 'expired'
+      ? await tx.$queryRaw`
+          UPDATE holds SET status = 'expired', ended_at = ${now}
+           WHERE id = ${holdId}::uuid AND status = 'active' AND expires_at <= ${now}
+       RETURNING departure_id, seats`
+      : await tx.$queryRaw`
+          UPDATE holds SET status = 'released', ended_at = ${now}
+           WHERE id = ${holdId}::uuid AND status = 'active'
+       RETURNING departure_id, seats`;
+  if (ended.length === 0) return false; // already ended (or not due): nothing to give back
 
-    const booking = await tx.booking.findUnique({ where: { holdId } });
-    if (booking?.status === 'held') {
-      await transitionBookingInTx(tx, {
-        bookingId: booking.id,
-        to: 'cancelled',
-        actor: { type: 'system' },
-        data: { reason: reason === 'expired' ? 'hold_expired' : 'hold_released' },
-      });
-    }
-    return true;
-  }, TX_OPTIONS);
+  await tx.$executeRaw`
+    UPDATE departures SET seats_held = seats_held - ${ended[0].seats}, updated_at = now()
+     WHERE id = ${ended[0].departure_id}::uuid`;
+
+  const booking = await tx.booking.findUnique({ where: { holdId } });
+  if (booking?.status === 'held') {
+    await transitionBookingInTx(tx, {
+      bookingId: booking.id,
+      to: 'cancelled',
+      actor: actor ?? { type: 'system' },
+      data: bookingEventData ?? { reason: reason === 'expired' ? 'hold_expired' : 'hold_released' },
+    });
+  }
+  return true;
 }
 
 /**

@@ -50,9 +50,10 @@ model Operator {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  roles    Role[]
-  users    User[]
-  products Product[]
+  roles                Role[]
+  users                User[]
+  products             Product[]
+  cancellationPolicies CancellationPolicy[]
 
   @@map("operators")
 }
@@ -231,15 +232,19 @@ model Product {
   exclusions  String[] @default([])
   whatToBring String[] @default([]) @map("what_to_bring")
 
+  // Which cancellation policy applies (BKG-26). New bookings use its LATEST version.
+  cancellationPolicyId String? @map("cancellation_policy_id") @db.Uuid
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  operator        Operator        @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  priceCategories PriceCategory[]
-  addOns          AddOn[]
-  schedules       Schedule[]
-  departures      Departure[]
-  bookings        Booking[]
+  operator           Operator            @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  cancellationPolicy CancellationPolicy? @relation(fields: [cancellationPolicyId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  priceCategories    PriceCategory[]
+  addOns             AddOn[]
+  schedules          Schedule[]
+  departures         Departure[]
+  bookings           Booking[]
 
   @@unique([operatorId, slug])
   // Lets children reference (product id + operator id) together: same tenant-safety
@@ -461,25 +466,31 @@ model HoldAddOn {
 // Booking: one purchase of seats on one departure
 // ---------------------------------------------------------------------------
 model Booking {
-  id             String @id @default(uuid()) @db.Uuid
-  operatorId     String @map("operator_id") @db.Uuid
+  id              String  @id @default(uuid()) @db.Uuid
+  operatorId      String  @map("operator_id") @db.Uuid
   // Human-friendly, unique per operator: "ILT-7K4Q2M". Said over the phone, printed on tickets.
-  reference      String
-  departureId    String @map("departure_id") @db.Uuid
-  productId      String @map("product_id") @db.Uuid
+  reference       String
+  departureId     String  @map("departure_id") @db.Uuid
+  productId       String  @map("product_id") @db.Uuid
   // The checkout hold this booking was created with. Its seats move from held to sold
   // when the booking is confirmed or paid.
-  holdId         String @unique @map("hold_id") @db.Uuid
+  holdId          String  @unique @map("hold_id") @db.Uuid
   // Where it was sold: staff, web, whatsapp, ota (copied from the hold).
-  channel        String
+  channel         String
   // See packages/shared/src/booking-status.js. Changed ONLY by transitionBooking().
-  status         String @default("held")
-  currency       String @default("NGN") @db.Char(3)
+  status          String  @default("held")
+  currency        String  @default("NGN") @db.Char(3)
   // The price snapshot from the hold: what the guest agreed to pay.
-  quote          Json
-  totalKobo      Int    @map("total_kobo")
+  quote           Json
+  totalKobo       Int     @map("total_kobo")
   // Updated by payments (session 10). balance due = totalKobo − amountPaidKobo.
-  amountPaidKobo Int    @default(0) @map("amount_paid_kobo")
+  amountPaidKobo  Int     @default(0) @map("amount_paid_kobo")
+  // The cancellation policy VERSION this booking was sold under (BKG-26). Versions never
+  // change, so this pins the exact terms the guest agreed to.
+  policyVersionId String? @map("policy_version_id") @db.Uuid
+  // Set when cancelled or marked no-show: what the policy (or staff) says goes back.
+  // Paying it out is session 10 (Paystack refunds), which moves the booking to "refunded".
+  refundDueKobo   Int     @default(0) @map("refund_due_kobo")
 
   // THE LEAD BOOKER: the person paying and the contact for the booking. They may or may not
   // also be a traveller (a parent booking for their teenagers, say). Guests don't have
@@ -496,12 +507,13 @@ model Booking {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  departure  Departure      @relation(fields: [departureId, operatorId], references: [id, operatorId], onDelete: Cascade)
-  product    Product        @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
-  hold       Hold           @relation(fields: [holdId], references: [id], onDelete: Cascade)
-  travellers Traveller[]
-  addOns     BookingAddOn[]
-  events     BookingEvent[]
+  departure     Departure                  @relation(fields: [departureId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  product       Product                    @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  hold          Hold                       @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  policyVersion CancellationPolicyVersion? @relation(fields: [policyVersionId], references: [id], onDelete: Cascade)
+  travellers    Traveller[]
+  addOns        BookingAddOn[]
+  events        BookingEvent[]
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -580,4 +592,47 @@ model BookingEvent {
 
   @@index([bookingId, createdAt])
   @@map("booking_events")
+}
+
+// ===========================================================================
+// CANCELLATION POLICIES (BKG-26)
+// ===========================================================================
+//
+//   CancellationPolicy         "Standard" (the thing products point at)
+//   CancellationPolicyVersion  v1, v2, … the actual rules. IMMUTABLE: a database trigger
+//                              refuses any UPDATE. Changing the rules = adding a version.
+//
+// A booking points at the version it was sold under, so changing the policy tomorrow never
+// changes what an existing guest agreed to. The engine is packages/shared/src/cancellation.js.
+
+model CancellationPolicy {
+  id         String   @id @default(uuid()) @db.Uuid
+  operatorId String   @map("operator_id") @db.Uuid
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  operator Operator                    @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  versions CancellationPolicyVersion[]
+  products Product[]
+
+  @@unique([operatorId, name])
+  @@unique([id, operatorId])
+  @@map("cancellation_policies")
+}
+
+model CancellationPolicyVersion {
+  id                      String   @id @default(uuid()) @db.Uuid
+  policyId                String   @map("policy_id") @db.Uuid
+  version                 Int
+  // [{ hoursBefore, refundBasisPoints }], validated by PolicyTermsSchema.
+  rules                   Json
+  noShowRefundBasisPoints Int      @map("no_show_refund_basis_points")
+  depositRefundable       Boolean  @map("deposit_refundable")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  policy   CancellationPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@unique([policyId, version])
+  @@map("cancellation_policy_versions")
 }
