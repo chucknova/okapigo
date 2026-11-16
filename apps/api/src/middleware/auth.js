@@ -9,7 +9,7 @@
  * by default ("default deny"). Each route then adds requirePermission for its module.
  *
  * After requireAuth, handlers can read `req.auth`:
- *   { sessionId, userId, operatorId, roleKey, permissions }
+ *   { sessionId, userId, operatorId, timeZone, roleKey, permissions }
  * and MUST scope every query by req.auth.operatorId, which is what keeps one tour business
  * from ever seeing another's data.
  */
@@ -21,6 +21,7 @@ import { HttpError } from './errors.js';
  *   sessionId: string,
  *   userId: string,
  *   operatorId: string,
+ *   timeZone: string,
  *   roleKey: string,
  *   permissions: Record<string, import('@okapigo/shared/permissions').AccessLevel>,
  * }} AuthContext
@@ -48,6 +49,8 @@ export function requireAuth(sessions) {
       sessionId: session.id,
       userId: session.user.id,
       operatorId: session.user.operatorId,
+      // The operator's IANA time zone ("Africa/Lagos"): schedule times are local to it.
+      timeZone: session.user.operator.timeZone,
       roleKey: session.user.role.key,
       permissions: /** @type {any} */ (session.user.role.permissions),
     };

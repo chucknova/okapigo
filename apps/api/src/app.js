@@ -18,6 +18,7 @@ import { meRouter } from './routes/me.js';
 import { rolesRouter } from './routes/roles.js';
 import { staffRouter } from './routes/staff.js';
 import { productsRouter } from './routes/products.js';
+import { schedulesRouter } from './routes/schedules.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
 import { createOtpService } from './auth/otp-service.js';
@@ -82,7 +83,8 @@ export function createApp({ logger, prisma, redis, otpSender, authSecret }) {
   api.use(rolesRouter({ prisma }));
   api.use(staffRouter({ prisma, sessions }));
   api.use(productsRouter({ prisma }));
-  // Future sessions mount more routers here (departures, bookings, payments, ...).
+  api.use(schedulesRouter({ prisma }));
+  // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 
   // --- Errors (must come after all routes) -----------------------------------

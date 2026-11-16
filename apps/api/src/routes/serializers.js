@@ -6,6 +6,7 @@
  * sessions: payment references, internal notes) and their shape would change every time a
  * column is added. A serializer is an explicit whitelist: only these fields leave the API.
  */
+import { dateToString, localDate, localTime } from '@okapigo/shared/time';
 
 /**
  * @param {import('@prisma/client').User & { role: import('@prisma/client').Role }} user
@@ -86,5 +87,44 @@ export function serializeProduct(p) {
     priceCategories: p.priceCategories?.map(serializePriceCategory) ?? [],
     addOns: p.addOns?.map(serializeAddOn) ?? [],
     updatedAt: p.updatedAt,
+  };
+}
+
+/** @param {import('@prisma/client').Schedule} s */
+export function serializeSchedule(s) {
+  return {
+    id: s.id,
+    productId: s.productId,
+    // @db.Date columns come back as midnight-UTC Dates; send them as plain 'YYYY-MM-DD'.
+    startDate: dateToString(s.startDate),
+    endDate: s.endDate ? dateToString(s.endDate) : null,
+    daysOfWeek: s.daysOfWeek,
+    times: s.times,
+    capacity: s.capacity,
+    skipDates: s.skipDates.map(dateToString),
+    isActive: s.isActive,
+  };
+}
+
+/**
+ * Departures carry both the exact instant (UTC, for machines) and the local date and time
+ * (for people), so clients never have to do time-zone maths themselves.
+ * @param {import('@prisma/client').Departure} d
+ * @param {string} timeZone
+ */
+export function serializeDeparture(d, timeZone) {
+  return {
+    id: d.id,
+    productId: d.productId,
+    scheduleId: d.scheduleId,
+    startsAt: d.startsAt,
+    endsAt: d.endsAt,
+    localDate: localDate(d.startsAt, timeZone),
+    localTime: localTime(d.startsAt, timeZone),
+    capacity: d.capacity,
+    seatsSold: d.seatsSold,
+    seatsHeld: d.seatsHeld,
+    seatsAvailable: d.capacity - d.seatsSold - d.seatsHeld,
+    status: d.status,
   };
 }
