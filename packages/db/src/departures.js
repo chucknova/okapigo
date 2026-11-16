@@ -92,8 +92,15 @@ export async function syncScheduleDepartures(prisma, scheduleId, options = {}) {
     //    are inside the DELETE itself, so even if a hold lands on one of these departures a
     //    split second after we read it, the delete simply skips it.
     const stale = existing.filter((d) => !desiredTimes.has(d.startsAt.getTime()));
+    //    Also never remove a departure that has ANY booking, even a cancelled one: that's
+    //    history, and bookings cascade from departures (see the schema's DELETE RULES).
     const { count: removed } = await tx.departure.deleteMany({
-      where: { id: { in: stale.map((d) => d.id) }, seatsSold: 0, seatsHeld: 0 },
+      where: {
+        id: { in: stale.map((d) => d.id) },
+        seatsSold: 0,
+        seatsHeld: 0,
+        bookings: { none: {} },
+      },
     });
     /** Departures a person needs to look at, with the reason. */
     const needsAttention = stale

@@ -239,6 +239,7 @@ model Product {
   addOns          AddOn[]
   schedules       Schedule[]
   departures      Departure[]
+  bookings        Booking[]
 
   @@unique([operatorId, slug])
   // Lets children reference (product id + operator id) together: same tenant-safety
@@ -295,8 +296,9 @@ model AddOn {
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  product   Product     @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
-  holdItems HoldAddOn[]
+  product       Product        @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  holdItems     HoldAddOn[]
+  bookingAddOns BookingAddOn[]
 
   @@map("add_ons")
 }
@@ -367,10 +369,13 @@ model Departure {
   // SetNull: if a schedule row were ever deleted, its departures (and their bookings) stay.
   schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   holds    Hold[]
+  bookings Booking[]
 
   // A product can't have two departures at the same moment. This also makes generating
   // departures idempotent: running the generator twice can't create duplicates.
   @@unique([productId, startsAt])
+  // Lets bookings reference (departure id + operator id) together (tenant safety).
+  @@unique([id, operatorId])
   // The availability query: "departures of product X between these dates".
   @@index([operatorId, startsAt])
   @@map("departures")
@@ -412,6 +417,7 @@ model Hold {
 
   departure Departure   @relation(fields: [departureId], references: [id], onDelete: Cascade)
   addOns    HoldAddOn[]
+  booking   Booking?
 
   // The sweeper's query: "active holds that have passed their expiry".
   @@index([status, expiresAt])
@@ -439,4 +445,139 @@ model HoldAddOn {
   // A composite PRIMARY key: one row per (hold, add-on).
   @@id([holdId, addOnId])
   @@map("hold_add_ons")
+}
+
+// ===========================================================================
+// BOOKINGS (BKG-23, BKG-25)
+// ===========================================================================
+//
+// DELETE RULES. Session 7 taught us that when two cascade paths reach a table, anything but
+// CASCADE can break deleting a whole operator (sandbox cleanup). So every link below
+// cascades. That's only safe because the app NEVER deletes departures, holds or products
+// that have bookings: departures are only removed by the schedule sync, which skips any
+// departure with bookings; holds and products are never deleted at all.
+
+// ---------------------------------------------------------------------------
+// Booking: one purchase of seats on one departure
+// ---------------------------------------------------------------------------
+model Booking {
+  id             String @id @default(uuid()) @db.Uuid
+  operatorId     String @map("operator_id") @db.Uuid
+  // Human-friendly, unique per operator: "ILT-7K4Q2M". Said over the phone, printed on tickets.
+  reference      String
+  departureId    String @map("departure_id") @db.Uuid
+  productId      String @map("product_id") @db.Uuid
+  // The checkout hold this booking was created with. Its seats move from held to sold
+  // when the booking is confirmed or paid.
+  holdId         String @unique @map("hold_id") @db.Uuid
+  // Where it was sold: staff, web, whatsapp, ota (copied from the hold).
+  channel        String
+  // See packages/shared/src/booking-status.js. Changed ONLY by transitionBooking().
+  status         String @default("held")
+  currency       String @default("NGN") @db.Char(3)
+  // The price snapshot from the hold: what the guest agreed to pay.
+  quote          Json
+  totalKobo      Int    @map("total_kobo")
+  // Updated by payments (session 10). balance due = totalKobo − amountPaidKobo.
+  amountPaidKobo Int    @default(0) @map("amount_paid_kobo")
+
+  // THE LEAD BOOKER: the person paying and the contact for the booking. They may or may not
+  // also be a traveller (a parent booking for their teenagers, say). Guests don't have
+  // accounts in the MVP, so these live on the booking.
+  leadName         String   @map("lead_name")
+  leadEmail        String?  @map("lead_email")
+  leadPhone        String?  @map("lead_phone")
+  // Consent capture (PRD privacy): when they accepted the booking terms, and whether they
+  // agreed to marketing messages.
+  termsAcceptedAt  DateTime @map("terms_accepted_at") @db.Timestamptz(3)
+  marketingConsent Boolean  @default(false) @map("marketing_consent")
+  notes            String   @default("")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  departure  Departure      @relation(fields: [departureId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  product    Product        @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  hold       Hold           @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  travellers Traveller[]
+  addOns     BookingAddOn[]
+  events     BookingEvent[]
+
+  @@unique([operatorId, reference])
+  @@index([operatorId, status])
+  @@index([departureId])
+  @@map("bookings")
+}
+
+// ---------------------------------------------------------------------------
+// Traveller: one person on a booking (BKG-25)
+// ---------------------------------------------------------------------------
+// Feeds manifests and check-in (session 15) and age-based prices.
+model Traveller {
+  id            String    @id @default(uuid()) @db.Uuid
+  operatorId    String    @map("operator_id") @db.Uuid
+  bookingId     String    @map("booking_id") @db.Uuid
+  // Order as entered (1, 2, 3…), so lists always show travellers the same way.
+  position      Int
+  name          String
+  age           Int
+  // The price category they were charged as ("adult", "child", "infant").
+  categoryKey   String    @map("category_key")
+  // Free text, shown on the manifest: "vegetarian", "nut allergy"…
+  dietaryNeeds  String    @default("") @map("dietary_needs")
+  email         String?
+  phone         String?
+  // pending → present / late / no_show (check-in, session 15)
+  checkInStatus String    @default("pending") @map("check_in_status")
+  checkedInAt   DateTime? @map("checked_in_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, position])
+  @@map("travellers")
+}
+
+// ---------------------------------------------------------------------------
+// BookingAddOn: add-ons bought on a booking (counted against stock while seats are sold)
+// ---------------------------------------------------------------------------
+model BookingAddOn {
+  bookingId String @map("booking_id") @db.Uuid
+  addOnId   String @map("add_on_id") @db.Uuid
+  quantity  Int
+  // Price per unit at booking time (part of the snapshot, kept for receipts).
+  unitKobo  Int    @map("unit_kobo")
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  addOn   AddOn   @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+
+  @@id([bookingId, addOnId])
+  @@map("booking_add_ons")
+}
+
+// ---------------------------------------------------------------------------
+// BookingEvent: the booking's timeline (BKG-23). APPEND-ONLY: never updated or deleted.
+// ---------------------------------------------------------------------------
+// Every status change, and other notable moments, with who did it and when. Answers
+// "what happened to this booking?" when a guest calls.
+model BookingEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  operatorId  String   @map("operator_id") @db.Uuid
+  bookingId   String   @map("booking_id") @db.Uuid
+  // "created", "status_changed", "traveller_updated", "note"…
+  type        String
+  fromStatus  String?  @map("from_status")
+  toStatus    String?  @map("to_status")
+  // Who did it: a staff "user", the "guest", or the "system" (e.g. the expiry job).
+  actorType   String   @map("actor_type")
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  // Extra detail, e.g. { reason: "hold_expired" } or { changed: { name: [old, new] } }.
+  data        Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, createdAt])
+  @@map("booking_events")
 }

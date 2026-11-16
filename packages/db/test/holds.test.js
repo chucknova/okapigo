@@ -119,7 +119,8 @@ describe('placing and releasing holds', () => {
     const old = await hold(ctx, { seats: 1, now: new Date(Date.now() - 20 * 60_000) }); // made 20 min ago
     const fresh = await hold(ctx, { seats: 1 });
 
-    expect(await expireDueHolds(prisma)).toBeGreaterThanOrEqual(1);
+    // Scoped to this test's operator so it can't touch other tests' holds (see expireDueHolds).
+    expect(await expireDueHolds(prisma, { operatorId: ctx.operator.id })).toBe(1);
     const statuses = await prisma.hold.findMany({ where: { id: { in: [old.id, fresh.id] } } });
     expect(Object.fromEntries(statuses.map((s) => [s.id, s.status]))).toEqual({
       [old.id]: 'expired',

@@ -27,6 +27,9 @@
  * seats are given back once, never twice.
  */
 
+import { SEAT_CONSUMING_STATUSES } from '@okapigo/shared/booking-status';
+import { transitionBookingInTx } from './booking-lifecycle.js';
+
 /** A hold that can't be placed, with a machine-readable code (the API sends 409/404). */
 export class HoldError extends Error {
   /**
@@ -61,11 +64,22 @@ const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
  *   now?: Date,
  * }} input
  */
-export async function createHold(prisma, input) {
+export function createHold(prisma, input) {
+  return prisma.$transaction((tx) => createHoldInTx(tx, input), TX_OPTIONS);
+}
+
+/**
+ * The same as createHold, but inside a transaction the CALLER started, so a booking and its
+ * hold are created together, all-or-nothing (see bookings.js). The lock is held until the
+ * caller's transaction commits.
+ *
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ * @param {Parameters<typeof createHold>[1]} input
+ */
+export async function createHoldInTx(tx, input) {
   const now = input.now ?? new Date();
   const addOns = input.addOns ?? [];
-
-  return prisma.$transaction(async (tx) => {
+  {
     // 1. LOCK the departure row. Concurrent holds for this departure wait here.
     //    ($queryRaw because Prisma's query builder has no "FOR UPDATE". The ${…} values are
     //    sent as parameters, never pasted into the SQL, so this is safe from SQL injection.)
@@ -94,8 +108,9 @@ export async function createHold(prisma, input) {
       );
     }
 
-    // 3. CHECK add-on stock: stock per departure minus what active holds already claim.
-    //    (Bookings will add their own claims in session 8.)
+    // 3. CHECK add-on stock: stock per departure minus what is already claimed, by
+    //    ACTIVE HOLDS plus bookings whose seats are SOLD. (A booking still in "held" is
+    //    counted through its hold, so it isn't counted twice.)
     if (addOns.length > 0) {
       const ids = addOns.map((a) => a.addOnId);
       const known = await tx.addOn.findMany({
@@ -106,11 +121,17 @@ export async function createHold(prisma, input) {
       }
       /** @type {Array<{ add_on_id: string, used: bigint }>} */
       const usage = await tx.$queryRaw`
-        SELECT ha.add_on_id, SUM(ha.quantity) AS used
-          FROM hold_add_ons ha
-          JOIN holds h ON h.id = ha.hold_id
-         WHERE h.departure_id = ${input.departureId}::uuid AND h.status = 'active'
-         GROUP BY ha.add_on_id`;
+        SELECT add_on_id, SUM(quantity) AS used FROM (
+          SELECT ha.add_on_id, ha.quantity
+            FROM hold_add_ons ha JOIN holds h ON h.id = ha.hold_id
+           WHERE h.departure_id = ${input.departureId}::uuid AND h.status = 'active'
+          UNION ALL
+          SELECT ba.add_on_id, ba.quantity
+            FROM booking_add_ons ba JOIN bookings b ON b.id = ba.booking_id
+           WHERE b.departure_id = ${input.departureId}::uuid
+             AND b.status = ANY(${[...SEAT_CONSUMING_STATUSES]}::text[])
+        ) claims
+        GROUP BY add_on_id`;
       // SUM() returns a BigInt from PostgreSQL; Number() is safe at these sizes.
       const used = new Map(usage.map((u) => [u.add_on_id, Number(u.used)]));
       for (const want of addOns) {
@@ -147,8 +168,8 @@ export async function createHold(prisma, input) {
       },
       include: { addOns: true },
     });
-    // 5. COMMIT happens when this function returns, and the lock is released.
-  }, TX_OPTIONS);
+    // 5. COMMIT happens when the surrounding transaction ends, releasing the lock.
+  }
 }
 
 /**
@@ -159,6 +180,10 @@ export async function createHold(prisma, input) {
  * @param {{ reason: 'released' | 'expired', now?: Date }} options
  *   'expired' only succeeds if the hold really has passed its expiry time, so a job that
  *   fires a little early can't cut a guest's checkout short.
+ * If the hold belongs to a booking that is still "held" (never paid or confirmed), that
+ * booking is cancelled in the SAME transaction, with a timeline event. Seats and booking
+ * can never disagree.
+ *
  * @returns {Promise<boolean>} true if THIS call released it; false if it was already ended
  */
 export async function releaseHold(prisma, holdId, { reason, now = new Date() }) {
@@ -179,6 +204,16 @@ export async function releaseHold(prisma, holdId, { reason, now = new Date() }) 
     await tx.$executeRaw`
       UPDATE departures SET seats_held = seats_held - ${ended[0].seats}, updated_at = now()
        WHERE id = ${ended[0].departure_id}::uuid`;
+
+    const booking = await tx.booking.findUnique({ where: { holdId } });
+    if (booking?.status === 'held') {
+      await transitionBookingInTx(tx, {
+        bookingId: booking.id,
+        to: 'cancelled',
+        actor: { type: 'system' },
+        data: { reason: reason === 'expired' ? 'hold_expired' : 'hold_released' },
+      });
+    }
     return true;
   }, TX_OPTIONS);
 }
@@ -188,12 +223,15 @@ export async function releaseHold(prisma, holdId, { reason, now = new Date() }) 
  * in case an individual expiry job was lost (e.g. Redis restarted without saving).
  *
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ now?: Date, limit?: number }} [options]
+ * @param {{ now?: Date, limit?: number, operatorId?: string }} [options]
+ *   operatorId: only sweep one operator. The real job sweeps everyone; TESTS pass their own
+ *   operator so they never reach into another test's holds running in parallel (an
+ *   unscoped sweep in one test was stealing another test's hold: a flaky failure).
  * @returns {Promise<number>} how many holds this run expired
  */
-export async function expireDueHolds(prisma, { now = new Date(), limit = 500 } = {}) {
+export async function expireDueHolds(prisma, { now = new Date(), limit = 500, operatorId } = {}) {
   const due = await prisma.hold.findMany({
-    where: { status: 'active', expiresAt: { lte: now } },
+    where: { status: 'active', expiresAt: { lte: now }, operatorId },
     select: { id: true },
     take: limit,
   });
