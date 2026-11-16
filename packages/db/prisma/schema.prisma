@@ -44,6 +44,8 @@ model Operator {
   // Shape: { tax: { name, basisPoints, inclusive } | null, fees: [{ name, type, ... }] }
   // validated by OperatorPricingSchema. Default: prices INCLUDE 7.5% VAT, no extra fees.
   // (Illustrative: not tax advice.)
+  // How long checkout holds keep seats while a guest pays (INV-23), in minutes.
+  holdMinutes  Int      @default(15) @map("hold_minutes")
   pricing      Json     @default("{\"tax\": {\"name\": \"VAT\", \"basisPoints\": 750, \"inclusive\": true}, \"fees\": []}")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -112,8 +114,11 @@ model User {
   // (id, operatorId). This makes it IMPOSSIBLE, at the database level, to give a Lagos
   // Tours staff member a role that belongs to another operator. A bug in our code can't
   // bypass it, which is the point of putting the rule in the database.
-  // onDelete: Restrict = you can't delete a role while staff still hold it.
-  role Role @relation(fields: [roleId, operatorId], references: [id, operatorId], onDelete: Restrict)
+  // onDelete: NoAction = you can't delete a role while staff still hold it. (NoAction is
+  // checked at the end of each statement rather than immediately like Restrict. Deleting a
+  // whole operator, which cascades to both roles and users, is covered by a test in
+  // packages/db/test/schema.test.js. See HoldAddOn.addOn for why that matters.)
+  role Role @relation(fields: [roleId, operatorId], references: [id, operatorId], onDelete: NoAction)
 
   sessions Session[]
 
@@ -290,7 +295,8 @@ model AddOn {
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  product Product @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  product   Product     @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  holdItems HoldAddOn[]
 
   @@map("add_ons")
 }
@@ -360,6 +366,7 @@ model Departure {
   product  Product   @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
   // SetNull: if a schedule row were ever deleted, its departures (and their bookings) stay.
   schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  holds    Hold[]
 
   // A product can't have two departures at the same moment. This also makes generating
   // departures idempotent: running the generator twice can't create duplicates.
@@ -367,4 +374,69 @@ model Departure {
   // The availability query: "departures of product X between these dates".
   @@index([operatorId, startsAt])
   @@map("departures")
+}
+
+// ===========================================================================
+// CHECKOUT HOLDS (INV-23)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Hold: seats (and add-ons) set aside while a guest pays
+// ---------------------------------------------------------------------------
+// Created by createHold() in src/holds.js, which LOCKS the departure row while it checks
+// and claims seats. Released exactly once, by the guest/staff, by its expiry job, or by the
+// sweeper, whichever comes first. Session 8 turns a paid hold into a booking ("converted").
+model Hold {
+  id          String    @id @default(uuid()) @db.Uuid
+  operatorId  String    @map("operator_id") @db.Uuid
+  departureId String    @map("departure_id") @db.Uuid
+  // Every traveller takes a seat, infants included (a boat seat and life jacket each).
+  seats       Int
+  // active    → seats are counted in departures.seats_held
+  // released  → given back early (guest left / staff cancelled)
+  // expired   → given back because time ran out
+  // converted → became a booking (session 8); seats move from "held" to "sold"
+  status      String    @default("active")
+  // Where the hold came from: staff, web, whatsapp, ota. Bookings inherit it (BKG-23).
+  channel     String
+  // The travellers as entered ([{ age }] or [{ categoryKey }]) and the PRICE SNAPSHOT: the
+  // full priced basket at the moment of holding. The guest pays what they were shown,
+  // even if the operator changes prices during checkout.
+  travellers  Json
+  quote       Json
+  totalKobo   Int       @map("total_kobo")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  // When it stopped being active (released, expired or converted).
+  endedAt     DateTime? @map("ended_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  departure Departure   @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  addOns    HoldAddOn[]
+
+  // The sweeper's query: "active holds that have passed their expiry".
+  @@index([status, expiresAt])
+  @@index([departureId, status])
+  @@map("holds")
+}
+
+// ---------------------------------------------------------------------------
+// HoldAddOn: add-ons claimed by a hold (they have limited stock per departure too)
+// ---------------------------------------------------------------------------
+model HoldAddOn {
+  holdId   String @map("hold_id") @db.Uuid
+  addOnId  String @map("add_on_id") @db.Uuid
+  quantity Int
+
+  hold  Hold  @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  // Cascade. Two delete paths reach this table when an operator is deleted
+  // (operator → product → add-on, and operator → departure → hold → here), and Postgres
+  // runs each cascade as its own internal statement. Restrict AND NoAction both fired
+  // before the second path had removed these rows, so deleting a whole operator (sandbox
+  // cleanup) failed. The app never hard-deletes add-ons (they're archived), so in practice
+  // this cascade only runs when a whole operator is deleted. Found in session 7.
+  addOn AddOn @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+
+  // A composite PRIMARY key: one row per (hold, add-on).
+  @@id([holdId, addOnId])
+  @@map("hold_add_ons")
 }

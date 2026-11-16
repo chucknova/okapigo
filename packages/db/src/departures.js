@@ -160,3 +160,43 @@ export async function listAvailability(
     seatsAvailable: d.capacity - d.seatsSold - d.seatsHeld,
   }));
 }
+
+/**
+ * Rolls every active schedule's window forward (run daily by the workers app). Thanks to
+ * syncScheduleDepartures being idempotent, running it more often is harmless.
+ *
+ * Built to keep going: this loops over EVERY operator's schedules, so
+ *   - a schedule deleted while we're running (e.g. a visitor sandbox being cleaned up)
+ *     is simply skipped. That deletion can surface as several different errors ("not
+ *     found", or a foreign-key error when a departure is inserted for a product that just
+ *     vanished), so rather than guess from error codes we simply ASK: does the schedule
+ *     still exist? If not, skip it. And
+ *   - any other failure on one schedule is recorded and the loop carries on, so one bad
+ *     schedule can't stop every other business's window from moving forward.
+ * The caller decides what to do about failures (the worker fails the job so it retries).
+ *
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ now?: Date }} [options]
+ */
+export async function extendAllSchedules(prisma, { now = new Date() } = {}) {
+  const schedules = await prisma.schedule.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  let created = 0;
+  let skipped = 0;
+  /** @type {Array<{ scheduleId: string, error: string }>} */
+  const failed = [];
+
+  for (const { id } of schedules) {
+    try {
+      created += (await syncScheduleDepartures(prisma, id, { now })).created;
+    } catch (err) {
+      const stillExists = await prisma.schedule.count({ where: { id } });
+      if (stillExists === 0)
+        skipped += 1; // deleted mid-run: not our problem any more
+      else failed.push({ scheduleId: id, error: String(/** @type {any} */ (err)?.message ?? err) });
+    }
+  }
+  return { schedules: schedules.length, created, skipped, failed };
+}
