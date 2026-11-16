@@ -1,0 +1,72 @@
+# Continuous Integration: runs on every push and pull request.
+# If any step fails, GitHub marks the commit with a red ✗, so broken code is caught
+# before it reaches the demo. The PRD asks for "tests and CI on every change".
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# If you push twice quickly, cancel the older run instead of running both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # "Service containers": GitHub starts real Postgres and Redis next to the job,
+    # just like docker-compose.yml does on your Mac, so integration tests run for real.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: okapigo
+          POSTGRES_PASSWORD: okapigo
+          POSTGRES_DB: okapigo
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U okapigo -d okapigo"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://okapigo:okapigo@localhost:5432/okapigo
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs the pnpm version named in package.json's "packageManager" field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm # reuse downloaded packages between runs = faster CI
+
+      # --frozen-lockfile: fail if package.json and pnpm-lock.yaml disagree, so CI
+      # installs exactly the versions you tested locally.
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Test
+        run: pnpm test
+
+      # Dependency scanning (PRD: Security). Fails on known high/critical vulnerabilities
+      # in packages that ship to production.
+      - name: Audit dependencies
+        run: pnpm audit --prod --audit-level high
