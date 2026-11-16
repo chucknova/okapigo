@@ -150,6 +150,9 @@ Then add a field yourself and watch the workflow: add `logoUrl String? @map("log
 
 ## 6. Gotchas
 
+- **Correction (found in session 3): `migrate reset` doesn't seed in Prisma 7.** Prisma 6 ran
+  the seed automatically after a reset; Prisma 7 doesn't. So your first `pnpm db:reset` left an
+  empty database. The `reset` script now runs `prisma migrate reset --force && prisma db seed`.
 - **`pnpm db:reset` wipes your local database.** Prisma refuses to let an AI agent run it, a
   safety guard, so you run it yourself. I used `migrate deploy` + `seed` instead, which only add.
 - **Stale client after schema changes.** `migrate dev` regenerates the Prisma client;

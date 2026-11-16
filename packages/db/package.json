@@ -11,7 +11,7 @@
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
-    "reset": "prisma migrate reset --force",
+    "reset": "prisma migrate reset --force && prisma db seed",
     "seed": "prisma db seed",
     "studio": "prisma studio",
     "test": "vitest run",
