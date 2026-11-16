@@ -9,5 +9,7 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 export default defineConfig({
   test: {
     include: ['test/**/*.test.js'],
+    // Removes test operators left behind by earlier failed runs (see the file for details).
+    globalSetup: ['./test-support/global-setup.js'],
   },
 });

@@ -10,6 +10,8 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 export default defineConfig({
   test: {
     include: ['test/**/*.test.js'],
+    // Removes test operators left behind by earlier failed runs (see the file for details).
+    globalSetup: ['../../packages/db/test-support/global-setup.js'],
     // Keep test output clean: the app logger is created with level "silent" in tests.
   },
 });
