@@ -55,7 +55,13 @@ export function createQuoteService({ prisma }) {
           fees: settings.data.fees,
           tax: settings.data.tax,
         });
-        return { product: { id: product.id, title: product.title }, quote };
+        // priceCategories: the active categories used, so callers (bookings) can record
+        // which category each traveller was charged as.
+        return {
+          product: { id: product.id, title: product.title },
+          quote,
+          priceCategories: product.priceCategories,
+        };
       } catch (err) {
         // "No price for age 1" etc. is a problem with the request → 400 with the code.
         if (err instanceof PricingError) throw new HttpError(400, err.code, err.message);

@@ -21,6 +21,7 @@ import { productsRouter } from './routes/products.js';
 import { schedulesRouter } from './routes/schedules.js';
 import { quotesRouter } from './routes/quotes.js';
 import { holdsRouter } from './routes/holds.js';
+import { bookingsRouter } from './routes/bookings.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -91,6 +92,7 @@ export function createApp({ logger, prisma, redis, otpSender, authSecret, jobs }
   api.use(schedulesRouter({ prisma }));
   api.use(quotesRouter({ quotes }));
   api.use(holdsRouter({ prisma, quotes, jobs }));
+  api.use(bookingsRouter({ prisma, quotes, jobs }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

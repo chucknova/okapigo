@@ -146,3 +146,81 @@ export function serializeHold(h) {
     endedAt: h.endedAt,
   };
 }
+
+/**
+ * A booking for lists: enough to show a row, without travellers and timeline.
+ * @param {import('@prisma/client').Booking & { departure?: import('@prisma/client').Departure, product?: import('@prisma/client').Product, _count?: { travellers: number } }} b
+ * @param {string} timeZone
+ */
+export function serializeBookingSummary(b, timeZone) {
+  return {
+    id: b.id,
+    reference: b.reference,
+    status: b.status,
+    channel: b.channel,
+    totalKobo: b.totalKobo,
+    amountPaidKobo: b.amountPaidKobo,
+    // Derived, never stored: it can't disagree with the two numbers it comes from.
+    balanceDueKobo: b.totalKobo - b.amountPaidKobo,
+    lead: { name: b.leadName, email: b.leadEmail, phone: b.leadPhone },
+    product: b.product ? { id: b.product.id, title: b.product.title } : undefined,
+    departure: b.departure
+      ? {
+          id: b.departure.id,
+          startsAt: b.departure.startsAt,
+          localDate: localDate(b.departure.startsAt, timeZone),
+          localTime: localTime(b.departure.startsAt, timeZone),
+        }
+      : undefined,
+    travellerCount: b._count?.travellers,
+    createdAt: b.createdAt,
+  };
+}
+
+/**
+ * A booking with everything: travellers, add-ons, the hold's expiry and the timeline.
+ * @param {any} b booking with travellers, addOns (with addOn), events, hold, departure, product
+ * @param {string} timeZone
+ */
+export function serializeBooking(b, timeZone) {
+  return {
+    ...serializeBookingSummary(b, timeZone),
+    lead: {
+      name: b.leadName,
+      email: b.leadEmail,
+      phone: b.leadPhone,
+      marketingConsent: b.marketingConsent,
+      termsAcceptedAt: b.termsAcceptedAt,
+    },
+    notes: b.notes,
+    quote: b.quote,
+    // While "held", the guest must pay or be confirmed before this time.
+    holdExpiresAt: b.status === 'held' ? b.hold?.expiresAt : null,
+    travellerCount: b.travellers.length,
+    travellers: b.travellers.map((t) => ({
+      id: t.id,
+      position: t.position,
+      name: t.name,
+      age: t.age,
+      categoryKey: t.categoryKey,
+      dietaryNeeds: t.dietaryNeeds,
+      email: t.email,
+      phone: t.phone,
+      checkInStatus: t.checkInStatus,
+    })),
+    addOns: b.addOns.map((a) => ({
+      addOnId: a.addOnId,
+      name: a.addOn?.name,
+      quantity: a.quantity,
+      unitKobo: a.unitKobo,
+    })),
+    timeline: b.events.map((e) => ({
+      type: e.type,
+      fromStatus: e.fromStatus,
+      toStatus: e.toStatus,
+      actor: { type: e.actorType, userId: e.actorUserId },
+      data: e.data,
+      at: e.createdAt,
+    })),
+  };
+}
