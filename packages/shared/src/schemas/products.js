@@ -64,6 +64,8 @@ const productFields = {
   inclusions: z.array(text(200)).max(30),
   exclusions: z.array(text(200)).max(30),
   whatToBring: z.array(text(200)).max(30),
+  // Which cancellation policy applies (BKG-26); null = none.
+  cancellationPolicyId: z.uuid().nullable(),
 };
 
 /** POST /api/products. Content lists default to empty; new products start as drafts. */
@@ -78,6 +80,7 @@ export const CreateProductSchema = z.object({
   inclusions: productFields.inclusions.default([]),
   exclusions: productFields.exclusions.default([]),
   whatToBring: productFields.whatToBring.default([]),
+  cancellationPolicyId: productFields.cancellationPolicyId.default(null),
 });
 
 /** PATCH /api/products/:id. Any subset of fields; lists are replaced as a whole. */

@@ -20,7 +20,9 @@
     "./schemas/pricing": "./src/schemas/pricing.js",
     "./booking-status": "./src/booking-status.js",
     "./reference": "./src/reference.js",
-    "./schemas/bookings": "./src/schemas/bookings.js"
+    "./schemas/bookings": "./src/schemas/bookings.js",
+    "./cancellation": "./src/cancellation.js",
+    "./schemas/cancellation": "./src/schemas/cancellation.js"
   },
   "scripts": {
     "test": "vitest run"

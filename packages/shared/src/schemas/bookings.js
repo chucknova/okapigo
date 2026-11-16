@@ -81,8 +81,11 @@ export const UpdateTravellerSchema = z
   .partial()
   .refine((b) => Object.keys(b).length > 0, 'Send at least one field to change');
 
-/** POST /api/bookings/:id/status: the moves staff make directly. */
-export const SetBookingStatusSchema = z.object({ status: z.enum(['completed', 'no_show']) });
+/**
+ * POST /api/bookings/:id/status: the move staff make directly. (Cancelling and no-shows have
+ * their own endpoints, because they work out refunds.)
+ */
+export const SetBookingStatusSchema = z.object({ status: z.enum(['completed']) });
 
 /** GET /api/bookings?status=&departureId=&q=&page= */
 export const ListBookingsQuerySchema = z.object({
