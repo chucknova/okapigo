@@ -11,3 +11,6 @@ allowBuilds:
   # Prisma's install scripts download the query engine and schema tools for your platform.
   '@prisma/engines': true
   prisma: true
+  # BullMQ's optional native speed-up for message encoding. The plain-JavaScript fallback is
+  # fine at our scale, so we don't run its build script.
+  msgpackr-extract: false

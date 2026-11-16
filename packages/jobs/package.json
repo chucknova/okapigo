@@ -1,0 +1,14 @@
+{
+  "name": "@okapigo/jobs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Background job queues (BullMQ on Redis): queue names and the helpers that enqueue jobs",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "bullmq": "6.7.6",
+    "ioredis": "6.0.0"
+  }
+}
