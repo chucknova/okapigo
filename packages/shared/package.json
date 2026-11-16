@@ -15,7 +15,9 @@
     "./schemas/products": "./src/schemas/products.js",
     "./time": "./src/time.js",
     "./schedule": "./src/schedule.js",
-    "./schemas/schedules": "./src/schemas/schedules.js"
+    "./schemas/schedules": "./src/schemas/schedules.js",
+    "./pricing": "./src/pricing.js",
+    "./schemas/pricing": "./src/schemas/pricing.js"
   },
   "scripts": {
     "test": "vitest run"
