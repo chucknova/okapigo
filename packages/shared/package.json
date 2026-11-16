@@ -12,7 +12,10 @@
     "./slug": "./src/slug.js",
     "./money": "./src/money.js",
     "./catalogue": "./src/catalogue.js",
-    "./schemas/products": "./src/schemas/products.js"
+    "./schemas/products": "./src/schemas/products.js",
+    "./time": "./src/time.js",
+    "./schedule": "./src/schedule.js",
+    "./schemas/schedules": "./src/schemas/schedules.js"
   },
   "scripts": {
     "test": "vitest run"
