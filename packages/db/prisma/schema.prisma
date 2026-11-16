@@ -109,6 +109,64 @@ model User {
   // onDelete: Restrict = you can't delete a role while staff still hold it.
   role Role @relation(fields: [roleId, operatorId], references: [id, operatorId], onDelete: Restrict)
 
+  sessions Session[]
+
   @@index([operatorId])
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// OtpChallenge: one "we sent you a code" attempt (ACC-01)
+// ---------------------------------------------------------------------------
+// Created when someone asks for a sign-in or sign-up code; consumed when they enter it.
+// Not tenant data: it exists BEFORE we know who the person is, so it has no operator_id.
+model OtpChallenge {
+  id          String    @id @default(uuid()) @db.Uuid
+  // "login" = existing staff signing in; "signup" = a new business being created.
+  purpose     String
+  // Where the code went: "email" or "phone", and the normalised address/number.
+  channel     String
+  destination String
+  // HMAC-SHA256 of the code, never the code itself. If the database leaked, the codes
+  // in it would be useless (and they expire in minutes anyway).
+  codeHash    String    @map("code_hash")
+  // For sign-ups: the business and owner details, held here until the code is verified,
+  // so nothing is created for people who never finish signing up.
+  payload     Json?
+  // Wrong guesses so far. After 5 the challenge is dead, which stops brute-forcing a
+  // 6-digit code (1,000,000 possibilities, but only 5 tries).
+  attempts    Int       @default(0)
+  expiresAt   DateTime  @map("expires_at")
+  // Set when the code is used successfully. A code works once.
+  consumedAt  DateTime? @map("consumed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Finding "recent challenges for this address" (rate limiting, verification) must be fast.
+  @@index([destination, createdAt])
+  @@map("otp_challenges")
+}
+
+// ---------------------------------------------------------------------------
+// Session: a signed-in device
+// ---------------------------------------------------------------------------
+// After a correct code, the API gives the client a random token. The client sends it on
+// every request (Authorization: Bearer <token>). We store only its hash, like a password.
+// Signing out (or deactivating a user) revokes sessions immediately, which is the main
+// reason we use database sessions instead of JWTs.
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  // SHA-256 of the token. Unique, so looking a session up by token is one index lookup.
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  lastUsedAt DateTime  @default(now()) @map("last_used_at")
+  // Helps staff recognise their devices later ("Chrome on Android").
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
 }

@@ -4,4 +4,5 @@
  *   import { createPrismaClient, seedDemoOperator } from '@okapigo/db';
  */
 export { createPrismaClient } from './client.js';
+export { createOperatorWithPresetRoles } from './operators.js';
 export { seedDemoOperator, DEFAULT_SLUG } from './seed/demo-operator.js';

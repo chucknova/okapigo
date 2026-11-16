@@ -15,7 +15,7 @@
  *
  * Later sessions extend this file with products, schedules, bookings and resources.
  */
-import { PRESET_ROLES } from '@okapigo/shared/permissions';
+import { createOperatorWithPresetRoles } from '../operators.js';
 
 export const DEFAULT_SLUG = 'irin-lagos-tours';
 
@@ -42,25 +42,11 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG } = {}) {
   // $transaction: either EVERY row below is written, or (on any error) NONE are.
   // A half-created business (operator but no staff) would be worse than nothing.
   return prisma.$transaction(async (tx) => {
-    const operator = await tx.operator.create({
-      data: { name: 'Ìrìn Lagos Tours', slug, currency: 'NGN', timeZone: 'Africa/Lagos' },
+    // The operator and its owner/manager/guide roles (shared with real sign-ups).
+    const { operator, roleIds } = await createOperatorWithPresetRoles(tx, {
+      name: 'Ìrìn Lagos Tours',
+      slug,
     });
-
-    // One role per preset (owner, manager, guide), remembered by key for the staff loop.
-    /** @type {Record<string, string>} role key → role id */
-    const roleIds = {};
-    for (const preset of PRESET_ROLES) {
-      const role = await tx.role.create({
-        data: {
-          operatorId: operator.id,
-          key: preset.key,
-          name: preset.name,
-          isPreset: true,
-          permissions: preset.permissions,
-        },
-      });
-      roleIds[preset.key] = role.id;
-    }
 
     // Phone numbers are unique platform-wide too, but we only have six fictional ones.
     // So only the main demo copy gets phones; extra copies (sandboxes) use email only.
