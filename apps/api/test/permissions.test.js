@@ -39,6 +39,14 @@ describe('default deny', () => {
     ['get', '/api/staff'],
     ['post', '/api/staff'],
     ['patch', `/api/staff/${SOME_ID}`],
+    ['get', '/api/products'],
+    ['get', `/api/products/${SOME_ID}`],
+    ['post', '/api/products'],
+    ['patch', `/api/products/${SOME_ID}`],
+    ['post', `/api/products/${SOME_ID}/price-categories`],
+    ['patch', `/api/price-categories/${SOME_ID}`],
+    ['post', `/api/products/${SOME_ID}/add-ons`],
+    ['patch', `/api/add-ons/${SOME_ID}`],
     ['get', '/api/anything-new'],
   ])('%s %s needs sign-in', async (method, url) => {
     const res = await request(ctx.app)[method](url);
