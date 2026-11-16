@@ -4,8 +4,8 @@ Booking, payments and operations for Nigerian tour operators. This is the MVP, a
 project that runs one fictional business, **Ìrìn Lagos Tours**, from a guest finding a tour to a
 guide checking that guest in with no signal.
 
-> Status: **session 2 of 18**. Repository, CI, API skeleton, and the first database tables
-> (operators, roles, staff) with the Ìrìn Lagos Tours seed.
+> Status: **session 3 of 18**. Repository, CI, database, and staff sign-in with one-time codes,
+> roles and permissions.
 > Learning notes for each session live in [`docs/learning/`](docs/learning/).
 
 ## Requirements
@@ -29,6 +29,23 @@ Then open <http://localhost:4000/health>:
 ```json
 { "status": "ok", "checks": { "db": "ok", "redis": "ok" } }
 ```
+
+## Sign in locally
+
+Codes are printed in the `pnpm dev` terminal (real email/WhatsApp delivery arrives in session 13).
+
+```bash
+curl -X POST localhost:4000/auth/otp/request -H 'content-type: application/json' \
+  -d '{"contact":"adaeze@irin-lagos-tours.example"}'
+# copy the 6-digit code from the API log, then:
+curl -X POST localhost:4000/auth/otp/verify -H 'content-type: application/json' \
+  -d '{"contact":"adaeze@irin-lagos-tours.example","code":"123456"}'
+# use the returned token:
+curl localhost:4000/api/me -H 'Authorization: Bearer <token>'
+```
+
+Seeded staff: `adaeze@` (owner), `tunde@` (manager), `kemi@`, `chinedu@`, `halima@`, `femi@`
+(guides), all `@irin-lagos-tours.example`, or phones `0803 000 0001` to `0803 000 0006`.
 
 ## Everyday commands
 
