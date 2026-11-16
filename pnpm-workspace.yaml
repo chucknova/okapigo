@@ -1,0 +1,6 @@
+# Tells pnpm which folders are packages in this monorepo.
+# Every folder under apps/ (things we run) and packages/ (code shared between apps)
+# gets its own package.json and can depend on the others by name.
+packages:
+  - 'apps/*'
+  - 'packages/*'
