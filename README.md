@@ -4,9 +4,9 @@ Booking, payments and operations for Nigerian tour operators. This is the MVP, a
 project that runs one fictional business, **Ìrìn Lagos Tours**, from a guest finding a tour to a
 guide checking that guest in with no signal.
 
-> Status: **session 6 of 20**. Repository, CI, database, staff sign-in with roles and
-> permissions, the tour catalogue, schedules with live availability, and the pricing pipeline
-> with quotes.
+> Status: **session 7 of 20**. Repository, CI, database, staff sign-in with roles and
+> permissions, the tour catalogue, schedules with live availability, the pricing pipeline, and
+> checkout holds with row locks and background jobs (zero oversells, proven by tests).
 > Learning notes for each session live in [`docs/learning/`](docs/learning/).
 
 ## Requirements
@@ -68,6 +68,8 @@ Seeded staff: `adaeze@` (owner), `tunde@` (manager), `kemi@`, `chinedu@`, `halim
 | Path                  | What it holds                                                 |
 | --------------------- | ------------------------------------------------------------- |
 | `apps/api`            | Express API. The only thing that writes to PostgreSQL         |
+| `apps/workers`        | Background jobs (BullMQ): hold expiry, sweeper, schedule roll |
+| `packages/jobs`       | Queue names and the job client the API uses to enqueue        |
 | `packages/db`         | Prisma schema, migrations, seed script, database client       |
 | `packages/shared`     | Code shared by every app: permissions, money, schemas         |
 | `docs/learning/`      | One learning note per build session                           |
@@ -75,7 +77,7 @@ Seeded staff: `adaeze@` (owner), `tunde@` (manager), `kemi@`, `chinedu@`, `halim
 | `docker-compose.yml`  | Local PostgreSQL 17 + Redis 7                                 |
 | `.github/workflows/`  | CI: lint, format check, tests, dependency audit on every push |
 
-More packages (`apps/workers`, the guest web, the operator PWA,
+More packages (the guest web, the operator PWA,
 the mock OTA and the WhatsApp simulator) arrive in the sessions that need them.
 
 ## Stack
