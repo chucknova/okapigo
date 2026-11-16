@@ -20,10 +20,16 @@ const prisma = createPrismaClient(databaseUrl);
 
 try {
   const operator = await seedDemoOperator(prisma);
-  const staff = await prisma.user.count({ where: { operatorId: operator.id } });
+  const where = { operatorId: operator.id };
+  const [staff, tours] = await Promise.all([
+    prisma.user.count({ where }),
+    prisma.product.count({ where }),
+  ]);
   // A CLI script, so plain console output is fine here.
   // eslint-disable-next-line no-console
-  console.log(`Seeded "${operator.name}" (${operator.slug}) with ${staff} staff.`);
+  console.log(
+    `Seeded "${operator.name}" (${operator.slug}) with ${staff} staff and ${tours} tours.`,
+  );
 } finally {
   // Always close the connection, or Node keeps the process alive waiting on it.
   await prisma.$disconnect();

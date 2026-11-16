@@ -43,8 +43,9 @@ model Operator {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  roles Role[]
-  users User[]
+  roles    Role[]
+  users    User[]
+  products Product[]
 
   @@map("operators")
 }
@@ -169,4 +170,120 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+// ===========================================================================
+// THE CATALOGUE: what an operator sells (INV-01, INV-05, INV-10)
+// ===========================================================================
+//
+// MONEY RULE: every amount is an Int of KOBO (₦1 = 100 kobo), and the field name ends in
+// "Kobo". Never a float: floats can't represent most decimals exactly (0.1 + 0.2 !== 0.3
+// in JavaScript), and a payments system can't be off by even a kobo. Int holds up to
+// 2,147,483,647 kobo (about ₦21.4 million), far more than any single tour price.
+//
+// TIMESTAMPS: new tables use @db.Timestamptz ("timestamp with time zone"). Prisma stores UTC
+// either way, but timestamptz makes that explicit to anyone reading raw SQL.
+
+// ---------------------------------------------------------------------------
+// Product: one tour (INV-01)
+// ---------------------------------------------------------------------------
+model Product {
+  id              String @id @default(uuid()) @db.Uuid
+  operatorId      String @map("operator_id") @db.Uuid
+  // Unique per operator, used in booking links: /irin-lagos-tours/heritage-walk
+  slug            String
+  title           String
+  // One or two sentences for cards and link previews; `description` is the full story.
+  summary         String
+  description     String
+  // "draft" = being set up (not bookable), "published" = on sale, "archived" = retired.
+  status          String @default("draft")
+  durationMinutes Int    @map("duration_minutes")
+  // Seats per departure unless a schedule says otherwise (session 5).
+  defaultCapacity Int    @map("default_capacity")
+
+  // JSONB: structured content validated by Zod in packages/shared/src/schemas/products.js.
+  // These are read as a whole (for the website, trip hub and AI companion) and never
+  // queried field by field, so JSON is simpler than a table for each.
+  //   meetingPoint: { name, address, lat, lng }
+  //   stops:        [{ name, description }]           in visiting order
+  //   photos:       [{ url, alt }]                    alt text is required (accessibility)
+  //   pickupPoints: [{ name, address }]               e.g. the Lekki van tour's hotel pickups
+  //   faqs:         [{ question, answer }]            also feeds the AI companion (GST-16)
+  meetingPoint Json @map("meeting_point")
+  stops        Json @default("[]")
+  photos       Json @default("[]")
+  pickupPoints Json @default("[]") @map("pickup_points")
+  faqs         Json @default("[]")
+
+  // PostgreSQL text arrays: simple lists of short strings.
+  inclusions  String[] @default([])
+  exclusions  String[] @default([])
+  whatToBring String[] @default([]) @map("what_to_bring")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator        Operator        @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  priceCategories PriceCategory[]
+  addOns          AddOn[]
+
+  @@unique([operatorId, slug])
+  // Lets children reference (product id + operator id) together: same tenant-safety
+  // trick as users → roles in session 2.
+  @@unique([id, operatorId])
+  @@map("products")
+}
+
+// ---------------------------------------------------------------------------
+// PriceCategory: a price for a kind of traveller (INV-05)
+// ---------------------------------------------------------------------------
+// Ìrìn's tours use adult (13+), child (3–12) and infant (0–2). The pricing pipeline
+// (session 6) picks a category from each traveller's age using minAge/maxAge.
+model PriceCategory {
+  id         String   @id @default(uuid()) @db.Uuid
+  operatorId String   @map("operator_id") @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  // Stable machine name: "adult", "child", "infant" (or e.g. "student" for a custom one).
+  key        String
+  name       String
+  // Inclusive age range. maxAge = null means "and older" (adults).
+  minAge     Int      @map("min_age")
+  maxAge     Int?     @map("max_age")
+  amountKobo Int      @map("amount_kobo")
+  sortOrder  Int      @default(0) @map("sort_order")
+  // Archived instead of deleted: bookings will point at categories (session 7), and a
+  // deleted price would break the history of every booking that used it.
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product Product @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+
+  @@unique([productId, key])
+  @@map("price_categories")
+}
+
+// ---------------------------------------------------------------------------
+// AddOn: an optional extra with its own price and stock (INV-10)
+// ---------------------------------------------------------------------------
+// e.g. an extra tasting plate on the Street Food Crawl, or a beach chair at Tarkwa Bay.
+model AddOn {
+  id                String   @id @default(uuid()) @db.Uuid
+  operatorId        String   @map("operator_id") @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  name              String
+  description       String   @default("")
+  priceKobo         Int      @map("price_kobo")
+  // How many can be sold PER DEPARTURE (the food vendor makes 10 extra plates a night).
+  // null = unlimited. Sold counts are tracked per departure once bookings exist (session 7).
+  stockPerDeparture Int?     @map("stock_per_departure")
+  sortOrder         Int      @default(0) @map("sort_order")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product Product @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+
+  @@map("add_ons")
 }

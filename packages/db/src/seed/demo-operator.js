@@ -13,9 +13,10 @@
  * Everything here is FICTIONAL (PRD portfolio rule): names, emails and phone numbers.
  * Emails use the reserved `.example` domain, which can never receive real mail.
  *
- * Later sessions extend this file with products, schedules, bookings and resources.
+ * Later sessions extend this file with schedules, bookings and resources.
  */
 import { createOperatorWithPresetRoles } from '../operators.js';
+import { TOURS } from './tours.js';
 
 export const DEFAULT_SLUG = 'irin-lagos-tours';
 
@@ -61,6 +62,21 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG } = {}) {
         phone: withPhones ? person.phone : null,
       })),
     });
+
+    // The five tours, each with its price categories and add-ons (nested create).
+    for (const { prices, addOns, ...product } of TOURS) {
+      await tx.product.create({
+        data: {
+          ...product,
+          // With nested writes, Prisma wants relations written as `connect`, not raw ids.
+          operator: { connect: { id: operator.id } },
+          // Nested writes: Prisma creates the children and fills in BOTH parts of their
+          // composite key (productId and operatorId) from the parent product itself.
+          priceCategories: { create: prices },
+          addOns: { create: addOns },
+        },
+      });
+    }
 
     return operator;
   });
