@@ -84,6 +84,7 @@ export function serializeProduct(p) {
     inclusions: p.inclusions,
     exclusions: p.exclusions,
     whatToBring: p.whatToBring,
+    cancellationPolicyId: p.cancellationPolicyId,
     priceCategories: p.priceCategories?.map(serializePriceCategory) ?? [],
     addOns: p.addOns?.map(serializeAddOn) ?? [],
     updatedAt: p.updatedAt,
@@ -162,6 +163,8 @@ export function serializeBookingSummary(b, timeZone) {
     amountPaidKobo: b.amountPaidKobo,
     // Derived, never stored: it can't disagree with the two numbers it comes from.
     balanceDueKobo: b.totalKobo - b.amountPaidKobo,
+    // What goes back to the guest after a cancellation or no-show (paid out in session 10).
+    refundDueKobo: b.refundDueKobo,
     lead: { name: b.leadName, email: b.leadEmail, phone: b.leadPhone },
     product: b.product ? { id: b.product.id, title: b.product.title } : undefined,
     departure: b.departure
@@ -222,5 +225,28 @@ export function serializeBooking(b, timeZone) {
       data: e.data,
       at: e.createdAt,
     })),
+  };
+}
+
+/** @param {import('@prisma/client').CancellationPolicyVersion} v */
+export function serializePolicyVersion(v) {
+  return {
+    id: v.id,
+    version: v.version,
+    rules: v.rules,
+    noShowRefundBasisPoints: v.noShowRefundBasisPoints,
+    depositRefundable: v.depositRefundable,
+    createdAt: v.createdAt,
+  };
+}
+
+/** @param {import('@prisma/client').CancellationPolicy & { versions: import('@prisma/client').CancellationPolicyVersion[], _count?: { products: number } }} p versions newest first */
+export function serializePolicy(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    current: p.versions[0] ? serializePolicyVersion(p.versions[0]) : null,
+    versions: p.versions.map(serializePolicyVersion),
+    productCount: p._count?.products,
   };
 }

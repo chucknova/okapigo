@@ -64,6 +64,13 @@ describe('default deny', () => {
     ['post', `/api/bookings/${SOME_ID}/confirm`],
     ['post', `/api/bookings/${SOME_ID}/status`],
     ['patch', `/api/bookings/${SOME_ID}/travellers/${SOME_ID}`],
+    ['get', `/api/bookings/${SOME_ID}/cancellation-quote`],
+    ['post', `/api/bookings/${SOME_ID}/cancel`],
+    ['post', `/api/bookings/${SOME_ID}/no-show`],
+    ['post', `/api/departures/${SOME_ID}/cancel`],
+    ['get', '/api/cancellation-policies'],
+    ['post', '/api/cancellation-policies'],
+    ['post', `/api/cancellation-policies/${SOME_ID}/versions`],
     ['get', '/api/anything-new'],
   ])('%s %s needs sign-in', async (method, url) => {
     const res = await request(ctx.app)[method](url);

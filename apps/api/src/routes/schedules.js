@@ -7,7 +7,8 @@
  *   PATCH /api/schedules/:id                 products: edit   change a rule → departures re-sync
  *   GET   /api/departures                    products: view   staff calendar (?from&to&productId)
  *   POST  /api/products/:id/departures       products: edit   a one-off ("custom") departure
- *   PATCH /api/departures/:id                bookings: edit   change capacity, cancel, reopen
+ *   PATCH /api/departures/:id                bookings: edit   change capacity, cancel (if empty), reopen
+ *   POST  /api/departures/:id/cancel         bookings: edit   call off a departure WITH guests (refunds)
  *   GET   /api/products/:id/availability     products: view   bookable departures + seats left
  *
  * Why is changing a single departure `bookings: edit` and not `products: edit`? Cancelling
@@ -19,7 +20,14 @@
  * include both the UTC instant and the local date/time.
  */
 import { Router } from 'express';
-import { listAvailability, syncScheduleDepartures, HORIZON_DAYS } from '@okapigo/db';
+import {
+  listAvailability,
+  syncScheduleDepartures,
+  cancelDeparture,
+  BookingError,
+  HORIZON_DAYS,
+} from '@okapigo/db';
+import { CancelDepartureSchema } from '@okapigo/shared/schemas/cancellation';
 import {
   CreateScheduleSchema,
   UpdateScheduleSchema,
@@ -210,13 +218,13 @@ export function schedulesRouter({ prisma }) {
       });
       if (!existing) throw new HttpError(404, 'NOT_FOUND', 'Departure not found.');
 
-      // Cancelling a departure with guests means refunds under the cancellation policy,
-      // which arrives with bookings (session 7). Until then, only empty ones can be cancelled.
+      // A departure with guests is called off through POST /api/departures/:id/cancel, which
+      // cancels every booking with a full refund. This PATCH only cancels EMPTY departures.
       if (req.body.status === 'cancelled' && existing.seatsSold + existing.seatsHeld > 0) {
         throw new HttpError(
           409,
           'HAS_GUESTS',
-          'This departure has guests. Cancel their bookings first.',
+          'This departure has guests. Use "Cancel departure" to cancel and refund them.',
         );
       }
 
@@ -244,6 +252,31 @@ export function schedulesRouter({ prisma }) {
 
       const departure = await prisma.departure.findUniqueOrThrow({ where: { id: existing.id } });
       res.json({ departure: serializeDeparture(departure, timeZone) });
+    },
+  );
+
+  router.post(
+    '/departures/:id/cancel',
+    requirePermission('bookings', 'edit'),
+    validate({ params: IdParamsSchema, body: CancelDepartureSchema }),
+    async (req, res) => {
+      const { operatorId, userId, timeZone } = authOf(req);
+      let summary;
+      try {
+        summary = await cancelDeparture(prisma, {
+          operatorId,
+          departureId: req.params.id,
+          reason: req.body.reason,
+          actor: { type: 'user', userId },
+        });
+      } catch (err) {
+        if (err instanceof BookingError) {
+          throw new HttpError(err.code === 'NOT_FOUND' ? 404 : 409, err.code, err.message);
+        }
+        throw err;
+      }
+      const departure = await prisma.departure.findUniqueOrThrow({ where: { id: req.params.id } });
+      res.json({ ...summary, departure: serializeDeparture(departure, timeZone) });
     },
   );
 

@@ -85,6 +85,16 @@ export function productsRouter({ prisma }) {
     }
   }
 
+  /** A product may only point at its own operator's cancellation policy. */
+  async function assertOwnPolicy(operatorId, policyId) {
+    if (!policyId) return;
+    const policy = await prisma.cancellationPolicy.findFirst({
+      where: { id: policyId, operatorId },
+    });
+    if (!policy)
+      throw new HttpError(400, 'INVALID_POLICY', 'That cancellation policy does not exist.');
+  }
+
   /** A product can only go on sale if a guest can actually pay for it. */
   function assertPublishable(product) {
     if (!product.priceCategories.some((c) => c.isActive)) {
@@ -124,6 +134,7 @@ export function productsRouter({ prisma }) {
     if (await prisma.product.findFirst({ where: { operatorId, slug }, select: { id: true } })) {
       throw new HttpError(409, 'SLUG_TAKEN', `Another product already uses the link "${slug}".`);
     }
+    await assertOwnPolicy(operatorId, req.body.cancellationPolicyId);
 
     const product = await prisma.product.create({
       data: { ...req.body, slug, operatorId },
@@ -139,6 +150,7 @@ export function productsRouter({ prisma }) {
     async (req, res) => {
       const product = await findOwnProduct(req, req.params.id);
       if (req.body.status === 'published') assertPublishable(product);
+      await assertOwnPolicy(product.operatorId, req.body.cancellationPolicyId);
       if (req.body.slug && req.body.slug !== product.slug) {
         const taken = await prisma.product.findFirst({
           where: { operatorId: product.operatorId, slug: req.body.slug },

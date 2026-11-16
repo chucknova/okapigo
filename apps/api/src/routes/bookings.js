@@ -7,7 +7,10 @@
  *   GET   /api/bookings                                bookings: view   list / search
  *   GET   /api/bookings/:id                            bookings: view   full detail + timeline
  *   POST  /api/bookings/:id/confirm                    bookings: edit   pay later: held → confirmed
- *   POST  /api/bookings/:id/status                     bookings: edit   completed / no_show
+ *   POST  /api/bookings/:id/status                     bookings: edit   completed
+ *   GET   /api/bookings/:id/cancellation-quote         bookings: view   what a cancel WOULD refund
+ *   POST  /api/bookings/:id/cancel                     bookings: edit   (+ payments: edit to override)
+ *   POST  /api/bookings/:id/no-show                    bookings: edit
  *   PATCH /api/bookings/:id/travellers/:travellerId    bookings: edit   correct details
  *
  * Every status change goes through the lifecycle module (packages/db/src/booking-lifecycle.js),
@@ -20,9 +23,14 @@ import {
   confirmBooking,
   setBookingStatus,
   updateTraveller,
+  previewCancellation,
+  cancelBooking,
+  markNoShow,
   BookingError,
   HoldError,
 } from '@okapigo/db';
+import { hasAccess } from '@okapigo/shared/permissions';
+import { CancelBookingSchema } from '@okapigo/shared/schemas/cancellation';
 import { findCategoryForAge } from '@okapigo/shared/catalogue';
 import {
   CreateBookingSchema,
@@ -236,6 +244,81 @@ export function bookingsRouter({ prisma, quotes, jobs }) {
         throw toHttp(err);
       }
       res.json({ booking: await loadFull(operatorId, req.params.id, timeZone) });
+    },
+  );
+
+  // --- Cancelling and no-shows (BKG-26) ---------------------------------------------
+  router.get(
+    '/bookings/:id/cancellation-quote',
+    requirePermission('bookings', 'view'),
+    validate({ params: IdParamsSchema }),
+    async (req, res) => {
+      const initiatedBy = req.query.initiatedBy === 'operator' ? 'operator' : 'guest';
+      try {
+        const refund = await previewCancellation(prisma, {
+          operatorId: authOf(req).operatorId,
+          bookingId: req.params.id,
+          initiatedBy,
+        });
+        res.json({ initiatedBy, refund });
+      } catch (err) {
+        throw toHttp(err);
+      }
+    },
+  );
+
+  router.post(
+    '/bookings/:id/cancel',
+    requirePermission('bookings', 'edit'),
+    validate({ params: IdParamsSchema, body: CancelBookingSchema }),
+    async (req, res) => {
+      const { operatorId, timeZone, permissions } = authOf(req);
+      // Choosing the refund yourself is a money decision, so it also needs payments: edit
+      // (managers and owners have it; a custom "front desk" role might not).
+      if (
+        req.body.refundOverrideKobo !== undefined &&
+        !hasAccess(permissions.payments ?? 'none', 'edit')
+      ) {
+        throw new HttpError(
+          403,
+          'FORBIDDEN',
+          'You need edit access to payments to set the refund yourself.',
+        );
+      }
+      let refund;
+      try {
+        refund = await cancelBooking(prisma, {
+          operatorId,
+          bookingId: req.params.id,
+          initiatedBy: req.body.initiatedBy,
+          reason: req.body.reason,
+          refundOverrideKobo: req.body.refundOverrideKobo,
+          actor: actorOf(req),
+        });
+      } catch (err) {
+        throw toHttp(err);
+      }
+      res.json({ refund, booking: await loadFull(operatorId, req.params.id, timeZone) });
+    },
+  );
+
+  router.post(
+    '/bookings/:id/no-show',
+    requirePermission('bookings', 'edit'),
+    validate({ params: IdParamsSchema }),
+    async (req, res) => {
+      const { operatorId, timeZone } = authOf(req);
+      let refund;
+      try {
+        refund = await markNoShow(prisma, {
+          operatorId,
+          bookingId: req.params.id,
+          actor: actorOf(req),
+        });
+      } catch (err) {
+        throw toHttp(err);
+      }
+      res.json({ refund, booking: await loadFull(operatorId, req.params.id, timeZone) });
     },
   );
 
