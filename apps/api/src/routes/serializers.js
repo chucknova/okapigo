@@ -128,3 +128,21 @@ export function serializeDeparture(d, timeZone) {
     status: d.status,
   };
 }
+
+/** @param {import('@prisma/client').Hold & { addOns?: import('@prisma/client').HoldAddOn[] }} h */
+export function serializeHold(h) {
+  return {
+    id: h.id,
+    departureId: h.departureId,
+    seats: h.seats,
+    status: h.status,
+    channel: h.channel,
+    travellers: h.travellers,
+    addOns: h.addOns?.map((a) => ({ addOnId: a.addOnId, quantity: a.quantity })) ?? [],
+    // The price snapshot: what the guest was shown and will pay.
+    quote: h.quote,
+    totalKobo: h.totalKobo,
+    expiresAt: h.expiresAt,
+    endedAt: h.endedAt,
+  };
+}

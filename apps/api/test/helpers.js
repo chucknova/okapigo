@@ -51,6 +51,17 @@ export function createCapturingSender() {
   };
 }
 
+/** A job client that records what it was asked to schedule, instead of using Redis. */
+export function createFakeJobs() {
+  const scheduled = [];
+  return {
+    scheduled,
+    async scheduleHoldExpiry(holdId, expiresAt) {
+      scheduled.push({ holdId, expiresAt });
+    },
+  };
+}
+
 /** Builds an app with fakes for anything not provided. */
 export function buildApp(overrides = {}) {
   return createApp({
@@ -59,6 +70,7 @@ export function buildApp(overrides = {}) {
     redis: healthyRedis,
     otpSender: createCapturingSender(),
     authSecret: TEST_AUTH_SECRET,
+    jobs: createFakeJobs(),
     ...overrides,
   });
 }
@@ -75,7 +87,8 @@ export function buildApp(overrides = {}) {
 export function createTestContext() {
   const prisma = createPrismaClient(process.env.DATABASE_URL);
   const sender = createCapturingSender();
-  const app = buildApp({ prisma, otpSender: sender });
+  const jobs = createFakeJobs();
+  const app = buildApp({ prisma, otpSender: sender, jobs });
   const sessions = createSessionService({ prisma });
   /** Slugs created by the current test; everything under them is deleted in cleanup(). */
   const slugs = [];
@@ -83,6 +96,7 @@ export function createTestContext() {
   return {
     prisma,
     sender,
+    jobs,
     app,
 
     /** Seeds a throwaway copy of Ìrìn Lagos Tours; returns it with its staff by role. */

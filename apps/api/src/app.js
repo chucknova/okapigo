@@ -20,6 +20,7 @@ import { staffRouter } from './routes/staff.js';
 import { productsRouter } from './routes/products.js';
 import { schedulesRouter } from './routes/schedules.js';
 import { quotesRouter } from './routes/quotes.js';
+import { holdsRouter } from './routes/holds.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -33,9 +34,10 @@ import { createSessionService } from './auth/session-service.js';
  *   redis: { ping: () => Promise<unknown> },
  *   otpSender: import('./auth/otp-sender.js').OtpSender,
  *   authSecret: string,
+ *   jobs: { scheduleHoldExpiry: (holdId: string, expiresAt: Date) => Promise<void> },
  * }} deps
  */
-export function createApp({ logger, prisma, redis, otpSender, authSecret }) {
+export function createApp({ logger, prisma, redis, otpSender, authSecret, jobs }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
   const otp = createOtpService({ prisma, otpSender, authSecret });
@@ -88,6 +90,7 @@ export function createApp({ logger, prisma, redis, otpSender, authSecret }) {
   api.use(productsRouter({ prisma }));
   api.use(schedulesRouter({ prisma }));
   api.use(quotesRouter({ quotes }));
+  api.use(holdsRouter({ prisma, quotes, jobs }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

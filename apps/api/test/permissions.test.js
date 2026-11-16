@@ -55,6 +55,9 @@ describe('default deny', () => {
     ['patch', `/api/departures/${SOME_ID}`],
     ['get', `/api/products/${SOME_ID}/availability`],
     ['post', '/api/quotes'],
+    ['post', '/api/holds'],
+    ['get', `/api/holds/${SOME_ID}`],
+    ['delete', `/api/holds/${SOME_ID}`],
     ['get', '/api/anything-new'],
   ])('%s %s needs sign-in', async (method, url) => {
     const res = await request(ctx.app)[method](url);

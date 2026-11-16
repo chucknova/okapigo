@@ -26,20 +26,33 @@ export const OperatorPricingSchema = z.object({
   fees: z.array(FeeSchema).max(5),
 });
 
+/** Who's travelling: each by age, or by explicit price category. */
+export const TravellersSchema = z
+  .array(
+    z.union([
+      z.object({ age: z.number().int().min(0).max(120) }).strict(),
+      z.object({ categoryKey: z.string().trim().min(1).max(50) }).strict(),
+    ]),
+  )
+  .min(1, 'Add at least one traveller')
+  .max(50);
+
+/** Chosen add-ons and how many of each. */
+export const AddOnSelectionsSchema = z
+  .array(z.object({ addOnId: z.uuid(), quantity: z.number().int().min(1).max(100) }))
+  .max(20)
+  .default([]);
+
 /** POST /api/quotes: "how much would this cost?" */
 export const QuoteRequestSchema = z.object({
   productId: z.uuid(),
-  travellers: z
-    .array(
-      z.union([
-        z.object({ age: z.number().int().min(0).max(120) }).strict(),
-        z.object({ categoryKey: z.string().trim().min(1).max(50) }).strict(),
-      ]),
-    )
-    .min(1, 'Add at least one traveller')
-    .max(50),
-  addOns: z
-    .array(z.object({ addOnId: z.uuid(), quantity: z.number().int().min(1).max(100) }))
-    .max(20)
-    .default([]),
+  travellers: TravellersSchema,
+  addOns: AddOnSelectionsSchema,
+});
+
+/** POST /api/holds: "set these seats aside while I pay". */
+export const CreateHoldSchema = z.object({
+  departureId: z.uuid(),
+  travellers: TravellersSchema,
+  addOns: AddOnSelectionsSchema,
 });

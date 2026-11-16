@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@okapigo/db": "workspace:*",
+    "@okapigo/jobs": "workspace:*",
     "@okapigo/shared": "workspace:*",
     "express": "^5.3.0",
     "helmet": "^8.3.0",
