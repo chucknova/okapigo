@@ -176,6 +176,9 @@ export function publicCatalogueRouter({ prisma }) {
           whatToBring: tour.whatToBring,
           faqs: tour.faqs,
           fromPriceKobo: fromPriceKobo(tour.priceCategories),
+          // "Reserve with 30%": whether a deposit MAY be offered. The exact amount and due
+          // date depend on the basket and the date, so checkout gets them from the booking.
+          depositBasisPoints: tour.depositBasisPoints,
           // The checkout's "who's coming" step: one counter per category.
           priceCategories: tour.priceCategories.map((c) => ({
             key: c.key,
@@ -194,6 +197,8 @@ export function publicCatalogueRouter({ prisma }) {
             ? {
                 rules: version.rules,
                 noShowRefundBasisPoints: version.noShowRefundBasisPoints,
+                // "Deposits are non-refundable" small print on the deposit choice.
+                depositRefundable: version.depositRefundable,
               }
             : null,
         },

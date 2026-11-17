@@ -8,6 +8,8 @@
  *   GET  /public/bookings/:token                        the guest's booking (review screen)
  *   POST /public/bookings/:token/release                give the seats back (guest went back
  *                                                       to change something, or left)
+ *   POST /public/bookings/:token/pay                    pay in full, a deposit, or the balance
+ *                                                       → Paystack's checkout URL (stage 11c)
  *
  * The SAME engine as staff bookings: quoteForBooking() (pricing + booking rules such as
  * "children need an adult") and createBooking() (row lock, seats, add-on stock, pickup
@@ -17,7 +19,10 @@
  *     not a sign-in
  *   - rate limits per IP address (middleware/rate-limit.js)
  *   - a guest-only view of the booking: no staff notes, no timeline, no internal ids
- * Paying (full or deposit) is stage 11c.
+ *
+ * Paying: the guest picks an OPTION ("full", "deposit", "balance"), never an amount. The
+ * server works out the amount from the same rules that listed the options, so a tampered
+ * request can't pay ₦1 and call it a deposit.
  */
 import { Router } from 'express';
 import { z } from 'zod';
@@ -27,21 +32,72 @@ import {
   addOnUsage,
   guestToken,
   bookingIdFromGuestToken,
+  PAYABLE_STATUSES,
 } from '@okapigo/db';
 import { findCategoryForAge } from '@okapigo/shared/catalogue';
 import { localDate, localTime } from '@okapigo/shared/time';
+import { depositOffer, balanceDueDate } from '@okapigo/shared/deposits';
 import { PublicQuoteRequestSchema } from '@okapigo/shared/schemas/pricing';
 import { PublicCreateBookingSchema } from '@okapigo/shared/schemas/bookings';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { toHttp } from './bookings.js';
+import { startPaymentForHttp } from './payments.js';
 
 const Slug = z
   .string()
   .max(80)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const TokenParams = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{44}$/) });
+const PayBodySchema = z.object({
+  option: z.enum(['full', 'deposit', 'balance']),
+  // "any": the guest chooses card or bank transfer on Paystack's page.
+  method: z.enum(['card', 'bank_transfer', 'any']).default('any'),
+});
+
+/**
+ * @typedef {{ type: 'full', amountKobo: number }
+ *   | { type: 'deposit', amountKobo: number, balanceKobo: number, balanceDueDate: string }
+ *   | { type: 'balance', amountKobo: number }} PaymentOption
+ */
+
+/**
+ * What the guest can pay right now. Shown on the review screen AND used to check "Pay", so
+ * the screen can only offer what the server will accept.
+ *   held, hold still on  → full, plus a deposit if the tour allows one (deposits.js)
+ *   confirmed / part_paid / amended with money owed → the balance
+ *   anything else (paid, cancelled, hold expired…) → nothing
+ * @param {any} b  booking with product.operator, departure, hold
+ * @param {Date} now
+ * @returns {PaymentOption[]}
+ */
+function paymentOptions(b, now) {
+  const balanceKobo = b.totalKobo - b.amountPaidKobo;
+  if (balanceKobo <= 0 || !PAYABLE_STATUSES.includes(b.status)) return [];
+  if (b.status !== 'held') return [{ type: 'balance', amountKobo: balanceKobo }];
+  if (b.hold.status !== 'active' || b.hold.expiresAt <= now) return [];
+
+  const { timeZone } = b.product.operator;
+  const deposit = depositOffer({
+    totalKobo: b.totalKobo,
+    amountPaidKobo: b.amountPaidKobo,
+    depositBasisPoints: b.product.depositBasisPoints,
+    departureLocalDate: localDate(b.departure.startsAt, timeZone),
+    todayLocalDate: localDate(now, timeZone),
+  });
+  /** @type {PaymentOption[]} */
+  const options = [{ type: 'full', amountKobo: balanceKobo }];
+  if (deposit) {
+    options.push({
+      type: 'deposit',
+      amountKobo: deposit.depositKobo,
+      balanceKobo: deposit.balanceKobo,
+      balanceDueDate: deposit.balanceDueDate,
+    });
+  }
+  return options;
+}
 
 /**
  * Per-IP limits. Generous on purpose: one public IP is often many real people (see
@@ -62,8 +118,9 @@ export const DEFAULT_PUBLIC_LIMITS = {
  * the staff one: the guest link could be forwarded, so nothing internal goes out.
  * @param {any} b  booking with product.operator, departure, travellers, addOns.addOn, hold, policyVersion
  */
-function guestView(b) {
+function guestView(b, now = new Date()) {
   const { timeZone } = b.product.operator;
+  const balanceKobo = b.totalKobo - b.amountPaidKobo;
   return {
     reference: b.reference,
     status: b.status,
@@ -95,13 +152,21 @@ function guestView(b) {
     quote: b.quote, // the price snapshot: lines, VAT, total (what the guest agreed to pay)
     totalKobo: b.totalKobo,
     amountPaidKobo: b.amountPaidKobo,
-    balanceKobo: b.totalKobo - b.amountPaidKobo,
+    balanceKobo,
+    // Part paid (e.g. a deposit): the rest is due 7 days before the trip (deposits.js).
+    balanceDueDate:
+      b.amountPaidKobo > 0 && balanceKobo > 0
+        ? balanceDueDate(localDate(b.departure.startsAt, timeZone))
+        : null,
+    // What "Pay" can do now: [] when nothing can be paid.
+    paymentOptions: paymentOptions(b, now),
     // The countdown on the review screen. Only meaningful while the booking is "held".
     holdExpiresAt: b.status === 'held' ? b.hold.expiresAt : null,
     cancellationPolicy: b.policyVersion
       ? {
           rules: b.policyVersion.rules,
           noShowRefundBasisPoints: b.policyVersion.noShowRefundBasisPoints,
+          depositRefundable: b.policyVersion.depositRefundable,
         }
       : null,
   };
@@ -124,6 +189,8 @@ const GUEST_INCLUDE = {
  *   authSecret: string,
  *   rateLimitStore: import('../middleware/rate-limit.js').RateLimitStore,
  *   limits?: typeof DEFAULT_PUBLIC_LIMITS,
+ *   provider: import('@okapigo/payments').PaymentProvider,
+ *   apiPublicUrl: string,
  * }} deps
  */
 export function publicCheckoutRouter({
@@ -133,6 +200,8 @@ export function publicCheckoutRouter({
   authSecret,
   rateLimitStore,
   limits = DEFAULT_PUBLIC_LIMITS,
+  provider,
+  apiPublicUrl,
 }) {
   const router = Router();
   const limiter = (/** @type {keyof typeof DEFAULT_PUBLIC_LIMITS} */ name) =>
@@ -346,6 +415,49 @@ export function publicCheckoutRouter({
       });
       if (!released) throw new HttpError(409, 'NOT_HELD', 'These seats were already released.');
       res.status(204).end();
+    },
+  );
+
+  // --- Pay: in full, a deposit, or the balance (checkout screen 4, trip hub) ----------------
+
+  router.post(
+    '/public/bookings/:token/pay',
+    limiter('guest'),
+    validate({ params: TokenParams, body: PayBodySchema }),
+    async (req, res) => {
+      const booking = await findGuestBooking(req.params.token);
+      const option = paymentOptions(booking, new Date()).find((o) => o.type === req.body.option);
+      if (!option) {
+        const why =
+          req.body.option === 'deposit'
+            ? "A deposit isn't available for this booking. Please pay in full."
+            : "This booking can't take that payment now.";
+        throw new HttpError(409, 'OPTION_NOT_AVAILABLE', why, {
+          options: paymentOptions(booking, new Date()).map((o) => o.type),
+        });
+      }
+
+      // The AMOUNT comes from the option the server worked out, never from the request.
+      const { payment, reused } = await startPaymentForHttp(prisma, provider, {
+        operatorId: booking.operatorId,
+        bookingId: booking.id,
+        method: req.body.method,
+        amountKobo: option.amountKobo,
+        callbackUrl: `${apiPublicUrl}/payments/callback`,
+        actor: { type: 'guest' },
+      });
+
+      // The browser goes to authorizationUrl (Paystack's page); Paystack sends the guest
+      // back to the callback page, and the webhook (stage 10c) is what confirms the money.
+      res.status(reused ? 200 : 201).json({
+        payment: {
+          reference: payment.reference,
+          amountKobo: payment.amountKobo,
+          purpose: payment.purpose,
+          authorizationUrl: payment.authorizationUrl,
+        },
+        reused,
+      });
     },
   );
 

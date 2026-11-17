@@ -56,6 +56,40 @@ ${body}</body></html>`;
 }
 
 /**
+ * startPayment() with its outcomes turned into HTTP answers. Shared by the staff route here
+ * and the guest's "Pay" (routes/public-checkout.js), so both answer the same way:
+ *   - 409 PAYMENT_STARTING  another click's checkout is still being set up (a second or so):
+ *                           try again, rather than making a second checkout
+ *   - 404 / 409             booking problems (not found, hold expired, nothing to pay…)
+ *   - 502                   the provider failed or refused (WE are fine; it isn't)
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {import('@okapigo/payments').PaymentProvider} provider
+ * @param {Parameters<typeof startPayment>[2]} input
+ */
+export async function startPaymentForHttp(prisma, provider, input) {
+  let result;
+  try {
+    result = await startPayment(prisma, provider, input);
+  } catch (err) {
+    if (err instanceof BookingError) {
+      throw new HttpError(err.code === 'NOT_FOUND' ? 404 : 409, err.code, err.message, err.details);
+    }
+    if (err instanceof ProviderError) {
+      throw new HttpError(502, err.code, `The payment provider said: ${err.message}`);
+    }
+    throw err;
+  }
+  if (!result.payment.authorizationUrl) {
+    throw new HttpError(
+      409,
+      'PAYMENT_STARTING',
+      'This payment is being set up. Try again in a moment.',
+    );
+  }
+  return result;
+}
+
+/**
  * @param {{
  *   prisma: import('@prisma/client').PrismaClient,
  *   provider: import('@okapigo/payments').PaymentProvider,
@@ -75,41 +109,16 @@ export function paymentsRouters({ prisma, provider, apiPublicUrl }) {
     validate({ params: IdParamsSchema, body: StartPaymentSchema }),
     async (req, res) => {
       const { operatorId, userId } = authOf(req);
-      try {
-        const { payment, reused } = await startPayment(prisma, provider, {
-          operatorId,
-          bookingId: req.params.id,
-          method: req.body.method,
-          amountKobo: req.body.amountKobo,
-          callbackUrl: `${apiPublicUrl}/payments/callback`,
-          actor: { type: 'user', userId },
-        });
-        if (!payment.authorizationUrl) {
-          // Another click's checkout is still being set up with the provider (a second
-          // or so). Don't make a second checkout: ask the caller to try again.
-          throw new HttpError(
-            409,
-            'PAYMENT_STARTING',
-            'This payment is being set up. Try again in a moment.',
-          );
-        }
-        // 200 when an unfinished checkout was reused, 201 when a new one was made.
-        res.status(reused ? 200 : 201).json({ payment: serializePayment(payment), reused });
-      } catch (err) {
-        if (err instanceof BookingError) {
-          throw new HttpError(
-            err.code === 'NOT_FOUND' ? 404 : 409,
-            err.code,
-            err.message,
-            err.details,
-          );
-        }
-        if (err instanceof ProviderError) {
-          // 502 Bad Gateway: WE are fine; the service we depend on failed or refused.
-          throw new HttpError(502, err.code, `The payment provider said: ${err.message}`);
-        }
-        throw err;
-      }
+      const { payment, reused } = await startPaymentForHttp(prisma, provider, {
+        operatorId,
+        bookingId: req.params.id,
+        method: req.body.method,
+        amountKobo: req.body.amountKobo,
+        callbackUrl: `${apiPublicUrl}/payments/callback`,
+        actor: { type: 'user', userId },
+      });
+      // 200 when an unfinished checkout was reused, 201 when a new one was made.
+      res.status(reused ? 200 : 201).json({ payment: serializePayment(payment), reused });
     },
   );
 

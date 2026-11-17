@@ -66,6 +66,8 @@ const productFields = {
   whatToBring: z.array(text(200)).max(30),
   // Which cancellation policy applies (BKG-26); null = none.
   cancellationPolicyId: z.uuid().nullable(),
+  // Deposit share in basis points (3000 = 30%); null = pay in full (BKG-06).
+  depositBasisPoints: z.number().int().min(1).max(9999).nullable(),
 };
 
 /** POST /api/products. Content lists default to empty; new products start as drafts. */
@@ -81,6 +83,7 @@ export const CreateProductSchema = z.object({
   exclusions: productFields.exclusions.default([]),
   whatToBring: productFields.whatToBring.default([]),
   cancellationPolicyId: productFields.cancellationPolicyId.default(null),
+  depositBasisPoints: productFields.depositBasisPoints.default(null),
 });
 
 /** PATCH /api/products/:id. Any subset of fields; lists are replaced as a whole. */

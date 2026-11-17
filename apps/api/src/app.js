@@ -123,6 +123,8 @@ export function createApp({
       authSecret,
       rateLimitStore,
       limits: publicLimits,
+      provider,
+      apiPublicUrl,
     }),
   );
 

@@ -250,6 +250,8 @@ export const TOURS = [
     status: 'published',
     durationMinutes: 600,
     defaultCapacity: 14,
+    // 30% now, the balance 7 days before the trip (stage 11c).
+    depositBasisPoints: 3000,
     meetingPoint: {
       name: 'Ìrìn office, Yaba',
       address: 'Commercial Avenue, Yaba',

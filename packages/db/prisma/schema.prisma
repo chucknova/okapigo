@@ -240,6 +240,11 @@ model Product {
   // Which cancellation policy applies (BKG-26). New bookings use its LATEST version.
   cancellationPolicyId String? @map("cancellation_policy_id") @db.Uuid
 
+  // Deposits (BKG-06, stage 11c): the share a guest may pay up front, in basis points
+  // (3000 = 30%), with the balance due 7 days before the trip (packages/shared/src/deposits.js).
+  // null = no deposit, pay in full. CHECK: 1–9999 (0% or 100% wouldn't be a deposit).
+  depositBasisPoints Int? @map("deposit_basis_points")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 

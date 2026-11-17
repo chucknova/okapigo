@@ -85,6 +85,7 @@ export function serializeProduct(p) {
     exclusions: p.exclusions,
     whatToBring: p.whatToBring,
     cancellationPolicyId: p.cancellationPolicyId,
+    depositBasisPoints: p.depositBasisPoints,
     priceCategories: p.priceCategories?.map(serializePriceCategory) ?? [],
     addOns: p.addOns?.map(serializeAddOn) ?? [],
     updatedAt: p.updatedAt,

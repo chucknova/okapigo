@@ -25,7 +25,8 @@
     "./schemas/cancellation": "./src/schemas/cancellation.js",
     "./ledger": "./src/ledger.js",
     "./schemas/ledger": "./src/schemas/ledger.js",
-    "./payment-status": "./src/payment-status.js"
+    "./payment-status": "./src/payment-status.js",
+    "./deposits": "./src/deposits.js"
   },
   "scripts": {
     "test": "vitest run"
