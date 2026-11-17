@@ -78,6 +78,9 @@ importers:
       '@okapigo/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@okapigo/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       bullmq:
         specifier: 6.7.6
         version: 6.7.6(ioredis@6.0.0)(pg@8.23.1)
