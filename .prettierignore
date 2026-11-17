@@ -4,3 +4,4 @@ coverage
 .turbo
 pnpm-lock.yaml
 docs/designs
+apps/web/src/styles/tokens.css

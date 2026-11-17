@@ -14,6 +14,12 @@
         "docs/designs"
       ],
       "port": 4890
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@okapigo/web", "dev"],
+      "port": 5173
     }
   ]
 }

@@ -74,6 +74,11 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # The guest web must build, and its first load must stay under 300 KB (PRD NFR
+      # "Mobile"). The build fails if it doesn't (apps/web/scripts/check-budget.js).
+      - name: Build the guest web (300 KB budget)
+        run: pnpm --filter @okapigo/web build
+
       # Dependency scanning (PRD: Security). Fails on known high/critical vulnerabilities
       # in packages that ship to production.
       - name: Audit dependencies

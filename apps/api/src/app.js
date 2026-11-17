@@ -9,6 +9,7 @@
  * server, and they can pass in fake dependencies.
  */
 import express from 'express';
+import { join } from 'node:path';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { randomUUID } from 'node:crypto';
@@ -54,6 +55,7 @@ import { createSessionService } from './auth/session-service.js';
  *   rateLimitStore: import('./middleware/rate-limit.js').RateLimitStore,
  *   publicLimits?: typeof import('./routes/public-checkout.js').DEFAULT_PUBLIC_LIMITS,
  *   webPublicUrl?: string,   // where guests see booking links; default: apiPublicUrl
+ *   webAssets?: import('./lib/web-assets.js').WebAssets | null,  // the built guest web, if any
  * }} deps
  */
 export function createApp({
@@ -68,6 +70,7 @@ export function createApp({
   rateLimitStore,
   publicLimits,
   webPublicUrl = apiPublicUrl,
+  webAssets = null,
 }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
@@ -153,6 +156,20 @@ export function createApp({
   api.use(alertsRouter({ prisma }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
+
+  // --- The built guest web's files (production) ---------------------------------------
+  // Hashed names (index-BSGQF.js) change whenever the content does, so browsers may keep
+  // them for a year without ever running stale code. ("assets" is a reserved slug.)
+  if (webAssets) {
+    app.use(
+      '/assets',
+      express.static(join(webAssets.dir, 'assets'), {
+        immutable: true,
+        maxAge: '365d',
+        index: false,
+      }),
+    );
+  }
 
   // --- Share pages with link previews: /:operatorSlug and /:operatorSlug/:tourSlug ------
   // LAST, so every route above wins; reserved words are skipped (see share-pages.js).

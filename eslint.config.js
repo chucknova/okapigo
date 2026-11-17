@@ -6,6 +6,7 @@
 import js from '@eslint/js';
 import globals from 'globals';
 import prettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
   // Never lint generated or installed code.
@@ -16,6 +17,7 @@ export default [
 
   {
     files: ['**/*.js'],
+    ignores: ['apps/web/src/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module', // we use `import`/`export` everywhere (ES modules)
@@ -29,6 +31,33 @@ export default [
       // Use the logger, not console, so logs stay structured (see apps/api/src/lib/logger.js).
       'no-console': 'warn',
     },
+  },
+
+  // The guest web (React, runs in browsers).
+  {
+    files: ['apps/web/**/*.{js,jsx}'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: { ...globals.browser },
+    },
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      // The Rules of Hooks: hooks only at the top level of components, and effects list
+      // what they depend on. Breaking these causes bugs that are hard to see.
+      ...reactHooks.configs.recommended.rules,
+      // ESLint's own rule doesn't see a component used only inside JSX (<Button />) and
+      // would call its import unused. Components always start with a capital letter, so
+      // those are skipped. (eslint-plugin-react fixes this properly but doesn't support
+      // ESLint 10 yet.)
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^(_|[A-Z])' }],
+    },
+  },
+  // The web app's build and test config runs in Node.
+  {
+    files: ['apps/web/vite.config.js', 'apps/web/scripts/**/*.js'],
+    languageOptions: { globals: { ...globals.node } },
   },
 
   prettier,

@@ -1,0 +1,82 @@
+/*
+ * base.css — page-wide defaults, built only from tokens (tokens.css).
+ * Components have their own styles in components.css. No raw colours or sizes here.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Don't let phones inflate text on rotate; respect the user's own text size setting. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  /* Phones render text a little crisper with this; harmless elsewhere. */
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-family-heading);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+/* Inputs and buttons inherit the page font (browsers use their own by default). */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* ONE focus style everywhere: a 2 px ring in primary-ink, 2 px away from the element.
+   :focus-visible shows it for keyboards, not for every mouse click. */
+:focus-visible {
+  outline: var(--focus-width) solid var(--color-primary-ink);
+  outline-offset: var(--focus-offset);
+}
+
+/* Prices line up in columns: every digit the same width ("tabular figures"). */
+.okg-money {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Text only for screen readers (e.g. "Decrease adults" on a "−" button). */
+.okg-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Respect "reduce motion" in the phone's accessibility settings. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

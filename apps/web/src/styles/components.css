@@ -1,0 +1,276 @@
+/*
+ * components.css — the building blocks from the token sheet (docs/designs/00-tokens-lagoon.webp).
+ * Class names start with "okg-" so they never clash with a host website's CSS when the
+ * booking widget is embedded (stage 12h).
+ */
+
+/* --- Buttons ------------------------------------------------------------------------ */
+
+.okg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-bold);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.okg-btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.okg-btn--secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+  font-weight: var(--weight-semibold);
+}
+
+/* Disabled: grey fill and grey text (never just "faded primary"), plus a reason in words
+   nearby, which the component renders. */
+.okg-btn:disabled,
+.okg-btn[aria-disabled='true'] {
+  background: var(--color-disabled-bg);
+  color: var(--color-disabled-text);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+.okg-link {
+  color: var(--color-primary-ink);
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* --- Text fields --------------------------------------------------------------------- */
+
+.okg-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.okg-field__label {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-semibold);
+}
+
+.okg-field__hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--color-text-muted);
+}
+
+.okg-field__input {
+  min-height: var(--control-height);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  /* border-strong, not border: inputs must reach 3:1 against the page (WCAG 1.4.11). */
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
+}
+
+.okg-field--error .okg-field__input {
+  border-color: var(--color-danger);
+  /* A thicker edge, so the error shows without relying on colour alone. */
+  box-shadow: 0 0 0 var(--border-width) var(--color-danger);
+}
+
+.okg-field__error {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.okg-field__error svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* --- Stepper (− 2 +) ----------------------------------------------------------------- */
+
+.okg-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.okg-stepper__label {
+  font-weight: var(--weight-semibold);
+}
+
+.okg-stepper__price {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.okg-stepper__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.okg-stepper__button {
+  width: var(--control-height);
+  height: var(--control-height);
+  border-radius: var(--radius-pill);
+  border: var(--border-width) solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-size: var(--text-xl);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.okg-stepper__button:disabled {
+  background: var(--color-disabled-bg);
+  color: var(--color-disabled-text);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+.okg-stepper__count {
+  min-width: 2ch;
+  text-align: center;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Chips ("Only 3 left", "Sold out", "Paid") ---------------------------------------- */
+
+.okg-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.okg-chip--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.okg-chip--neutral {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+.okg-chip--primary {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+}
+.okg-chip--success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+/* --- Notices ------------------------------------------------------------------------- */
+
+.okg-notice {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+.okg-notice--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.okg-notice--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.okg-notice__title {
+  font-weight: var(--weight-bold);
+}
+
+/* "Test mode · no real money moves": on every checkout and pay screen (PRD key safety). */
+.okg-test-strip {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-strip-bg);
+  color: var(--color-strip-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-semibold);
+}
+
+/* --- Surfaces ------------------------------------------------------------------------ */
+
+.okg-card {
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+.okg-card--raised {
+  box-shadow: var(--elevation-1);
+}
+/* Sheets and overlays float above the page. */
+.okg-sheet {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-2);
+  padding: var(--space-5);
+}
+
+/* --- Page shell ---------------------------------------------------------------------- */
+
+.okg-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+/* The letter mark: the first letter of the business name, until there's a logo (session 18). */
+.okg-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: var(--weight-bold);
+}
+
+.okg-header__name {
+  font-weight: var(--weight-bold);
+}
+
+.okg-page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

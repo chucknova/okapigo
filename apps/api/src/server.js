@@ -15,6 +15,7 @@ import { createLogger } from './lib/logger.js';
 import { createPrismaClient } from '@okapigo/db';
 import { createRedis } from './lib/connections.js';
 import { redisRateLimitStore } from './middleware/rate-limit.js';
+import { loadWebAssets } from './lib/web-assets.js';
 import { createLogOtpSender } from './auth/otp-sender.js';
 import { createJobClient } from '@okapigo/jobs';
 import { createPaymentProvider, redisStore } from '@okapigo/payments';
@@ -62,6 +63,8 @@ const app = createApp({
   // Rate-limit counters in Redis, shared by every API process (see middleware/rate-limit.js).
   rateLimitStore: redisRateLimitStore(redis),
   webPublicUrl: config.WEB_PUBLIC_URL ?? config.API_PUBLIC_URL,
+  // The built guest web (pnpm --filter @okapigo/web build), if present.
+  webAssets: loadWebAssets(new URL('../../web/dist', import.meta.url).pathname),
 });
 
 const server = app.listen(config.API_PORT, () => {
