@@ -4,9 +4,9 @@ Booking, payments and operations for Nigerian tour operators. This is the MVP, a
 project that runs one fictional business, **Ìrìn Lagos Tours**, from a guest finding a tour to a
 guide checking that guest in with no signal.
 
-> Status: **stage 10c of 25**. Staff sign-in, catalogue, schedules, pricing, holds with zero
-> oversells, bookings, cancellation policies, a double-entry ledger, and payments that settle
-> through signed webhooks (simulator or Paystack test mode; live keys refused).
+> Status: **stage 10d of 25**. Staff sign-in, catalogue, schedules, pricing, holds with zero
+> oversells, bookings, cancellation policies, a double-entry ledger, and payments (card, bank
+> transfer, deposits, balances, payment links, manual matching) settling through signed webhooks.
 
 ## Requirements
 

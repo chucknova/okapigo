@@ -173,7 +173,7 @@ Then:
   3. **My own stray process**: a workers app I started for a smoke test kept running (my stop
      command's pattern didn't match it) and swept test holds every minute. If tests act strangely,
      check `ps` for leftover `pnpm dev` processes.
-- **Open issue:** after those fixes, about 1 run in 25 locally failed the first test of each API
+- **Resolved in stage 10d** (Prisma's 5-second transaction limit under load; see note 10d). **Originally an open issue:** after those fixes, about 1 run in 25 locally failed the first test of each API
   file once, without the error being captured. A stale-data theory didn't reproduce, so it's not
   "fixed". If CI shows it, the log will say why. Watch for it.
 
