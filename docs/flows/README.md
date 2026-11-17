@@ -23,6 +23,7 @@ reuses checkout's screens inside a frame, so it needs the least new design.
 | 2026-11-17 | Can children or infants book without an adult? | **No.** At least one adult per booking, on every channel. "Adult" = the tour's adult price (13+ at Ìrìn) | 01    | stage 11b      |
 | 2026-11-17 | Is the pickup point stored?                    | **Yes**, required on tours with pickup points                                                            | 01    | stage 11b      |
 | 2026-11-17 | When is a deposit balance due?                 | **7 days before the trip**; later bookings pay in full                                                   | 02    | stage 11c      |
+| 2026-11-17 | When do balance reminders go out?              | **7, 3 and 1 days before the due date**                                                                  | 02    | stage 11d      |
 | 2026-11-17 | Balance not paid in time?                      | **Staff are alerted**; nothing is cancelled automatically                                                | 02    | stage 11d      |
 | 2026-11-17 | Can guests cancel from the trip hub?           | **Yes, and they can ask the operator instead**                                                           | 05    | session 12     |
 | 2026-11-17 | When is the widget's Embed page designed?      | **Later, with the operator app** (see below)                                                             | 03    | sessions 15–16 |

@@ -80,18 +80,19 @@ Badagry Heritage Day Trip on Sat 5 Dec: **₦45,500**, due by Sat 28 Nov".
 
 Please draft the wording (and, for email, a simple layout). They'll use your tokens.
 
-| Message              | When                                                               | Must include                                              |
-| -------------------- | ------------------------------------------------------------------ | --------------------------------------------------------- |
-| Booking confirmation | when paid / confirmed                                              | reference, tour, date/time, meeting point, trip page link |
-| Deposit received     | after a deposit                                                    | amount paid, balance and due date, pay link               |
-| Balance reminder     | e.g. 7, 3 and 1 day(s) before the due date (**proposal**, confirm) | amount, due date, pay link                                |
-| Payment link         | when staff send one                                                | amount, what it's for, link, expiry                       |
-| Cancellation         | when cancelled                                                     | reference, refund amount and when to expect it            |
-| Refund sent          | when the refund is processed                                       | amount, "may take 5–10 working days to appear"            |
+| Message              | When                                                         | Must include                                              |
+| -------------------- | ------------------------------------------------------------ | --------------------------------------------------------- |
+| Booking confirmation | when paid / confirmed                                        | reference, tour, date/time, meeting point, trip page link |
+| Deposit received     | after a deposit                                              | amount paid, balance and due date, pay link               |
+| Balance reminder     | **7, 3 and 1 days** before the due date (decided 2026-11-17) | amount, due date, pay link                                |
+| Payment link         | when staff send one                                          | amount, what it's for, link, expiry                       |
+| Cancellation         | when cancelled                                               | reference, refund amount and when to expect it            |
+| Refund sent          | when the refund is processed                                 | amount, "may take 5–10 working days to appear"            |
 
 **✅ Decided (2026-11-17):**
 
 - **The balance is due 7 days before the trip.** A guest booking later than that isn't offered a
   deposit: they pay in full (screen 4 shows no deposit choice).
+- **Balance reminders go out 7, 3 and 1 days before the due date** (with a pay link).
 - **If the balance isn't paid in time,** staff are alerted and **nothing is cancelled
   automatically**. Staff decide (call the guest, send a link, or cancel).
