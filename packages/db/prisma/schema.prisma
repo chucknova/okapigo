@@ -56,6 +56,8 @@ model Operator {
   cancellationPolicies CancellationPolicy[]
   ledgerAccounts       LedgerAccount[]
   ledgerTransactions   LedgerTransaction[]
+  payments             Payment[]
+  paymentLinks         PaymentLink[]
 
   @@map("operators")
 }
@@ -518,6 +520,7 @@ model Booking {
   events        BookingEvent[]
   ledgerEntries LedgerEntry[]
   payments      Payment[]
+  paymentLinks  PaymentLink[]
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -738,7 +741,9 @@ model LedgerEntry {
 model Payment {
   id                    String    @id @default(uuid()) @db.Uuid
   operatorId            String    @map("operator_id") @db.Uuid
-  bookingId             String    @map("booking_id") @db.Uuid
+  // Null for an UNMATCHED RECEIPT (stage 10d): money that arrived without a booking we
+  // could match it to, until staff allocate it (allocatedAt is then set).
+  bookingId             String?   @map("booking_id") @db.Uuid
   // Which adapter handled it: "simulator" or "paystack".
   provider              String
   // card, bank_transfer… (Paystack can report the channel actually used, set in 10c.)
@@ -763,14 +768,27 @@ model Payment {
   // Set when a human must look at it, e.g. money that arrived after the hold expired
   // (HOLD_EXPIRED_BEFORE_PAYMENT) or more money than was owed (OVERPAID).
   reviewReason          String?   @map("review_reason")
+  // --- Stage 10d -----------------------------------------------------------------
+  // For an unmatched receipt: the booking it was PROBABLY meant for (e.g. a transfer of the
+  // wrong amount for a known payment). A hint for staff, deliberately not a foreign key.
+  suggestedBookingId    String?   @map("suggested_booking_id") @db.Uuid
+  // When staff matched an unmatched receipt to a booking.
+  allocatedAt           DateTime? @map("allocated_at") @db.Timestamptz(3)
+  // Set when the payment was made through a payment link (PAY-05).
+  paymentLinkId         String?   @map("payment_link_id") @db.Uuid
   createdById           String?   @map("created_by_id") @db.Uuid
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  // A direct link to the operator, so deleting a business also deletes unmatched receipts
+  // (which have no booking to cascade through).
+  operator      Operator      @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  booking       Booking?      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  paymentLink   PaymentLink?  @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
   ledgerEntries LedgerEntry[]
 
   @@index([bookingId])
+  @@index([operatorId, allocatedAt])
   @@index([operatorId, createdAt])
   @@map("payments")
 }
@@ -806,4 +824,33 @@ model WebhookEvent {
   @@unique([provider, dedupKey])
   @@index([status, receivedAt])
   @@map("webhook_events")
+}
+
+// ---------------------------------------------------------------------------
+// PaymentLink: "pay ₦X towards booking ILT-7K4Q2M" as a shareable URL (PAY-05)
+// ---------------------------------------------------------------------------
+// The URL contains a random token (192 bits). Like session tokens, only its SHA-256 HASH is
+// stored: someone reading the database can't rebuild working links. The full URL is shown
+// once, when the link is created.
+model PaymentLink {
+  id          String   @id @default(uuid()) @db.Uuid
+  operatorId  String   @map("operator_id") @db.Uuid
+  bookingId   String   @map("booking_id") @db.Uuid
+  tokenHash   String   @unique @map("token_hash")
+  amountKobo  Int      @map("amount_kobo")
+  // deposit, balance or custom (same words as payments.purpose)
+  purpose     String
+  // active → paid / cancelled / expired
+  status      String   @default("active")
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator Operator  @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  booking  Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([bookingId])
+  @@map("payment_links")
 }

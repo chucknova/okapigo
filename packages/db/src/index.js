@@ -39,6 +39,12 @@ export {
   exportLedgerCsv,
   LedgerActionError,
 } from './ledger.js';
-export { startPayment } from './payments.js';
+export { startPayment, payableBalance, PAYABLE_STATUSES } from './payments.js';
 export { recordWebhookEvent } from './webhooks.js';
-export { processWebhookEvent, sweepWebhookEvents } from './settlement.js';
+export { processWebhookEvent, sweepWebhookEvents, allocateReceipt } from './settlement.js';
+export {
+  createPaymentLink,
+  findPaymentLink,
+  payWithLink,
+  cancelPaymentLink,
+} from './payment-links.js';

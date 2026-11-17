@@ -17,11 +17,61 @@
  * Nothing here marks a payment "succeeded". Only a verified webhook does (stage 10c).
  */
 import { generatePaymentReference, placeholderEmail } from '@okapigo/shared/payment-status';
+import { formatNaira } from '@okapigo/shared/money';
 import { BookingError } from './booking-lifecycle.js';
 
 const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
 /** Reuse an unfinished checkout for this long ("Pay" clicked twice, page reloaded). */
 const REUSE_WINDOW_MS = 30 * 60 * 1000;
+
+/** Booking statuses that can still receive money. */
+export const PAYABLE_STATUSES = ['held', 'confirmed', 'part_paid', 'amended'];
+
+/** Which payment methods the provider's page should offer. "any" lets the guest choose. */
+const CHANNELS = {
+  card: ['card'],
+  bank_transfer: ['bank_transfer'],
+  any: ['card', 'bank_transfer'],
+};
+
+/**
+ * Works out what can be paid on a booking right now, or throws why not.
+ * Exported so payment links use exactly the same rules.
+ * @param {import('@prisma/client').Booking & { hold: import('@prisma/client').Hold }} booking
+ * @param {Date} now
+ * @returns {{ balanceKobo: number }}
+ */
+export function payableBalance(booking, now) {
+  if (!PAYABLE_STATUSES.includes(booking.status)) {
+    throw new BookingError('NOT_PAYABLE', `A "${booking.status}" booking can't take payments.`);
+  }
+  if (
+    booking.status === 'held' &&
+    (booking.hold.status !== 'active' || booking.hold.expiresAt <= now)
+  ) {
+    throw new BookingError(
+      'HOLD_EXPIRED',
+      'The hold on these seats has expired. Start a new booking.',
+    );
+  }
+  const balanceKobo = booking.totalKobo - booking.amountPaidKobo;
+  if (balanceKobo <= 0) {
+    // A ₦0 booking (e.g. a free infant-only booking) is confirmed, not paid.
+    throw new BookingError('NOTHING_TO_PAY', 'Nothing is owed on this booking.');
+  }
+  return { balanceKobo };
+}
+
+/**
+ * Names what a payment is for: the full price, a deposit, the balance, or something else.
+ * @param {import('@prisma/client').Booking} booking
+ * @param {number} amountKobo
+ * @param {number} balanceKobo
+ */
+function purposeOf(booking, amountKobo, balanceKobo) {
+  if (booking.status === 'held') return amountKobo === balanceKobo ? 'full' : 'deposit';
+  return amountKobo === balanceKobo ? 'balance' : 'custom';
+}
 
 /**
  * @param {import('@prisma/client').PrismaClient} prisma
@@ -29,18 +79,26 @@ const REUSE_WINDOW_MS = 30 * 60 * 1000;
  * @param {{
  *   operatorId: string,
  *   bookingId: string,
- *   method: 'card' | 'bank_transfer',
+ *   method: 'card' | 'bank_transfer' | 'any',
+ *   amountKobo?: number,          // default: the whole balance
+ *   paymentLink?: { id: string, purpose: string } | null,
  *   callbackUrl: string,
  *   actor: import('./booking-lifecycle.js').Actor,
  *   now?: Date,
  * }} input
  * @returns {Promise<{ payment: import('@prisma/client').Payment, reused: boolean }>}
  */
-export async function startPayment(
-  prisma,
-  provider,
-  { operatorId, bookingId, method, callbackUrl, actor, now = new Date() },
-) {
+export async function startPayment(prisma, provider, input) {
+  const {
+    operatorId,
+    bookingId,
+    method,
+    callbackUrl,
+    actor,
+    paymentLink = null,
+    now = new Date(),
+  } = input;
+
   // --- Step 1: decide and record, under the booking's row lock --------------------------
   const { payment, reused, booking } = await prisma.$transaction(async (tx) => {
     // Lock THIS booking. A second "Pay" click waits here, then sees the first one's
@@ -54,26 +112,18 @@ export async function startPayment(
       where: { id: bookingId },
       include: { hold: true },
     });
+    const { balanceKobo } = payableBalance(booking, now);
 
-    // What can be paid right now. (Deposits and balances are stage 10d.)
-    if (booking.status !== 'held') {
-      throw new BookingError(
-        'NOT_PAYABLE',
-        `A "${booking.status}" booking can't be paid this way.`,
-      );
+    const amountKobo = input.amountKobo ?? balanceKobo;
+    if (!Number.isInteger(amountKobo) || amountKobo <= 0) {
+      throw new BookingError('INVALID_AMOUNT', 'The amount must be whole kobo above zero.');
     }
-    if (booking.hold.status !== 'active' || booking.hold.expiresAt <= now) {
+    if (amountKobo > balanceKobo) {
+      // Taking more than is owed would only create a refund to pay back. Refuse up front.
       throw new BookingError(
-        'HOLD_EXPIRED',
-        'The hold on these seats has expired. Start a new booking.',
-      );
-    }
-    const amountKobo = booking.totalKobo - booking.amountPaidKobo;
-    if (amountKobo <= 0) {
-      // A ₦0 booking (e.g. a free infant-only booking) is confirmed, not paid.
-      throw new BookingError(
-        'NOTHING_TO_PAY',
-        'Nothing is owed on this booking. Confirm it instead.',
+        'AMOUNT_TOO_HIGH',
+        `Only ${formatNaira(balanceKobo)} is owed on this booking.`,
+        { balanceKobo },
       );
     }
 
@@ -83,6 +133,7 @@ export async function startPayment(
         status: 'initiated',
         method,
         amountKobo,
+        paymentLinkId: paymentLink?.id ?? null,
         authorizationUrl: { not: null },
         createdAt: { gt: new Date(now.getTime() - REUSE_WINDOW_MS) },
       },
@@ -96,9 +147,10 @@ export async function startPayment(
         bookingId,
         provider: provider.name,
         method,
-        purpose: 'full',
+        purpose: paymentLink?.purpose ?? purposeOf(booking, amountKobo, balanceKobo),
         amountKobo,
         reference: generatePaymentReference(),
+        paymentLinkId: paymentLink?.id ?? null,
         createdById: actor.type === 'user' ? actor.userId : null,
       },
     });
@@ -117,8 +169,13 @@ export async function startPayment(
       // placeholder that can never receive mail (see placeholderEmail for why example.com).
       email: booking.leadEmail ?? placeholderEmail(booking.reference),
       callbackUrl,
-      channels: [method],
-      metadata: { bookingId, bookingReference: booking.reference, paymentId: payment.id },
+      channels: CHANNELS[method],
+      metadata: {
+        bookingId,
+        bookingReference: booking.reference,
+        paymentId: payment.id,
+        operatorId,
+      },
     });
   } catch (err) {
     // --- Step 3 (failure): keep the attempt, marked failed with the reason ---------------
