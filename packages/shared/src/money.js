@@ -40,3 +40,16 @@ export function formatNaira(kobo) {
   if (!Number.isInteger(kobo)) throw new TypeError(`Money must be integer kobo, got ${kobo}`);
   return formatter.format(kobo / 100);
 }
+
+/**
+ * Kobo as a plain decimal naira string, for CSV exports and accountants' spreadsheets:
+ *   koboToDecimal(5000000) → "50000.00",  koboToDecimal(-150) → "-1.50"
+ * Integer arithmetic only, no floats.
+ * @param {number} kobo
+ */
+export function koboToDecimal(kobo) {
+  if (!Number.isInteger(kobo)) throw new TypeError(`Money must be integer kobo, got ${kobo}`);
+  const sign = kobo < 0 ? '-' : '';
+  const abs = Math.abs(kobo);
+  return `${sign}${Math.trunc(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+}

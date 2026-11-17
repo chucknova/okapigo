@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nairaToKobo, formatNaira } from '../src/money.js';
+import { nairaToKobo, formatNaira, koboToDecimal } from '../src/money.js';
 import { findAgeOverlap, findCategoryForAge } from '../src/catalogue.js';
 import { CreateProductSchema, CreatePriceCategorySchema } from '../src/schemas/products.js';
 
@@ -14,6 +14,13 @@ describe('money', () => {
     expect(formatNaira(2_500_000)).toBe('₦25,000');
     expect(formatNaira(9999)).toBe('₦99.99');
     expect(formatNaira(0)).toBe('₦0');
+  });
+
+  it('writes plain decimal naira for spreadsheets', () => {
+    expect(koboToDecimal(5_000_000)).toBe('50000.00');
+    expect(koboToDecimal(9999)).toBe('99.99');
+    expect(koboToDecimal(5)).toBe('0.05');
+    expect(koboToDecimal(-150)).toBe('-1.50');
   });
 
   it('refuses fractional kobo', () => {

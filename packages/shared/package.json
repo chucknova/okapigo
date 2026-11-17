@@ -22,7 +22,9 @@
     "./reference": "./src/reference.js",
     "./schemas/bookings": "./src/schemas/bookings.js",
     "./cancellation": "./src/cancellation.js",
-    "./schemas/cancellation": "./src/schemas/cancellation.js"
+    "./schemas/cancellation": "./src/schemas/cancellation.js",
+    "./ledger": "./src/ledger.js",
+    "./schemas/ledger": "./src/schemas/ledger.js"
   },
   "scripts": {
     "test": "vitest run"
