@@ -45,81 +45,88 @@ const STAFF = [
 export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new Date() } = {}) {
   // $transaction: either EVERY row below is written, or (on any error) NONE are.
   // A half-created business (operator but no staff) would be worse than nothing.
-  const { operator, scheduleIds } = await prisma.$transaction(async (tx) => {
-    // The operator and its owner/manager/guide roles (shared with real sign-ups).
-    const { operator, roleIds } = await createOperatorWithPresetRoles(tx, {
-      name: 'Ìrìn Lagos Tours',
-      slug,
-    });
+  const { operator, scheduleIds } = await prisma.$transaction(
+    async (tx) => {
+      // The operator and its owner/manager/guide roles (shared with real sign-ups).
+      const { operator, roleIds } = await createOperatorWithPresetRoles(tx, {
+        name: 'Ìrìn Lagos Tours',
+        slug,
+      });
 
-    // Phone numbers are unique platform-wide too, but we only have six fictional ones.
-    // So only the main demo copy gets phones; extra copies (sandboxes) use email only.
-    const withPhones = slug === DEFAULT_SLUG;
+      // Phone numbers are unique platform-wide too, but we only have six fictional ones.
+      // So only the main demo copy gets phones; extra copies (sandboxes) use email only.
+      const withPhones = slug === DEFAULT_SLUG;
 
-    await tx.user.createMany({
-      data: STAFF.map((person) => ({
-        operatorId: operator.id,
-        roleId: roleIds[person.role],
-        name: person.name,
-        email: `${person.local}@${slug}.example`,
-        phone: withPhones ? person.phone : null,
-      })),
-    });
+      await tx.user.createMany({
+        data: STAFF.map((person) => ({
+          operatorId: operator.id,
+          roleId: roleIds[person.role],
+          name: person.name,
+          email: `${person.local}@${slug}.example`,
+          phone: withPhones ? person.phone : null,
+        })),
+      });
 
-    // Schedules start "today" in Lagos, so the demo always has upcoming departures.
-    const today = localDate(now, operator.timeZone);
-    const christmas = nextChristmas(today);
-    /** @type {string[]} */
-    const scheduleIds = [];
+      // Schedules start "today" in Lagos, so the demo always has upcoming departures.
+      const today = localDate(now, operator.timeZone);
+      const christmas = nextChristmas(today);
+      /** @type {string[]} */
+      const scheduleIds = [];
 
-    // The five tours, each with its price categories, add-ons and schedule (nested create).
-    for (const { prices, addOns, schedule, ...product } of TOURS) {
-      const created = await tx.product.create({
-        data: {
-          ...product,
-          // With nested writes, Prisma wants relations written as `connect`, not raw ids.
-          operator: { connect: { id: operator.id } },
-          // Nested writes: Prisma creates the children and fills in BOTH parts of their
-          // composite key (productId and operatorId) from the parent product itself.
-          priceCategories: { create: prices },
-          addOns: { create: addOns },
-          schedules: {
-            // (No operatorId here: nested children inherit it from the product.)
-            create: {
-              startDate: stringToDate(today),
-              daysOfWeek: schedule.daysOfWeek,
-              times: schedule.times,
-              skipDates: schedule.skipChristmas ? [stringToDate(christmas)] : [],
+      // The five tours, each with its price categories, add-ons and schedule (nested create).
+      for (const { prices, addOns, schedule, ...product } of TOURS) {
+        const created = await tx.product.create({
+          data: {
+            ...product,
+            // With nested writes, Prisma wants relations written as `connect`, not raw ids.
+            operator: { connect: { id: operator.id } },
+            // Nested writes: Prisma creates the children and fills in BOTH parts of their
+            // composite key (productId and operatorId) from the parent product itself.
+            priceCategories: { create: prices },
+            addOns: { create: addOns },
+            schedules: {
+              // (No operatorId here: nested children inherit it from the product.)
+              create: {
+                startDate: stringToDate(today),
+                daysOfWeek: schedule.daysOfWeek,
+                times: schedule.times,
+                skipDates: schedule.skipChristmas ? [stringToDate(christmas)] : [],
+              },
             },
           },
+          include: { schedules: true },
+        });
+        scheduleIds.push(created.schedules[0].id);
+      }
+
+      // Ìrìn's cancellation policy, as in the PRD: full refund 48 h or more before, 50% from
+      // 24 to 48 h, nothing after (or for no-shows); deposits are non-refundable.
+      const { policy } = await createPolicy(tx, {
+        operatorId: operator.id,
+        name: 'Standard',
+        terms: {
+          rules: [
+            { hoursBefore: 48, refundBasisPoints: 10_000 },
+            { hoursBefore: 24, refundBasisPoints: 5_000 },
+            { hoursBefore: 0, refundBasisPoints: 0 },
+          ],
+          noShowRefundBasisPoints: 0,
+          depositRefundable: false,
         },
-        include: { schedules: true },
       });
-      scheduleIds.push(created.schedules[0].id);
-    }
+      await tx.product.updateMany({
+        where: { operatorId: operator.id },
+        data: { cancellationPolicyId: policy.id },
+      });
 
-    // Ìrìn's cancellation policy, as in the PRD: full refund 48 h or more before, 50% from
-    // 24 to 48 h, nothing after (or for no-shows); deposits are non-refundable.
-    const { policy } = await createPolicy(tx, {
-      operatorId: operator.id,
-      name: 'Standard',
-      terms: {
-        rules: [
-          { hoursBefore: 48, refundBasisPoints: 10_000 },
-          { hoursBefore: 24, refundBasisPoints: 5_000 },
-          { hoursBefore: 0, refundBasisPoints: 0 },
-        ],
-        noShowRefundBasisPoints: 0,
-        depositRefundable: false,
-      },
-    });
-    await tx.product.updateMany({
-      where: { operatorId: operator.id },
-      data: { cancellationPolicyId: policy.id },
-    });
-
-    return { operator, scheduleIds };
-  });
+      return { operator, scheduleIds };
+      // Time limits: Prisma's default is 5 s. When many seeds run at once (the start of a full
+      // test run, or several demo sandboxes), one can take longer; Prisma then rolls back and a
+      // query already on its way runs OUTSIDE the transaction, failing with a confusing
+      // foreign-key error. That was the "open issue" from session 8, found in stage 10d.
+    },
+    { maxWait: 15_000, timeout: 30_000 },
+  );
 
   // Turn each schedule into departures for the next 60 days. (Each sync runs in its own
   // transaction; if one failed, re-running the seed after a reset fixes it.)
