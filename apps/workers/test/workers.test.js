@@ -8,6 +8,7 @@ import { Worker } from 'bullmq';
 import { createPrismaClient, seedDemoOperator, createHold } from '@okapigo/db';
 import { createJobClient, connectionFor, QUEUES, JOBS } from '@okapigo/jobs';
 import { createProcessors } from '../src/processors.js';
+import { createSimulatorProvider } from '@okapigo/payments';
 
 const logger = pino({ level: 'silent' });
 let prisma;
@@ -16,7 +17,11 @@ const created = [];
 
 beforeAll(() => {
   prisma = createPrismaClient(process.env.DATABASE_URL);
-  processors = createProcessors({ prisma, logger });
+  processors = createProcessors({
+    prisma,
+    logger,
+    provider: createSimulatorProvider({ baseUrl: 'http://localhost:4000' }),
+  });
 });
 afterAll(() => prisma.$disconnect());
 afterEach(async () => {

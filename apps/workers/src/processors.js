@@ -10,14 +10,25 @@
  * underneath are idempotent: releaseHold() succeeds only once per hold, and
  * syncScheduleDepartures() creates nothing that already exists.
  */
-import { releaseHold, expireDueHolds, extendAllSchedules, verifyLedger } from '@okapigo/db';
+import {
+  releaseHold,
+  expireDueHolds,
+  extendAllSchedules,
+  verifyLedger,
+  processWebhookEvent,
+  sweepWebhookEvents,
+} from '@okapigo/db';
 import { JOBS } from '@okapigo/jobs';
 
 /**
- * @param {{ prisma: import('@prisma/client').PrismaClient, logger: import('pino').Logger }} deps
+ * @param {{
+ *   prisma: import('@prisma/client').PrismaClient,
+ *   logger: import('pino').Logger,
+ *   provider: import('@okapigo/payments').PaymentProvider,
+ * }} deps
  * @returns {Record<string, (data: any) => Promise<unknown>>} job name → handler
  */
-export function createProcessors({ prisma, logger }) {
+export function createProcessors({ prisma, logger, provider }) {
   return {
     /** One hold's time is up: give its seats back (if nobody already did). */
     async [JOBS.expireHold]({ holdId }) {
@@ -59,6 +70,25 @@ export function createProcessors({ prisma, logger }) {
       }
       if (!result.ok) throw new Error('verify-ledger: the books do not balance');
       return { ok: true, warnings: result.issues.length };
+    },
+
+    /**
+     * A payment provider event (stage 10c): verify with the provider, then settle the
+     * payment, booking, seats and ledger in one transaction. Throws on failure, so BullMQ
+     * retries with backoff; settling twice is impossible (payment row lock + idempotent ledger).
+     */
+    async [JOBS.processWebhook]({ eventId }) {
+      const result = await processWebhookEvent(prisma, provider, eventId);
+      const level = result.status === 'needs_review' ? 'warn' : 'info';
+      logger[level]({ eventId, ...result }, 'webhook processed');
+      return result;
+    },
+
+    /** Every minute: events whose job was lost or keeps failing. */
+    async [JOBS.sweepWebhooks]() {
+      const result = await sweepWebhookEvents(prisma, provider);
+      if (result.found > 0) logger.warn(result, 'webhook sweeper found unprocessed events');
+      return result;
     },
   };
 }

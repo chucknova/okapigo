@@ -13,6 +13,7 @@
   "dependencies": {
     "@okapigo/db": "workspace:*",
     "@okapigo/jobs": "workspace:*",
+    "@okapigo/payments": "workspace:*",
     "bullmq": "6.7.6",
     "ioredis": "6.0.0",
     "pino": "10.4.0"
