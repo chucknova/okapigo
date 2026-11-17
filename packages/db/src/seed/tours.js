@@ -50,6 +50,7 @@ const categories = ({ adult, child, infant = 0 }) => [
 export const TOURS = [
   {
     slug: 'lagos-island-heritage-walk',
+    activityLabel: 'Walking',
     // Daily at 09:00, closed on Christmas Day (an exception date).
     schedule: { daysOfWeek: [0, 1, 2, 3, 4, 5, 6], times: ['09:00'], skipChristmas: true },
     title: 'Lagos Island Heritage Walk',
@@ -61,8 +62,9 @@ export const TOURS = [
     durationMinutes: 180,
     defaultCapacity: 15,
     meetingPoint: {
-      name: 'Tinubu Square, by the fountain',
-      address: 'Tinubu Square, Broad Street, Lagos Island',
+      name: 'Tinubu Square',
+      address: 'Broad Street, Lagos Island',
+      note: 'Look for the guide in the green Ìrìn cap, by the fountain.',
       lat: 6.4541,
       lng: 3.3893,
     },
@@ -105,6 +107,7 @@ export const TOURS = [
   },
   {
     slug: 'lagos-street-food-crawl',
+    activityLabel: 'Evening',
     // Thursday to Saturday evenings.
     schedule: { daysOfWeek: [4, 5, 6], times: ['18:30'] },
     title: 'Lagos Street Food Crawl',
@@ -157,6 +160,7 @@ export const TOURS = [
   },
   {
     slug: 'lekki-nature-and-craft',
+    activityLabel: 'Van, pickup',
     // Wednesday and Saturday mornings.
     schedule: { daysOfWeek: [3, 6], times: ['08:00'] },
     title: 'Lekki Nature and Craft Half-Day',
@@ -191,6 +195,7 @@ export const TOURS = [
   },
   {
     slug: 'tarkwa-bay-beach-and-lagoon',
+    activityLabel: 'Boat',
     // Weekends only.
     schedule: { daysOfWeek: [0, 6], times: ['10:00'] },
     title: 'Tarkwa Bay Beach and Lagoon Trip',
@@ -240,6 +245,7 @@ export const TOURS = [
   },
   {
     slug: 'badagry-heritage-day-trip',
+    activityLabel: 'Van, full day',
     // Saturdays, early start.
     schedule: { daysOfWeek: [6], times: ['07:00'] },
     title: 'Badagry Heritage Day Trip',

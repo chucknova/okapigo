@@ -1,0 +1,519 @@
+/*
+ * screens.css — layouts for the guest screens (catalogue, tour page), built from tokens.
+ * Sizes follow the designs (docs/designs/01-…): measured from the design files.
+ * Phone first; the desktop layout starts at 960 px.
+ */
+
+/* --- Text helpers --------------------------------------------------------------------- */
+
+.okg-title {
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: var(--weight-bold);
+}
+.okg-h2 {
+  font-size: var(--text-lg);
+  line-height: 27px;
+  font-weight: var(--weight-bold);
+}
+.okg-h3 {
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-bold);
+}
+.okg-muted {
+  color: var(--color-text-muted);
+}
+.okg-small {
+  font-size: var(--text-sm);
+  line-height: 21px;
+}
+.okg-xs {
+  font-size: var(--text-xs);
+  line-height: 18px;
+}
+/* "from", "Next", "per adult": small muted labels above or below a value. */
+.okg-label {
+  font-size: 13px;
+  line-height: 19.5px;
+  color: var(--color-text-muted);
+}
+.okg-price {
+  display: block;
+  font-size: 20px;
+  line-height: 30px;
+  font-weight: var(--weight-bold);
+}
+.okg-strong {
+  font-weight: var(--weight-semibold);
+}
+.okg-strong-sm {
+  font-size: var(--text-sm);
+  line-height: 21px;
+  font-weight: var(--weight-semibold);
+}
+
+/* Shown on one layout only. display:none also hides it from screen readers, so nothing is
+   read twice. */
+@media (min-width: 960px) {
+  .okg-phone-only {
+    display: none !important;
+  }
+}
+@media (max-width: 959.98px) {
+  .okg-desktop-only {
+    display: none !important;
+  }
+}
+
+/* --- Loading placeholders ------------------------------------------------------------- */
+
+.okg-skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--color-disabled-bg) 0%,
+    var(--color-surface-2) 50%,
+    var(--color-disabled-bg) 100%
+  );
+  background-size: 200% 100%;
+  /* A slow shine, so the page looks alive on a slow connection. */
+  animation: okg-shine 1.4s ease-in-out infinite;
+}
+@keyframes okg-shine {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0% 50%;
+  }
+}
+
+/* --- Small round icon buttons (back, share) -------------------------------------------- */
+
+.okg-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-min-target);
+  height: var(--control-min-target);
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.okg-icon-btn--plain {
+  border-color: transparent;
+}
+
+.okg-header__name {
+  flex: 1;
+}
+
+/* --- A · Catalogue ---------------------------------------------------------------------- */
+
+.okg-tour-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  color: inherit;
+  text-decoration: none;
+}
+.okg-tour-card:hover {
+  border-color: var(--color-border-strong);
+}
+.okg-tour-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  line-height: 19.5px;
+  color: var(--color-text-muted);
+}
+.okg-tour-card__title {
+  font-size: var(--text-lg);
+  line-height: var(--leading-md);
+  font-weight: var(--weight-bold);
+}
+.okg-tour-card__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: var(--space-1);
+}
+.okg-tour-card__next {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* --- B · Tour page ---------------------------------------------------------------------- */
+
+.okg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Fact chips ("3 hours", "Walking") use the text colour, not muted. */
+.okg-chip--fact {
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 19.5px;
+  padding: var(--space-1) 10px;
+}
+
+.okg-tour__band {
+  display: none; /* phones: no photo band (designs) */
+}
+.okg-tour__hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 20px var(--space-4) 0;
+  background: var(--color-surface);
+}
+.okg-tour__title {
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+  font-weight: var(--weight-bold);
+}
+.okg-tour__description {
+  color: var(--color-text-muted);
+}
+
+/* Phone: the price row closes the white top band; "Next dates" is a card below it. */
+.okg-tour__price-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) 20px;
+  background: var(--color-surface);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+.okg-tour__book > .okg-dates {
+  margin: var(--space-4) var(--space-4) 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.okg-tour__price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.okg-tour__price {
+  font-size: 26px;
+  line-height: 28.6px;
+  font-weight: var(--weight-bold);
+}
+.okg-btn--auto {
+  width: auto;
+  min-height: 52px;
+  padding: 0 28px;
+}
+.okg-success-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-success);
+  font-size: var(--text-sm);
+  line-height: 21px;
+}
+
+.okg-tour__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  /* Room for the sticky Book bar, so it never covers the last card. */
+  padding-bottom: 96px;
+}
+.okg-tour__content .okg-card {
+  padding: var(--space-4);
+}
+
+/* Dates */
+.okg-dates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.okg-dates__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+.okg-dates__head .okg-link {
+  font-size: var(--text-sm);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.okg-dates__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.okg-date {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px var(--space-3);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+}
+a.okg-date:hover {
+  background: var(--color-primary-soft);
+}
+.okg-date__day {
+  font-weight: var(--weight-bold);
+}
+.okg-date__seats {
+  font-size: 13px;
+  line-height: 19.5px;
+  color: var(--color-text-muted);
+}
+.okg-date__seats--few {
+  color: var(--color-warning);
+  font-weight: var(--weight-bold);
+}
+.okg-date--sold-out {
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+}
+.okg-date--sold-out .okg-date__day,
+.okg-date--sold-out .okg-date__seats {
+  color: var(--color-disabled-text);
+}
+
+/* Meeting point */
+.okg-meeting {
+  display: flex;
+  gap: var(--space-3);
+}
+.okg-meeting__icon {
+  color: var(--color-primary-ink);
+  flex: none;
+}
+
+/* Included / Not included */
+.okg-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+.okg-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding-left: 18px;
+  font-size: var(--text-sm);
+  line-height: 21px;
+}
+
+/* The route: numbered circles */
+.okg-route {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.okg-route li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  column-gap: 10px;
+}
+.okg-route__n {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+.okg-route__name {
+  font-weight: var(--weight-semibold);
+}
+
+/* Questions: native <details>, so they open with a tap, Enter or Space, no JavaScript. */
+.okg-faqs details {
+  border-top: var(--border-width) solid var(--color-border);
+  padding: var(--space-3) 0;
+}
+.okg-faqs summary {
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  min-height: 24px;
+}
+.okg-faqs details p {
+  margin-top: var(--space-2);
+}
+
+/* Phone: price and Book always within reach */
+.okg-sticky-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px var(--space-4);
+  /* The phone's home-bar area on notched phones. */
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-top: var(--border-width) solid var(--color-border);
+  box-shadow: var(--elevation-sticky);
+}
+
+/* --- Desktop (from 960 px) --------------------------------------------------------------- */
+
+@media (min-width: 960px) {
+  .okg-tour__header {
+    padding: 14px max(var(--space-4), calc((100% - 1120px) / 2));
+    gap: var(--space-3);
+  }
+  .okg-tour__header .okg-icon-btn--plain {
+    display: none; /* desktop has "All tours" in the header instead of a back arrow */
+  }
+  .okg-tour__header .okg-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+  .okg-tour__header .okg-header__name {
+    font-size: var(--text-lg);
+  }
+
+  /* Two columns: content (700) and the booking card (380), 40 apart, 1120 wide. */
+  .okg-tour__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 700px) 380px;
+    grid-template-areas:
+      'band book'
+      'hero book'
+      'content book';
+    grid-template-rows: auto auto 1fr;
+    column-gap: 40px;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-4);
+  }
+  .okg-tour__band {
+    grid-area: band;
+    display: block;
+    height: 300px;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .okg-tour__band img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* No photo: thin diagonal lines on a pale green (designs). */
+  .okg-tour__band--pattern {
+    background-color: var(--color-pattern-bg);
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--color-pattern-line) 0,
+      var(--color-pattern-line) 2px,
+      transparent 2px,
+      transparent 22px
+    );
+  }
+  .okg-tour__hero {
+    grid-area: hero;
+    padding: 0;
+    background: none;
+    gap: 20px;
+  }
+  .okg-chip--fact {
+    font-size: var(--text-sm);
+    line-height: 21px;
+  }
+  .okg-tour__title {
+    font-size: 40px;
+    line-height: 46px;
+  }
+  .okg-tour__description {
+    font-size: var(--text-lg);
+    line-height: 27px;
+    max-width: 640px;
+  }
+  .okg-tour__content {
+    grid-area: content;
+    padding: 20px 0 0;
+    gap: 20px;
+  }
+  .okg-tour__content .okg-card {
+    padding: 20px;
+  }
+
+  /* The booking card: stays in view while the page scrolls. */
+  .okg-tour__book {
+    grid-area: book;
+    align-self: start;
+    position: sticky;
+    top: var(--space-5);
+    gap: 14px;
+    padding: var(--space-5);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-2);
+  }
+  .okg-tour__price {
+    font-size: 32px;
+    line-height: 35.2px;
+  }
+  /* Inside the booking card: no bands or nested cards. */
+  .okg-tour__book {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+  }
+  .okg-tour__price-block,
+  .okg-tour__book > .okg-dates {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .okg-tour__book .okg-label {
+    font-size: var(--text-sm);
+  }
+  .okg-dates__grid {
+    grid-template-columns: 1fr;
+  }
+  .okg-date {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) 14px;
+  }
+  .okg-date__seats {
+    font-size: var(--text-sm);
+  }
+  .okg-tour__content {
+    padding-bottom: 0;
+  }
+}

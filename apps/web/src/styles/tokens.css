@@ -59,6 +59,8 @@
   --color-disabled-text: #5E675E;
   --color-strip-bg: #111511;
   --color-strip-text: #EEF2EC;
+  --color-pattern-bg: #E6EDE2;
+  --color-pattern-line: #DCE7D6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -84,6 +86,8 @@
     --color-disabled-text: #A9B3A8;
     --color-strip-bg: #000000;
     --color-strip-text: #EEF2EC;
+    --color-pattern-bg: #1C231C;
+    --color-pattern-line: #252E25;
   }
 }
 
@@ -109,4 +113,6 @@
   --color-disabled-text: #A9B3A8;
   --color-strip-bg: #000000;
   --color-strip-text: #EEF2EC;
+  --color-pattern-bg: #1C231C;
+  --color-pattern-line: #252E25;
 }

@@ -46,6 +46,9 @@ model Operator {
   // (Illustrative: not tax advice.)
   // How long checkout holds keep seats while a guest pays (INV-23), in minutes.
   holdMinutes  Int      @default(15) @map("hold_minutes")
+  // Where the operator works, for headings like "Tours in Lagos" (stage 12b). Optional:
+  // without it the catalogue says "Our tours". More business details arrive in stage 12g.
+  city         String?
   pricing      Json     @default("{\"tax\": {\"name\": \"VAT\", \"basisPoints\": 750, \"inclusive\": true}, \"fees\": []}")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -216,6 +219,9 @@ model Product {
   // "draft" = being set up (not bookable), "published" = on sale, "archived" = retired.
   status          String @default("draft")
   durationMinutes Int    @map("duration_minutes")
+  // A short word or two about HOW the tour runs: "Walking", "Boat", "Van, pickup" (stage 12b,
+  // shown on tour cards and pages). Optional.
+  activityLabel   String? @map("activity_label")
   // Seats per departure unless a schedule says otherwise (session 5).
   defaultCapacity Int    @map("default_capacity")
 

@@ -206,3 +206,74 @@ describe('reserved slugs', () => {
     expect(derived.body.product.slug).toBe('checkout-tour');
   });
 });
+
+describe('stage 12b: the app and its data inside share pages', () => {
+  /** The JSON embedded for the app, parsed the way the app does. */
+  const embedded = (html) => {
+    const m = html.match(/<script id="okg-data" type="application\/json">(.*?)<\/script>/s);
+    return m ? JSON.parse(m[1]) : undefined;
+  };
+
+  it('embeds the tour view the app needs, without internal ids', async () => {
+    const { operator } = await ctx.seedOperator();
+
+    const { text } = await request(app()).get(`/${operator.slug}/lagos-island-heritage-walk`);
+
+    const data = embedded(text);
+    expect(data).toMatchObject({
+      kind: 'tour',
+      operatorSlug: operator.slug,
+      tourSlug: 'lagos-island-heritage-walk',
+      view: { operator: { name: 'Ìrìn Lagos Tours' }, tour: { activityLabel: 'Walking' } },
+    });
+    expect(data.view.tour).not.toHaveProperty('_id');
+    expect(data.view.tour).not.toHaveProperty('_operatorId');
+    // The first paint, before the app: title and summary, inside the app's root.
+    expect(text).toMatch(
+      /<div id="root"><header class="okg-header">.*<h1>Lagos Island Heritage Walk<\/h1>/s,
+    );
+  });
+
+  it("can't be broken out of: a title with </script> stays inside the data", async () => {
+    const { operator } = await ctx.seedOperator();
+    await ctx.prisma.product.updateMany({
+      where: { operatorId: operator.id, slug: 'lagos-street-food-crawl' },
+      data: { title: 'Suya</script><script>alert(1)</script>' },
+    });
+
+    const { text } = await request(app()).get(`/${operator.slug}/lagos-street-food-crawl`);
+
+    // The only </script> tags are the ones we wrote; the title's are escaped as <.
+    expect(text).not.toContain('<script>alert(1)');
+    expect(embedded(text).view.tour.title).toBe('Suya</script><script>alert(1)</script>');
+  });
+
+  it('loads the built app when there is one', async () => {
+    const { operator } = await ctx.seedOperator();
+    const withApp = buildApp({
+      prisma: ctx.prisma,
+      webPublicUrl: WEB,
+      webAssets: {
+        dir: '/nowhere',
+        scripts: ['/assets/index-abc.js'],
+        styles: ['/assets/index-def.css'],
+      },
+    });
+
+    const { text } = await request(withApp).get(`/${operator.slug}`);
+
+    expect(text).toContain('<link rel="stylesheet" href="/assets/index-def.css">');
+    expect(text).toContain('<script type="module" src="/assets/index-abc.js"></script>');
+    expect(embedded(text)).toMatchObject({ kind: 'catalogue', operatorSlug: operator.slug });
+  });
+
+  it('serves the checkout path too, previewing the tour', async () => {
+    const { operator } = await ctx.seedOperator();
+
+    const res = await request(app()).get(`/${operator.slug}/badagry-heritage-day-trip/book`);
+
+    expect(res.status).toBe(200);
+    expect(meta(res.text, 'og:url')).toBe(`${WEB}/${operator.slug}/badagry-heritage-day-trip`);
+    expect(embedded(res.text).tourSlug).toBe('badagry-heritage-day-trip');
+  });
+});

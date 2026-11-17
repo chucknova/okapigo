@@ -250,16 +250,18 @@
   border-bottom: var(--border-width) solid var(--color-border);
 }
 
-/* The letter mark: the first letter of the business name, until there's a logo (session 18). */
+/* The letter mark: the first letter of the business name, until there's a logo (session 18).
+   A dark square with the letter in primary green (designs: catalogue header). */
 .okg-mark {
   display: inline-grid;
   place-items: center;
+  flex: none;
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  font-weight: var(--weight-bold);
+  background: var(--color-strip-bg);
+  color: var(--color-primary);
+  font-weight: 800;
 }
 
 .okg-header__name {

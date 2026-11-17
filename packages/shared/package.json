@@ -28,7 +28,8 @@
     "./payment-status": "./src/payment-status.js",
     "./deposits": "./src/deposits.js",
     "./preview": "./src/preview.js",
-    "./tokens": "./src/tokens.js"
+    "./tokens": "./src/tokens.js",
+    "./tour-facts": "./src/tour-facts.js"
   },
   "scripts": {
     "test": "vitest run"

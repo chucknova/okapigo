@@ -75,6 +75,7 @@ export function serializeProduct(p) {
     description: p.description,
     status: p.status,
     durationMinutes: p.durationMinutes,
+    activityLabel: p.activityLabel,
     defaultCapacity: p.defaultCapacity,
     meetingPoint: p.meetingPoint,
     stops: p.stops,

@@ -51,6 +51,9 @@ export const LAGOON = {
       // The "Test mode · no real money moves" strip: dark on every screen, in both modes.
       'strip-bg': '#111511',
       'strip-text': '#EEF2EC',
+      // The tour photo band's stand-in: thin diagonal lines on a pale green (tour page, 12b).
+      'pattern-bg': '#E6EDE2',
+      'pattern-line': '#DCE7D6',
     },
     dark: {
       bg: '#0E120E',
@@ -76,6 +79,8 @@ export const LAGOON = {
       'disabled-text': '#A9B3A8',
       'strip-bg': '#000000',
       'strip-text': '#EEF2EC',
+      'pattern-bg': '#1C231C',
+      'pattern-line': '#252E25',
     },
   }),
   font: {

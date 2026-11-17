@@ -31,6 +31,8 @@ const PAIRS = [
   ['danger', 'danger-soft', 4.5],
   ['danger', 'surface', 4.5],
   ['strip-text', 'strip-bg', 4.5],
+  // The letter mark: the letter in primary on the dark square (a graphic: 3:1).
+  ['primary', 'strip-bg', 3],
   // Disabled controls are exempt from WCAG, but people still need to read them.
   ['disabled-text', 'disabled-bg', 4.5],
   // Input and stepper edges: "non-text contrast" 3:1.

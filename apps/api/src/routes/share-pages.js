@@ -1,38 +1,58 @@
 // @ts-check
 /**
- * Share pages (BKG-32, stage 11e): the booking links people paste into WhatsApp, Instagram,
- * X, emails and QR codes, with PROPER LINK PREVIEWS.
+ * Share pages (BKG-32, stages 11e and 12b): the booking links people paste into WhatsApp,
+ * Instagram, X, emails and QR codes. Each is server-made HTML that does three jobs:
  *
- *   GET /:operatorSlug               the operator's catalogue   okapigo.app/irin-lagos-tours
- *   GET /:operatorSlug/:tourSlug     one tour                    …/irin-lagos-tours/badagry-heritage-day-trip
+ *   1. LINK PREVIEWS: <meta> tags in the <head> (og:title, og:description, og:image…).
+ *      Crawlers don't run JavaScript, so these must be in the HTML itself.
+ *   2. A FAST FIRST PAINT: the page's title and summary are in the HTML too, styled with the
+ *      app's own CSS, so a guest on slow 3G sees the right page before the app arrives.
+ *   3. THE APP, WITH ITS DATA: the guest web (apps/web) loads into <div id="root">, and the
+ *      same data the public API would return is EMBEDDED in the page
+ *      (<script id="okg-data" type="application/json">), so the app draws the page at once
+ *      instead of asking the API again. Live seat counts are still fetched (never cached).
  *
- * How previews work: when a link is pasted, the app's CRAWLER (WhatsApp, facebookexternalhit,
- * Twitterbot…) downloads the page and reads <meta> tags in its <head>:
+ *   GET /:operatorSlug                     the catalogue
+ *   GET /:operatorSlug/:tourSlug           a tour page
+ *   GET /:operatorSlug/:tourSlug/book      checkout (the app's screens arrive in 12c)
  *
- *   og:title        "Badagry Heritage Day Trip · Ìrìn Lagos Tours"
- *   og:description  "A full day in Badagry… · From ₦65,000 · 10 hours · Next: Sat 5 Dec"
- *   og:image        a picture (when the tour has one)
- *   og:url          the one true address of the page
- *
- * Crawlers DON'T RUN JAVASCRIPT. A page that only fills itself in with React would preview
- * as an empty title. So the server writes these tags into the HTML itself. In session 12
- * the guest web app is served INSIDE this same page (the <body> below is the stand-in until
- * then); the head with the tags stays server-made.
+ * When the web app hasn't been built (tests, or an API deployed alone), the pages still
+ * work: the stand-in body is readable on its own.
  *
  * Routing: these paths sit at the ROOT of the site, after every other route, so /api,
  * /health, /pay… always win. Reserved words (slug.js) are skipped with next(), and sign-up
  * never gives an operator one of them.
  */
 import { Router } from 'express';
-import { fromPriceKobo } from '@okapigo/shared/catalogue';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatDay, tourPreviewDescription, truncate } from '@okapigo/shared/preview';
 import { RESERVED_OPERATOR_SLUGS, RESERVED_TOUR_SLUGS } from '@okapigo/shared/slug';
 import { escapeHtml } from './payments.js';
+import { webAssetTags } from '../lib/web-assets.js';
+import {
+  loadCatalogueView,
+  loadTourView,
+  nextDeparturesWithSeats,
+  withoutInternals,
+} from '../lib/public-views.js';
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Previews may be cached by crawlers and browsers for 5 minutes. */
 const CACHE = 'public, max-age=300';
+
+/**
+ * JSON that is safe INSIDE a <script> tag. Plain JSON.stringify isn't: a tour title
+ * containing "</script>" would end the tag early and let the rest run as HTML (XSS). Every
+ * "<" becomes < (still the same character to JSON.parse), and so do the two Unicode
+ * line separators that older JavaScript engines treat as line breaks.
+ * @param {unknown} value
+ */
+export function jsonForScript(value) {
+  return JSON.stringify(value)
+    .replaceAll('<', '\\u003c')
+    .replaceAll(' ', '\\u2028')
+    .replaceAll(' ', '\\u2029');
+}
 
 /**
  * @typedef {{
@@ -42,7 +62,8 @@ const CACHE = 'public, max-age=300';
  *   siteName: string,         // og:site_name: the operator's name
  *   image?: { url: string, alt: string } | null,
  *   price?: { kobo: number } | null,
- *   body: string,             // already-escaped HTML for the page body
+ *   body: string,             // already-escaped HTML: the stand-in shown before the app
+ *   data?: unknown,           // embedded for the app (see jsonForScript)
  * }} SharePage
  */
 
@@ -50,8 +71,9 @@ const CACHE = 'public, max-age=300';
  * The whole HTML document. EVERY value is escaped: tour titles and summaries are typed by
  * operators, and a title like  "><script>…  must show as text, never run (XSS).
  * @param {SharePage} p
+ * @param {import('../lib/web-assets.js').WebAssets | null} assets
  */
-function renderSharePage(p) {
+function renderSharePage(p, assets) {
   const e = escapeHtml;
   const meta = [
     `<meta property="og:type" content="website">`,
@@ -77,6 +99,16 @@ function renderSharePage(p) {
       `<meta property="product:price:currency" content="NGN">`,
     );
   }
+  // With the built app: its CSS styles the stand-in, its script replaces it. Without it: a
+  // few inline styles so the stand-in is readable on its own.
+  const app = assets ? webAssetTags(assets) : '';
+  const bodyStyle = assets
+    ? ''
+    : ' style="font-family: system-ui, sans-serif; max-width: 36rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5"';
+  const data =
+    p.data === undefined
+      ? ''
+      : `<script id="okg-data" type="application/json">${jsonForScript(p.data)}</script>\n`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -86,9 +118,10 @@ function renderSharePage(p) {
 <meta name="description" content="${e(p.description)}">
 <link rel="canonical" href="${e(p.url)}">
 ${meta.join('\n')}
+${app}
 </head>
-<body style="font-family: system-ui, sans-serif; max-width: 36rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5">
-${p.body}
+<body${bodyStyle}>
+${data}<div id="root">${p.body}</div>
 </body>
 </html>`;
 }
@@ -104,49 +137,46 @@ function notFoundPage() {
 }
 
 /**
- * @param {{ prisma: import('@prisma/client').PrismaClient, webPublicUrl: string }} deps
+ * The header every guest page starts with, as plain HTML (the app draws the same).
+ * @param {string} operatorName
  */
-export function sharePagesRouter({ prisma, webPublicUrl }) {
+function standInHeader(operatorName) {
+  const letter = [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(operatorName)][0]
+    ?.segment;
+  return `<header class="okg-header"><span class="okg-mark" aria-hidden="true">${escapeHtml(letter ?? '')}</span><span class="okg-header__name">${escapeHtml(operatorName)}</span></header>`;
+}
+
+/**
+ * @param {{
+ *   prisma: import('@prisma/client').PrismaClient,
+ *   webPublicUrl: string,
+ *   webAssets?: import('../lib/web-assets.js').WebAssets | null,
+ * }} deps
+ */
+export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
   const router = Router();
   const base = webPublicUrl.replace(/\/+$/, '');
 
-  /**
-   * Each published tour's next departure with a free seat (the same rule as the catalogue's
-   * cards in stage 11a), keyed by product id.
-   * @param {string} operatorId
-   */
-  async function nextDepartures(operatorId) {
-    /** @type {Array<{ product_id: string, starts_at: Date }>} */
-    const rows = await prisma.$queryRaw`
-      SELECT DISTINCT ON (product_id) product_id, starts_at
-        FROM departures
-       WHERE operator_id = ${operatorId}::uuid AND status = 'scheduled' AND starts_at > now()
-         AND capacity - seats_sold - seats_held > 0
-       ORDER BY product_id, starts_at`;
-    return new Map(rows.map((r) => [r.product_id, r.starts_at]));
-  }
-
   /** @param {import('express').Response} res */
   const sendNotFound = (res) => res.status(404).type('html').send(notFoundPage());
+
+  /** Is this request ours? (Not a reserved word, and shaped like slugs.) */
+  const isOperator = (/** @type {string} */ s) => SLUG.test(s) && !RESERVED_OPERATOR_SLUGS.has(s);
+  const isTour = (/** @type {string} */ s) => SLUG.test(s) && !RESERVED_TOUR_SLUGS.has(s);
 
   // --- The catalogue: okapigo.app/irin-lagos-tours ------------------------------------------
   router.get('/:operatorSlug', async (req, res, next) => {
     const { operatorSlug } = req.params;
     // Not ours: a reserved word or not a slug at all → let the normal 404 answer.
-    if (!SLUG.test(operatorSlug) || RESERVED_OPERATOR_SLUGS.has(operatorSlug)) return next();
+    if (!isOperator(operatorSlug)) return next();
 
-    const operator = await prisma.operator.findUnique({ where: { slug: operatorSlug } });
-    if (!operator) return sendNotFound(res);
-    const tours = await prisma.product.findMany({
-      where: { operatorId: operator.id, status: 'published' },
-      include: { priceCategories: { where: { isActive: true } } },
-      orderBy: { title: 'asc' },
-    });
-    const nextByTour = await nextDepartures(operator.id);
-    const prices = tours.map((t) => fromPriceKobo(t.priceCategories)).filter((p) => p !== null);
+    const view = await loadCatalogueView(prisma, operatorSlug);
+    if (!view) return sendNotFound(res);
+    const { operator, tours } = view;
+
+    const prices = tours.map((t) => t.fromPriceKobo).filter((p) => p !== null);
     const cheapest = prices.length > 0 ? Math.min(...prices) : null;
-    const photo = tours.map((t) => /** @type {any[]} */ (t.photos)[0]).find(Boolean) ?? null;
-
+    const photo = tours.map((t) => t.photo).find(Boolean) ?? null;
     const description =
       tours.length === 0
         ? 'New tours coming soon.'
@@ -156,81 +186,116 @@ export function sharePagesRouter({ prisma, webPublicUrl }) {
               `: ${tours.map((t) => t.title).join(', ')}`,
             200,
           );
+    const heading = operator.city ? `Tours in ${operator.city}` : 'Our tours';
 
     res
       .set('Cache-Control', CACHE)
       .type('html')
       .send(
-        renderSharePage({
-          title: operator.name,
-          description,
-          url: `${base}/${operator.slug}`,
-          siteName: operator.name,
-          image: photo,
-          body: `<h1>${escapeHtml(operator.name)}</h1>
+        renderSharePage(
+          {
+            title: operator.name,
+            description,
+            url: `${base}/${operator.slug}`,
+            siteName: operator.name,
+            image: photo,
+            data: { kind: 'catalogue', operatorSlug, view },
+            body: `${standInHeader(operator.name)}
+<main class="okg-page"><h1>${escapeHtml(heading)}</h1>
 <ul>${tours
-            .map((t) => {
-              const day = nextByTour.get(t.id);
-              return `<li><a href="/${escapeHtml(operator.slug)}/${escapeHtml(t.slug)}">${escapeHtml(t.title)}</a>${
-                day ? ` · next ${escapeHtml(formatDay(day, operator.timeZone))}` : ''
-              }</li>`;
-            })
-            .join('')}</ul>`,
-        }),
+              .map(
+                (t) =>
+                  `<li><a href="/${escapeHtml(operator.slug)}/${escapeHtml(t.slug)}">${escapeHtml(t.title)}</a></li>`,
+              )
+              .join('')}</ul></main>`,
+          },
+          webAssets,
+        ),
       );
   });
 
-  // --- One tour: okapigo.app/irin-lagos-tours/badagry-heritage-day-trip ---------------------
-  router.get('/:operatorSlug/:tourSlug', async (req, res, next) => {
+  /**
+   * Loads a tour for its pages, or answers 404 / passes it on. Returns null when it answered.
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   * @param {import('express').NextFunction} next
+   */
+  async function tourFor(req, res, next) {
     const { operatorSlug, tourSlug } = req.params;
-    if (
-      !SLUG.test(operatorSlug) ||
-      !SLUG.test(tourSlug) ||
-      RESERVED_OPERATOR_SLUGS.has(operatorSlug) ||
-      RESERVED_TOUR_SLUGS.has(tourSlug)
-    ) {
-      return next();
+    if (!isOperator(operatorSlug) || !isTour(tourSlug)) {
+      next();
+      return null;
     }
+    const view = await loadTourView(prisma, operatorSlug, tourSlug);
+    if (!view) {
+      sendNotFound(res);
+      return null;
+    }
+    const upcoming = (await nextDeparturesWithSeats(prisma, view.tour._operatorId)).get(
+      view.tour._id,
+    );
+    return { view, nextStart: upcoming?.startsAt ?? null };
+  }
 
-    const operator = await prisma.operator.findUnique({ where: { slug: operatorSlug } });
-    const tour = operator
-      ? await prisma.product.findFirst({
-          // Published only: a draft's link previews as "not found", like the public API.
-          where: { operatorId: operator.id, slug: tourSlug, status: 'published' },
-          include: { priceCategories: { where: { isActive: true } } },
-        })
-      : null;
-    if (!operator || !tour) return sendNotFound(res);
-
-    const nextStart = (await nextDepartures(operator.id)).get(tour.id) ?? null;
+  /**
+   * The HTML for a tour's pages (the tour page itself, and checkout).
+   * @param {NonNullable<Awaited<ReturnType<typeof tourFor>>>} found
+   * @param {string} path  the page's own path, for og:url
+   */
+  function tourPage({ view, nextStart }, path) {
+    const { operator, tour } = view;
     const nextDay = nextStart ? formatDay(nextStart, operator.timeZone) : null;
-    const price = fromPriceKobo(tour.priceCategories);
-    const photo = /** @type {Array<{ url: string, alt: string }>} */ (tour.photos)[0] ?? null;
+    const price = tour.fromPriceKobo;
     const description = tourPreviewDescription({
       summary: tour.summary,
       fromPriceKobo: price,
       durationMinutes: tour.durationMinutes,
       nextDay,
     });
+    const photo = /** @type {Array<{ url: string, alt: string }>} */ (tour.photos)[0] ?? null;
+    return renderSharePage(
+      {
+        title: `${tour.title} · ${operator.name}`,
+        description,
+        url: `${base}${path}`,
+        siteName: operator.name,
+        image: photo,
+        price: price !== null ? { kobo: price } : null,
+        data: {
+          kind: 'tour',
+          operatorSlug: operator.slug,
+          tourSlug: tour.slug,
+          view: withoutInternals(view),
+        },
+        // The first paint on a slow connection: the title and summary, as the designs ask.
+        body: `${standInHeader(operator.name)}
+<main class="okg-page"><h1>${escapeHtml(tour.title)}</h1>
+<p>${escapeHtml(tour.summary)}</p>
+<p>${escapeHtml(tourPreviewDescription({ summary: '', fromPriceKobo: price, durationMinutes: tour.durationMinutes, nextDay }))}</p></main>`,
+      },
+      webAssets,
+    );
+  }
 
+  // --- One tour: okapigo.app/irin-lagos-tours/badagry-heritage-day-trip ---------------------
+  router.get('/:operatorSlug/:tourSlug', async (req, res, next) => {
+    const found = await tourFor(req, res, next);
+    if (!found) return;
     res
       .set('Cache-Control', CACHE)
       .type('html')
-      .send(
-        renderSharePage({
-          title: `${tour.title} · ${operator.name}`,
-          description,
-          url: `${base}/${operator.slug}/${tour.slug}`,
-          siteName: operator.name,
-          image: photo,
-          price: price !== null ? { kobo: price } : null,
-          // Stand-in body until the guest web (session 12): enough to be useful on its own.
-          body: `<p><a href="/${escapeHtml(operator.slug)}">${escapeHtml(operator.name)}</a></p>
-<h1>${escapeHtml(tour.title)}</h1>
-<p>${escapeHtml(tour.summary)}</p>
-<p>${escapeHtml(tourPreviewDescription({ summary: '', fromPriceKobo: price, durationMinutes: tour.durationMinutes, nextDay }))}</p>`,
-        }),
-      );
+      .send(tourPage(found, `/${found.view.operator.slug}/${found.view.tour.slug}`));
+  });
+
+  // --- Checkout: …/badagry-heritage-day-trip/book (screens in 12c) --------------------------
+  router.get('/:operatorSlug/:tourSlug/book', async (req, res, next) => {
+    const found = await tourFor(req, res, next);
+    if (!found) return;
+    // Previews of a checkout link should still describe the TOUR, so og:url is the tour.
+    res
+      .set('Cache-Control', CACHE)
+      .type('html')
+      .send(tourPage(found, `/${found.view.operator.slug}/${found.view.tour.slug}`));
   });
 
   return router;

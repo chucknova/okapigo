@@ -27,8 +27,11 @@ describe('GET /public/:operatorSlug (tour cards)', () => {
     expect(res.body.operator).toEqual({
       slug: operator.slug,
       name: 'Ìrìn Lagos Tours',
+      city: 'Lagos',
       currency: 'NGN',
+      timeZone: 'Africa/Lagos',
       websiteStyle: 'classic',
+      pricesInclude: 'VAT', // "prices include VAT" (Ìrìn's prices include 7.5% VAT)
     });
     expect(res.body.tours).toHaveLength(5);
 
@@ -36,6 +39,14 @@ describe('GET /public/:operatorSlug (tour cards)', () => {
     // ₦25,000 (the adult price), not ₦12,500 (child) or ₦0 (infant).
     expect(walk.fromPriceKobo).toBe(2_500_000);
     expect(walk.nextDeparture).toMatchObject({ localTime: '09:00', seatsAvailable: 15 });
+    // Stage 12b: what the cards show besides the price.
+    expect(walk).toMatchObject({
+      activityLabel: 'Walking',
+      scheduleSummary: 'Daily 09:00',
+      cancellationHeadline: 'Free cancellation up to 48 hours before',
+    });
+    const food = res.body.tours.find((t) => t.slug === 'lagos-street-food-crawl');
+    expect(food.scheduleSummary).toBe('Thu–Sat 18:30');
     // The walk runs daily, so its next date is today or tomorrow.
     expect([today(), addDays(today(), 1)]).toContain(walk.nextDeparture.localDate);
   });
@@ -108,6 +119,12 @@ describe('GET /public/:operatorSlug/tours/:tourSlug (tour page)', () => {
     ]);
     expect(tour.addOns.map((a) => a.priceKobo).sort()).toEqual([400_000, 500_000]);
     expect(tour.meetingPoint).toHaveProperty('name');
+    // Stage 12b: the chips at the top of the tour page.
+    expect(tour).toMatchObject({
+      activityLabel: 'Evening',
+      scheduleSummary: 'Thu–Sat 18:30',
+      maxGuests: 10,
+    });
     expect(tour.cancellationPolicy.rules).toContainEqual({
       hoursBefore: 48,
       refundBasisPoints: 10_000,
@@ -134,7 +151,7 @@ describe('GET /public/:operatorSlug/tours/:tourSlug (tour page)', () => {
     expect(body.tour.addOns).toHaveLength(1);
     expect(body.tour.priceCategories.map((c) => c.key)).toEqual(['adult', 'infant']);
     // Whitelisted output: none of the staff-only fields.
-    for (const field of ['id', 'status', 'cancellationPolicyId', 'defaultCapacity']) {
+    for (const field of ['id', '_id', 'status', 'cancellationPolicyId', 'defaultCapacity']) {
       expect(body.tour).not.toHaveProperty(field);
     }
   });

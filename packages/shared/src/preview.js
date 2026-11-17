@@ -70,3 +70,13 @@ export function tourPreviewDescription({ summary, fromPriceKobo, durationMinutes
     .filter(Boolean)
     .join(' · ');
 }
+
+/**
+ * A LOCAL date string for people: '2026-11-18' → "Wed 18 Nov". No time zone maths: the date
+ * is already the operator's local date (departures carry localDate from the API).
+ * @param {string} localDate  'YYYY-MM-DD'
+ */
+export function formatLocalDay(localDate) {
+  // Noon UTC on that date, formatted in UTC, can't slip to a neighbouring day.
+  return formatDay(new Date(`${localDate}T12:00:00Z`), 'UTC');
+}

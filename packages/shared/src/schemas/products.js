@@ -23,6 +23,9 @@ export const MeetingPointSchema = z.object({
   address: text(300),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
+  // How to find the guide once there: "Look for the guide in the green Ìrìn cap, by the
+  // fountain." Optional (stage 12b).
+  note: text(300).optional(),
 });
 
 export const StopSchema = z.object({
@@ -52,6 +55,7 @@ const productFields = {
   summary: text(300),
   description: text(10_000),
   status: z.enum(PRODUCT_STATUSES),
+  activityLabel: z.string().trim().min(1).max(40).nullable(),
   durationMinutes: z
     .number()
     .int()
@@ -86,6 +90,7 @@ export const CreateProductSchema = z.object({
   whatToBring: productFields.whatToBring.default([]),
   cancellationPolicyId: productFields.cancellationPolicyId.default(null),
   depositBasisPoints: productFields.depositBasisPoints.default(null),
+  activityLabel: productFields.activityLabel.default(null),
 });
 
 /** PATCH /api/products/:id. Any subset of fields; lists are replaced as a whole. */

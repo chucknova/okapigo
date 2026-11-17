@@ -173,7 +173,7 @@ export function createApp({
 
   // --- Share pages with link previews: /:operatorSlug and /:operatorSlug/:tourSlug ------
   // LAST, so every route above wins; reserved words are skipped (see share-pages.js).
-  app.use(sharePagesRouter({ prisma, webPublicUrl }));
+  app.use(sharePagesRouter({ prisma, webPublicUrl, webAssets }));
 
   // --- Errors (must come after all routes) -----------------------------------
   app.use(notFound);

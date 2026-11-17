@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { formatDuration, formatDay, truncate, tourPreviewDescription } from '../src/preview.js';
+import {
+  formatDuration,
+  formatDay,
+  formatLocalDay,
+  truncate,
+  tourPreviewDescription,
+} from '../src/preview.js';
 
 describe('formatDuration', () => {
   it('says hours and minutes the way people do', () => {
@@ -52,5 +58,12 @@ describe('tourPreviewDescription', () => {
         nextDay: null,
       }),
     ).toBe('Coming soon. · 3 hours');
+  });
+});
+
+describe('formatLocalDay', () => {
+  it('formats a local date string without shifting it', () => {
+    expect(formatLocalDay('2026-11-18')).toBe('Wed 18 Nov');
+    expect(formatLocalDay('2026-12-05')).toBe('Sat 5 Dec');
   });
 });

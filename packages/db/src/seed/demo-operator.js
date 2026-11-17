@@ -48,9 +48,15 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
   const { operator, scheduleIds } = await prisma.$transaction(
     async (tx) => {
       // The operator and its owner/manager/guide roles (shared with real sign-ups).
-      const { operator, roleIds } = await createOperatorWithPresetRoles(tx, {
+      const created = await createOperatorWithPresetRoles(tx, {
         name: 'Ìrìn Lagos Tours',
         slug,
+      });
+      const { roleIds } = created;
+      // "Tours in Lagos" on the catalogue (stage 12b).
+      const operator = await tx.operator.update({
+        where: { id: created.operator.id },
+        data: { city: 'Lagos' },
       });
 
       // Phone numbers are unique platform-wide too, but we only have six fictional ones.
