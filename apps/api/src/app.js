@@ -26,6 +26,7 @@ import { policiesRouter } from './routes/policies.js';
 import { ledgerRouter } from './routes/ledger.js';
 import { paymentsRouters } from './routes/payments.js';
 import { webhooksRouter } from './routes/webhooks.js';
+import { paymentLinksRouters } from './routes/payment-links.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -63,6 +64,7 @@ export function createApp({
   const authenticate = requireAuth(sessions);
   const quotes = createQuoteService({ prisma });
   const payments = paymentsRouters({ prisma, provider, apiPublicUrl });
+  const paymentLinks = paymentLinksRouters({ prisma, provider, apiPublicUrl });
 
   const app = express();
 
@@ -103,6 +105,7 @@ export function createApp({
   app.use(healthRouter({ prisma, redis }));
   app.use(authRouter({ prisma, otp, sessions, requireAuth: authenticate }));
   app.use(payments.publicRouter); // the guest's browser lands on these after paying
+  app.use(paymentLinks.publicRouter); // /pay/:token
 
   // --- Staff API: everything under /api requires sign-in ----------------------
   // DEFAULT DENY: `authenticate` runs before every /api route, so a route added here later
@@ -120,6 +123,7 @@ export function createApp({
   api.use(policiesRouter({ prisma }));
   api.use(ledgerRouter({ prisma }));
   api.use(payments.apiRouter);
+  api.use(paymentLinks.apiRouter);
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

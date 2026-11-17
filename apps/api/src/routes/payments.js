@@ -3,7 +3,7 @@
  * Payments (PAY-02, stage 10b).
  *
  * Staff API (signed in):
- *   POST /api/bookings/:id/payments   bookings: edit   start a card payment → checkout URL
+ *   POST /api/bookings/:id/payments   bookings: edit   start a payment (any amount ≤ balance) → checkout URL
  *   GET  /api/bookings/:id/payments   bookings: view   the booking's payment attempts
  *
  * Public pages (no sign-in; the guest's browser lands here):
@@ -11,6 +11,8 @@
  *   GET  /simulator/checkout/:reference           the simulator's stand-in for Paystack's page
  *   POST /simulator/checkout/:reference/pay       approve: sends a signed webhook, like Paystack
  *   POST /simulator/checkout/:reference/decline   decline: no webhook, like Paystack
+ *   POST /simulator/checkout/:reference/pay-transfer(-short)   a bank transfer (or ₦100 short)
+ *   POST /api/simulator/unmatched-transfer          staff demo: money with no reference
  *
  * IMPORTANT: the callback page changes NOTHING. Anyone can type that URL, so arriving there
  * proves nothing. A payment becomes "succeeded" only through a verified webhook (stage 10c).
@@ -25,7 +27,12 @@ import { validate, IdParamsSchema } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { serializePayment } from './serializers.js';
 
-const StartPaymentSchema = z.object({ method: z.enum(['card']).default('card') });
+const StartPaymentSchema = z.object({
+  // card, bank_transfer, or "any" (the guest picks on the provider's page)
+  method: z.enum(['card', 'bank_transfer', 'any']).default('card'),
+  // Default: the whole balance. Less = a deposit (held booking) or part of the balance.
+  amountKobo: z.number().int().positive().max(2_000_000_000).optional(),
+});
 
 /**
  * Makes text safe to put inside HTML. Without this, a link like
@@ -41,7 +48,7 @@ export function escapeHtml(value) {
 }
 
 /** A tiny, self-contained page (the real guest pages arrive with the guest web, session 11). */
-function page(title, body) {
+export function page(title, body) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title></head>
 <body style="font-family: system-ui, sans-serif; max-width: 32rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.5">
@@ -73,6 +80,7 @@ export function paymentsRouters({ prisma, provider, apiPublicUrl }) {
           operatorId,
           bookingId: req.params.id,
           method: req.body.method,
+          amountKobo: req.body.amountKobo,
           callbackUrl: `${apiPublicUrl}/payments/callback`,
           actor: { type: 'user', userId },
         });
@@ -80,7 +88,12 @@ export function paymentsRouters({ prisma, provider, apiPublicUrl }) {
         res.status(reused ? 200 : 201).json({ payment: serializePayment(payment), reused });
       } catch (err) {
         if (err instanceof BookingError) {
-          throw new HttpError(err.code === 'NOT_FOUND' ? 404 : 409, err.code, err.message);
+          throw new HttpError(
+            err.code === 'NOT_FOUND' ? 404 : 409,
+            err.code,
+            err.message,
+            err.details,
+          );
         }
         if (err instanceof ProviderError) {
           // 502 Bad Gateway: WE are fine; the service we depend on failed or refused.
@@ -146,6 +159,12 @@ email or WhatsApp in a moment. You can close this page.</p>
 <form method="post" action="${escapeHtml(action('pay'))}" style="display: inline">
   <button style="padding: .6rem 1.2rem; font-size: 1rem">Pay ₦${escapeHtml(naira)}</button>
 </form>
+<form method="post" action="${escapeHtml(action('pay-transfer'))}" style="display: inline; margin-left: 1rem">
+  <button style="padding: .6rem 1.2rem; font-size: 1rem">Pay by bank transfer</button>
+</form>
+<form method="post" action="${escapeHtml(action('pay-transfer-short'))}" style="display: inline; margin-left: 1rem">
+  <button style="padding: .6rem 1.2rem; font-size: 1rem">Transfer ₦100 too little</button>
+</form>
 <form method="post" action="${escapeHtml(action('decline'))}" style="display: inline; margin-left: 1rem">
   <button style="padding: .6rem 1.2rem; font-size: 1rem">Decline</button>
 </form>`,
@@ -171,6 +190,27 @@ email or WhatsApp in a moment. You can close this page.</p>
       res.redirect(303, `/payments/callback?reference=${encodeURIComponent(reference)}`);
     });
 
+    // Transfers (stage 10d): the right amount, or ₦100 short, as a guest's typo might be.
+    for (const [path, short] of [
+      ['pay-transfer', 0],
+      ['pay-transfer-short', 10_000],
+    ]) {
+      publicRouter.post(`/simulator/checkout/:reference/${path}`, async (req, res) => {
+        const { reference } = req.params;
+        const tx = await sim.store.get(reference);
+        if (!tx) {
+          res.status(404).end();
+          return;
+        }
+        await sim.complete(reference, {
+          channel: 'bank_transfer',
+          paidAmountKobo: tx.amountKobo - short,
+        });
+        await sim.sendWebhook(reference, webhookUrl);
+        res.redirect(303, `/payments/callback?reference=${encodeURIComponent(reference)}`);
+      });
+    }
+
     // "Decline": the card was refused. Paystack sends no webhook for that; neither do we.
     publicRouter.post('/simulator/checkout/:reference/decline', async (req, res) => {
       const { reference } = req.params;
@@ -181,6 +221,25 @@ email or WhatsApp in a moment. You can close this page.</p>
       await sim.fail(reference, 'Declined by the simulator');
       res.redirect(303, `/payments/callback?reference=${encodeURIComponent(reference)}`);
     });
+  }
+
+  if (provider.name === 'simulator') {
+    // Staff demo tool: money arrives in the operator's account with NO reference (stage 10d),
+    // so it lands in "unmatched receipts" for manual matching.
+    apiRouter.post(
+      '/simulator/unmatched-transfer',
+      requirePermission('payments', 'edit'),
+      validate({ body: z.object({ amountKobo: z.number().int().positive().max(2_000_000_000) }) }),
+      async (req, res) => {
+        const sim = /** @type {any} */ (provider);
+        const reference = await sim.createUnmatchedTransfer(
+          authOf(req).operatorId,
+          req.body.amountKobo,
+        );
+        const status = await sim.sendWebhook(reference, `${apiPublicUrl}/webhooks/paystack`);
+        res.status(202).json({ reference, webhookStatus: status });
+      },
+    );
   }
 
   return { publicRouter, apiRouter };

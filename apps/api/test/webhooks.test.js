@@ -275,7 +275,9 @@ describe('events we do not act on', () => {
     ctx.provider.store.map.set(payment.reference, { ...tx, amountKobo: 100 }); // ₦1 paid, not ₦50,000
     await deliver(JSON.stringify(await ctx.provider.chargeSuccessEvent(payment.reference)));
 
-    expect((await process(ctx.jobs.webhooks.at(-1))).outcome).toBe('AMOUNT_MISMATCH');
+    // Stage 10d: the money is recorded as an UNMATCHED receipt for staff, never applied
+    // automatically. (In 10c it was only flagged.)
+    expect((await process(ctx.jobs.webhooks.at(-1))).outcome).toBe('AMOUNT_MISMATCH_UNMATCHED');
     expect((await bookingRow(booking.id)).status).toBe('held');
   });
 });

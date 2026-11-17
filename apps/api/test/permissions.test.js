@@ -80,6 +80,12 @@ describe('default deny', () => {
     ['post', `/api/ledger/transactions/${SOME_ID}/reverse`],
     ['post', `/api/bookings/${SOME_ID}/payments`],
     ['get', `/api/bookings/${SOME_ID}/payments`],
+    ['post', `/api/bookings/${SOME_ID}/payment-links`],
+    ['get', `/api/bookings/${SOME_ID}/payment-links`],
+    ['post', `/api/payment-links/${SOME_ID}/cancel`],
+    ['get', '/api/payments/unmatched'],
+    ['post', `/api/payments/${SOME_ID}/allocate`],
+    ['post', '/api/simulator/unmatched-transfer'],
     ['get', '/api/anything-new'],
   ])('%s %s needs sign-in', async (method, url) => {
     const res = await request(ctx.app)[method](url);

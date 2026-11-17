@@ -270,6 +270,29 @@ export function serializePayment(p) {
     feeKobo: p.feeKobo,
     paidAt: p.paidAt,
     failureReason: p.failureReason,
+    // Stage 10d: how they paid, why a human should look, and unmatched-receipt details.
+    channel: p.channel,
+    reviewReason: p.reviewReason,
+    bookingId: p.bookingId,
+    suggestedBookingId: p.suggestedBookingId,
+    allocatedAt: p.allocatedAt,
+    paymentLinkId: p.paymentLinkId,
     createdAt: p.createdAt,
+  };
+}
+
+/**
+ * A payment link, WITHOUT its token: the full URL is only ever returned when it's created.
+ * @param {import('@prisma/client').PaymentLink} l
+ */
+export function serializePaymentLink(l) {
+  return {
+    id: l.id,
+    bookingId: l.bookingId,
+    amountKobo: l.amountKobo,
+    purpose: l.purpose,
+    status: l.status,
+    expiresAt: l.expiresAt,
+    createdAt: l.createdAt,
   };
 }

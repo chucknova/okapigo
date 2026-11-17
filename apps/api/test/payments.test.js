@@ -119,14 +119,53 @@ describe('starting a card payment', () => {
   });
 });
 
-describe('what cannot be paid', () => {
-  it('a confirmed booking (stage 10d handles balances)', async () => {
+describe('deposits and balances (stage 10d)', () => {
+  it('a held booking can take a deposit; the purpose says so', async () => {
+    const { manager, booking } = await setup();
+    const res = await manager
+      .post(`/api/bookings/${booking.id}/payments`)
+      .send({ amountKobo: 1_500_000 });
+    expect(res.status).toBe(201);
+    expect(res.body.payment).toMatchObject({ amountKobo: 1_500_000, purpose: 'deposit' });
+  });
+
+  it('a confirmed ("pay later") booking can pay its balance, by transfer', async () => {
     const { manager, booking } = await setup();
     await manager.post(`/api/bookings/${booking.id}/confirm`);
+    const res = await manager
+      .post(`/api/bookings/${booking.id}/payments`)
+      .send({ method: 'bank_transfer' });
+    expect(res.body.payment).toMatchObject({
+      amountKobo: 5_000_000,
+      purpose: 'balance',
+      method: 'bank_transfer',
+    });
+  });
+});
+
+describe('what cannot be paid', () => {
+  it('a cancelled booking', async () => {
+    const { manager, booking } = await setup();
+    await manager
+      .post(`/api/bookings/${booking.id}/cancel`)
+      .send({ initiatedBy: 'guest', reason: 'Not coming' });
 
     const res = await manager.post(`/api/bookings/${booking.id}/payments`).send({});
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('NOT_PAYABLE');
+  });
+
+  it('more than is owed', async () => {
+    const { manager, booking } = await setup();
+    const res = await manager
+      .post(`/api/bookings/${booking.id}/payments`)
+      .send({ amountKobo: 6_000_000 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatchObject({
+      code: 'AMOUNT_TOO_HIGH',
+      balanceKobo: 5_000_000,
+      message: 'Only ₦50,000 is owed on this booking.',
+    });
   });
 
   it('a booking whose hold has run out', async () => {
