@@ -46,14 +46,20 @@ The **message wording** in file 02 is kept for session 14, which sends the messa
 | "Today's guide: Segun" on the trip day                           | needs guide assignment (session 15); the line stays hidden until then         | 15         |
 | The "Ask a question" AI box                                      | placeholder only, as designed (session 17)                                    | 12f → 17   |
 | Business tagline, about text, city, WhatsApp, phone, email, socials | new operator fields; the form is an operator screen (deferred)             | 12g        |
-| Booking links at `irin.okapigo.site/…`, trip pages at `/t/<code>` | **question for you** (below)                                                  | 12a        |
+| Booking links at `irin.okapigo.site/…`, trip pages at `/t/<code>` | decided: paths (below)                                                        | 12a        |
 
-## Question for you
+## Decided: path-based links (2026-11-17)
 
-**Booking link addresses.** The designs show one subdomain per operator (`irin.okapigo.site`),
-with trip pages at `/t/<code>`. Stage 11e built path-based links: `okapigo.app/irin-lagos-tours/…`.
+Booking links stay **path-based**, as built in stage 11e. This keeps the demo free to host: no
+domain to buy. Subdomains per operator (as the designs show) can come later, with the old
+addresses redirecting.
 
-- **Subdomain per operator** (as designed): looks like the operator's own site and leads
-  naturally to custom domains (v1). It needs wildcard DNS and certificates at deployment.
-- **Path-based** (as built): simpler to deploy, already working; can move to subdomains later
-  without breaking links if the old addresses redirect.
+| Page                    | Address                                    | Designs show                 |
+| ----------------------- | ------------------------------------------ | ---------------------------- |
+| Catalogue               | `/irin-lagos-tours`                        | `irin.okapigo.site`          |
+| Tour page, checkout     | `/irin-lagos-tours/<tour>` (+ steps)       | `irin.okapigo.site/<tour>`   |
+| Trip hub                | `/trip/<guest token>`                      | `irin.okapigo.site/t/<code>` |
+| Pay your balance        | `/trip/<guest token>/pay`                  | `…/t/<code>/pay`             |
+| Payment link            | `/pay/<link token>` (exists)               | `…/pay/<code>`               |
+
+`trip` and `pay` are reserved words, so no operator can ever take them as a slug.
