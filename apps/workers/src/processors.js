@@ -10,7 +10,7 @@
  * underneath are idempotent: releaseHold() succeeds only once per hold, and
  * syncScheduleDepartures() creates nothing that already exists.
  */
-import { releaseHold, expireDueHolds, extendAllSchedules } from '@okapigo/db';
+import { releaseHold, expireDueHolds, extendAllSchedules, verifyLedger } from '@okapigo/db';
 import { JOBS } from '@okapigo/jobs';
 
 /**
@@ -44,6 +44,21 @@ export function createProcessors({ prisma, logger }) {
         throw new Error(`extend-schedules: ${result.failed.length} schedule(s) failed`);
       }
       return result;
+    },
+
+    /**
+     * Every night: do the books balance? (PRD: "a nightly check that every account balances".)
+     * Errors should be impossible (the database refuses unbalanced transactions), so if one
+     * appears, something bypassed the rules: log it loudly and fail the job so it shows on the
+     * jobs dashboard. (Alerting arrives with the error tracker, session 20.)
+     */
+    async [JOBS.verifyLedger]() {
+      const result = await verifyLedger(prisma);
+      for (const issue of result.issues) {
+        logger[issue.severity === 'error' ? 'error' : 'warn'](issue, 'ledger check');
+      }
+      if (!result.ok) throw new Error('verify-ledger: the books do not balance');
+      return { ok: true, warnings: result.issues.length };
     },
   };
 }

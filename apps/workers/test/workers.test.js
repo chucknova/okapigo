@@ -92,6 +92,13 @@ describe('processors (called directly)', () => {
   }, 30_000); // walks EVERY schedule in the database, twice, while other tests run
 });
 
+describe('verify-ledger', () => {
+  it('passes when the books balance', async () => {
+    await heritageDeparture();
+    expect(await processors[JOBS.verifyLedger]()).toMatchObject({ ok: true });
+  });
+});
+
 describe('through BullMQ and Redis', () => {
   it('a scheduled expiry job releases the hold when its time comes', async () => {
     const prefix = `test-${randomUUID().slice(0, 8)}`; // private queues for this test

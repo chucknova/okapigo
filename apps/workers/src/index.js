@@ -7,6 +7,7 @@
  *   1. registers the TIMETABLED jobs (idempotently: restarting doesn't create duplicates)
  *        sweep-holds       every 60 seconds
  *        extend-schedules  every night at 02:00 Lagos time
+ *        verify-ledger     every night at 03:00 Lagos time
  *   2. starts a BullMQ Worker per queue that runs jobs as they become due
  *   3. shuts down gracefully, finishing the current job before exiting
  *
@@ -49,6 +50,11 @@ await maintenance.upsertJobScheduler(
   // A cron pattern: minute 0, hour 2, every day. tz makes "02:00" mean 02:00 in Lagos.
   { pattern: '0 2 * * *', tz: 'Africa/Lagos' },
   { name: JOBS.extendSchedules, opts: { removeOnComplete: 30, removeOnFail: 100 } },
+);
+await maintenance.upsertJobScheduler(
+  JOBS.verifyLedger,
+  { pattern: '0 3 * * *', tz: 'Africa/Lagos' }, // 03:00, after the 02:00 schedule roll
+  { name: JOBS.verifyLedger, opts: { removeOnComplete: 30, removeOnFail: 100 } },
 );
 await maintenance.close();
 

@@ -26,6 +26,7 @@ export const JOBS = /** @type {const} */ ({
   expireHold: 'expire-hold',
   sweepHolds: 'sweep-holds',
   extendSchedules: 'extend-schedules',
+  verifyLedger: 'verify-ledger',
 });
 
 /**
