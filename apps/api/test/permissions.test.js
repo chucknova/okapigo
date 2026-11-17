@@ -71,6 +71,13 @@ describe('default deny', () => {
     ['get', '/api/cancellation-policies'],
     ['post', '/api/cancellation-policies'],
     ['post', `/api/cancellation-policies/${SOME_ID}/versions`],
+    ['get', '/api/ledger/accounts'],
+    ['get', '/api/ledger/accounts/TOUR_SALES/statement'],
+    ['get', '/api/ledger/transactions'],
+    ['get', '/api/ledger/check'],
+    ['get', '/api/ledger/export.csv'],
+    ['post', '/api/ledger/adjustments'],
+    ['post', `/api/ledger/transactions/${SOME_ID}/reverse`],
     ['get', '/api/anything-new'],
   ])('%s %s needs sign-in', async (method, url) => {
     const res = await request(ctx.app)[method](url);

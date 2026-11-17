@@ -23,6 +23,7 @@ import { quotesRouter } from './routes/quotes.js';
 import { holdsRouter } from './routes/holds.js';
 import { bookingsRouter } from './routes/bookings.js';
 import { policiesRouter } from './routes/policies.js';
+import { ledgerRouter } from './routes/ledger.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -95,6 +96,7 @@ export function createApp({ logger, prisma, redis, otpSender, authSecret, jobs }
   api.use(holdsRouter({ prisma, quotes, jobs }));
   api.use(bookingsRouter({ prisma, quotes, jobs }));
   api.use(policiesRouter({ prisma }));
+  api.use(ledgerRouter({ prisma }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 
