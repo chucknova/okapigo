@@ -279,3 +279,38 @@ describe('createPaymentProvider', () => {
     ).toThrow(LiveKeyError);
   });
 });
+
+describe('simulator transfers (stage 10d)', () => {
+  it('a transfer can arrive with a different amount than asked', async () => {
+    const sim = createSimulatorProvider({ baseUrl: 'x' });
+    await sim.initializeTransaction({
+      reference: 'OKG-T',
+      amountKobo: 5_000_000,
+      email: 'a@b.co',
+      callbackUrl: 'x',
+    });
+    await sim.complete('OKG-T', { channel: 'bank_transfer', paidAmountKobo: 4_900_000 });
+
+    expect(await sim.verifyTransaction('OKG-T')).toMatchObject({
+      status: 'succeeded',
+      amountKobo: 4_900_000,
+      channel: 'bank_transfer',
+    });
+    expect((await sim.chargeSuccessEvent('OKG-T')).data).toMatchObject({
+      amount: 4_900_000,
+      channel: 'bank_transfer',
+    });
+  });
+
+  it('an unmatched transfer carries only the operator, not a reference we issued', async () => {
+    const sim = createSimulatorProvider({ baseUrl: 'x' });
+    const ref = await sim.createUnmatchedTransfer('op-123', 2_000_000);
+    const event = await sim.chargeSuccessEvent(ref);
+    expect(ref).toMatch(/^TRF\d+$/);
+    expect(event.data).toMatchObject({
+      amount: 2_000_000,
+      channel: 'bank_transfer',
+      metadata: { operatorId: 'op-123' },
+    });
+  });
+});

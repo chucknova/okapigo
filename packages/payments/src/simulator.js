@@ -98,6 +98,8 @@ export function createSimulatorProvider({
    */
   async function chargeSuccessEvent(reference) {
     const tx = await get(reference);
+    // What actually arrived can differ from what was asked (a wrong-amount transfer).
+    const paid = tx.paidAmountKobo ?? tx.amountKobo;
     return {
       event: 'charge.success',
       data: {
@@ -105,11 +107,11 @@ export function createSimulatorProvider({
         domain: 'test',
         status: 'success',
         reference,
-        amount: tx.amountKobo,
+        amount: paid,
         currency: 'NGN',
-        fees: simulatedFeeKobo(tx.amountKobo),
+        fees: simulatedFeeKobo(paid),
         paid_at: tx.paidAt,
-        channel: 'card',
+        channel: tx.channel ?? 'card',
         gateway_response: 'Approved',
         customer: { email: tx.email },
         metadata: tx.metadata ?? {},
@@ -147,13 +149,14 @@ export function createSimulatorProvider({
 
     async verifyTransaction(reference) {
       const tx = await get(reference);
+      const paid = tx.paidAmountKobo ?? tx.amountKobo;
       return {
         status: tx.status,
-        amountKobo: tx.amountKobo,
+        amountKobo: paid,
         currency: 'NGN',
-        feeKobo: tx.status === 'succeeded' ? simulatedFeeKobo(tx.amountKobo) : null,
+        feeKobo: tx.status === 'succeeded' ? simulatedFeeKobo(paid) : null,
         paidAt: tx.paidAt ? new Date(tx.paidAt) : null,
-        channel: tx.status === 'pending' ? null : 'card',
+        channel: tx.status === 'pending' ? null : (tx.channel ?? 'card'),
         providerTransactionId: String(tx.id),
         message: tx.message ?? null,
       };
@@ -168,12 +171,41 @@ export function createSimulatorProvider({
       return computeSignature(webhookSecret, rawBody);
     },
 
-    async complete(reference) {
+    /**
+     * The guest paid. Options: how (card or bank_transfer) and, for transfers, how much
+     * ACTUALLY arrived (a typo or bank charges can make it differ from what was asked).
+     * @param {string} reference
+     * @param {{ channel?: 'card' | 'bank_transfer', paidAmountKobo?: number }} [options]
+     */
+    async complete(reference, { channel = 'card', paidAmountKobo } = {}) {
       await update(reference, {
         status: 'succeeded',
         paidAt: now().toISOString(),
         message: 'Approved',
+        channel,
+        paidAmountKobo,
       });
+    },
+
+    /**
+     * Money sent straight to an operator's account, with NO reference we issued (stage 10d):
+     * the case the manual-match screen exists for. Returns the provider's own reference.
+     * @param {string} operatorId
+     * @param {number} amountKobo
+     */
+    async createUnmatchedTransfer(operatorId, amountKobo) {
+      const reference = `TRF${Date.now()}${Math.floor(Math.random() * 1e6)}`;
+      await store.set(reference, {
+        reference,
+        amountKobo,
+        email: 'unknown-sender@example.com',
+        metadata: { operatorId },
+        status: 'succeeded',
+        channel: 'bank_transfer',
+        paidAt: now().toISOString(),
+        id: 900_000_000 + Math.floor(Math.random() * 99_999_999),
+      });
+      return reference;
     },
     async fail(reference, message = 'Declined') {
       await update(reference, { status: 'failed', message });
