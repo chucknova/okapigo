@@ -78,6 +78,8 @@ export function createSimulatorProvider({
   webhookSecret = DEFAULT_SIMULATOR_SECRET,
   now = () => new Date(),
   fetch = globalThis.fetch,
+  autoProcessRefundsMs = 0,
+  refundWebhookUrl = null,
 }) {
   /** @param {string} reference */
   async function get(reference) {
@@ -119,7 +121,7 @@ export function createSimulatorProvider({
     };
   }
 
-  return {
+  const sim = {
     name: /** @type {const} */ ('simulator'),
     store,
 
@@ -216,6 +218,89 @@ export function createSimulatorProvider({
 
     chargeSuccessEvent,
 
+    // --- Refunds (stage 10e) -----------------------------------------------------------
+    // Stored under "refund:<id>". They start pending and become processed or failed later,
+    // and a refund webhook says so (like Paystack). With autoProcessRefundsMs set (the
+    // running apps), each refund processes itself that long after being requested.
+
+    async refund({ transaction, amountKobo, note }) {
+      const id = 800_000_000 + Math.floor(Math.random() * 99_999_999);
+      await store.set(`refund:${id}`, { id, transaction, amountKobo, note, status: 'pending' });
+      if (autoProcessRefundsMs > 0 && refundWebhookUrl) {
+        setTimeout(() => {
+          sim
+            .processRefund(String(id))
+            .then(() => sim.sendRefundWebhook(String(id), /** @type {string} */ (refundWebhookUrl)))
+            .catch(() => {}); // a demo nicety; reconciliation catches anything missed
+        }, autoProcessRefundsMs).unref();
+      }
+      return {
+        providerRefundId: String(id),
+        status: 'pending',
+        amountKobo,
+        transaction: String(transaction),
+      };
+    },
+
+    /** @param {string} providerRefundId */
+    async fetchRefund(providerRefundId) {
+      const r = await store.get(`refund:${providerRefundId}`);
+      if (!r) throw new ProviderError('NOT_FOUND', `No simulated refund ${providerRefundId}`);
+      return {
+        providerRefundId: String(r.id),
+        status: r.status,
+        amountKobo: r.amountKobo,
+        transaction: String(r.transaction),
+      };
+    },
+
+    /** @param {string} providerRefundId */
+    async processRefund(providerRefundId) {
+      const r = await store.get(`refund:${providerRefundId}`);
+      await store.set(`refund:${providerRefundId}`, { ...r, status: 'processed' });
+    },
+
+    /** @param {string} providerRefundId */
+    async failRefund(providerRefundId) {
+      const r = await store.get(`refund:${providerRefundId}`);
+      await store.set(`refund:${providerRefundId}`, { ...r, status: 'failed' });
+    },
+
+    /** A refund.processed / refund.failed / refund.pending event, in Paystack's shape. */
+    async refundEvent(providerRefundId) {
+      const r = await store.get(`refund:${providerRefundId}`);
+      const event =
+        r.status === 'failed'
+          ? 'refund.failed'
+          : r.status === 'processed'
+            ? 'refund.processed'
+            : 'refund.pending';
+      return {
+        event,
+        data: {
+          id: r.id,
+          status: r.status,
+          amount: r.amountKobo,
+          currency: 'NGN',
+          transaction: r.transaction,
+        },
+      };
+    },
+
+    /** @param {string} providerRefundId @param {string} url */
+    async sendRefundWebhook(providerRefundId, url) {
+      const body = JSON.stringify(await sim.refundEvent(providerRefundId));
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          [SIGNATURE_HEADER]: computeSignature(webhookSecret, body),
+        },
+        body,
+      });
+      return res.status;
+    },
+
     /**
      * Delivers charge.success to a webhook URL, signed, as Paystack would.
      * @param {string} reference
@@ -234,4 +319,5 @@ export function createSimulatorProvider({
       return res.status;
     },
   };
+  return sim;
 }

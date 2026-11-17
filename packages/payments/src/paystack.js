@@ -30,6 +30,19 @@ const STATUS_MAP = {
   reversed: 'failed',
 };
 
+/** Paystack's refund statuses → ours. Anything not finished yet is "pending". */
+const REFUND_STATUS_MAP = { processed: 'processed', failed: 'failed' };
+
+/** @param {any} data */
+function toRefundResult(data) {
+  return {
+    providerRefundId: String(data.id),
+    status: REFUND_STATUS_MAP[data.status] ?? 'pending',
+    amountKobo: data.amount,
+    transaction: data.transaction != null ? String(data.transaction?.id ?? data.transaction) : null,
+  };
+}
+
 /**
  * @param {{ secretKey: string, fetch?: typeof globalThis.fetch, baseUrl?: string, timeoutMs?: number }} options
  * @returns {import('./provider.js').PaymentProvider}
@@ -142,6 +155,22 @@ export function createPaystackProvider({
         providerTransactionId: data.id != null ? String(data.id) : null,
         message: data.gateway_response ?? null,
       };
+    },
+
+    /** POST /refund: Paystack refunds to the card or account the money came from. */
+    async refund({ transaction, amountKobo, note }) {
+      const data = await call('POST', '/refund', {
+        transaction,
+        amount: amountKobo, // kobo, like everywhere else
+        currency: 'NGN',
+        merchant_note: note,
+      });
+      return toRefundResult(data);
+    },
+
+    /** GET /refund/:id: what happened to a refund (reconciliation, and re-checking webhooks). */
+    async fetchRefund(providerRefundId) {
+      return toRefundResult(await call('GET', `/refund/${encodeURIComponent(providerRefundId)}`));
     },
   };
 }

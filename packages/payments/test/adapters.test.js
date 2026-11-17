@@ -314,3 +314,86 @@ describe('simulator transfers (stage 10d)', () => {
     });
   });
 });
+
+describe('refunds (stage 10e)', () => {
+  it('Paystack: POST /refund with the transaction and amount in kobo; maps the reply', async () => {
+    const fetch = fakeFetch(() => ({
+      json: {
+        status: true,
+        message: 'Refund has been queued for processing',
+        data: {
+          id: 3018284,
+          status: 'pending',
+          amount: 2_500_000,
+          transaction: { id: 4099260516 },
+        },
+      },
+    }));
+    const paystack = createPaystackProvider({ secretKey: TEST_KEY, fetch });
+
+    const result = await paystack.refund({
+      transaction: '4099260516',
+      amountKobo: 2_500_000,
+      note: 'Cancelled ILT-7K4Q2M',
+    });
+
+    expect(result).toEqual({
+      providerRefundId: '3018284',
+      status: 'pending',
+      amountKobo: 2_500_000,
+      transaction: '4099260516',
+    });
+    expect(fetch.calls[0].url).toBe('https://api.paystack.co/refund');
+    expect(fetch.calls[0].body).toEqual({
+      transaction: '4099260516',
+      amount: 2_500_000,
+      currency: 'NGN',
+      merchant_note: 'Cancelled ILT-7K4Q2M',
+    });
+  });
+
+  it.each([
+    ['processed', 'processed'],
+    ['failed', 'failed'],
+    ['pending', 'pending'],
+    ['processing', 'pending'],
+    ['needs-attention', 'pending'],
+  ])('Paystack refund status "%s" → "%s"', async (theirs, ours) => {
+    const fetch = fakeFetch(() => ({
+      json: { status: true, data: { id: 1, status: theirs, amount: 100, transaction: 5 } },
+    }));
+    expect(
+      (await createPaystackProvider({ secretKey: TEST_KEY, fetch }).fetchRefund('1')).status,
+    ).toBe(ours);
+  });
+
+  it('the simulator: pending, then processed, with a signed refund webhook', async () => {
+    let sent;
+    const sim = createSimulatorProvider({
+      baseUrl: 'x',
+      fetch: async (url, init) => ((sent = init), { status: 200 }),
+    });
+    const { providerRefundId, status } = await sim.refund({
+      transaction: '900000001',
+      amountKobo: 1_000_000,
+    });
+    expect(status).toBe('pending');
+
+    await sim.processRefund(providerRefundId);
+    expect((await sim.fetchRefund(providerRefundId)).status).toBe('processed');
+
+    await sim.sendRefundWebhook(providerRefundId, 'http://api/webhooks/paystack');
+    expect(sim.verifyWebhookSignature(sent.body, sent.headers['x-paystack-signature'])).toBe(true);
+    expect(JSON.parse(sent.body)).toMatchObject({
+      event: 'refund.processed',
+      data: { amount: 1_000_000 },
+    });
+  });
+
+  it('refund.pending and refund.processed for one refund are different events (not duplicates)', async () => {
+    const { parseWebhook } = await import('../src/index.js');
+    const pending = parseWebhook(JSON.stringify({ event: 'refund.pending', data: { id: 7 } }));
+    const processed = parseWebhook(JSON.stringify({ event: 'refund.processed', data: { id: 7 } }));
+    expect(pending.dedupKey).not.toBe(processed.dedupKey);
+  });
+});

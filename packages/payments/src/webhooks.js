@@ -62,10 +62,13 @@ export function parseWebhook(rawBody) {
   const eventType = payload?.event;
   const data = payload?.data;
   if (typeof eventType !== 'string' || !data || typeof data !== 'object') return null;
-  const id = data.id ?? data.reference;
+  // Charges are identified by transaction id; refunds by their own refund id.
+  const id = data.id ?? data.refund_reference ?? data.reference ?? data.transaction_reference;
   if (id === undefined || id === null) return null;
   return {
     eventType,
+    // The STATUS is part of a refund event's identity: "refund.pending" then
+    // "refund.processed" for the same refund are two different events, not duplicates.
     dedupKey: `${eventType}:${id}`,
     reference: typeof data.reference === 'string' ? data.reference : null,
     payload,

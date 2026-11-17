@@ -11,7 +11,8 @@
  *
  *   verifyWebhookSignature(…) is this webhook really from the provider? (stage 10c)
  *
- * Stage 10e adds refund().
+ *   refund(…)                  send (part of) a payment back to where it came from (10e)
+ *   fetchRefund(id)            ask what happened to a refund (10e)
  *
  * Two implementations:
  *   simulator.js  in memory, no network: tests, CI and offline demos
@@ -46,7 +47,22 @@
  *   initializeTransaction: (input: InitializeInput) => Promise<InitializeResult>,
  *   verifyTransaction: (reference: string) => Promise<VerifyResult>,
  *   verifyWebhookSignature: (rawBody: Buffer | string, signature: string | undefined) => boolean,
+ *   refund: (input: RefundInput) => Promise<RefundResult>,
+ *   fetchRefund: (providerRefundId: string) => Promise<RefundResult>,
  * }} PaymentProvider
+ *
+ * @typedef {{
+ *   transaction: string,        // the PROVIDER's transaction id (refunds go to the original payment)
+ *   amountKobo: number,         // partial refunds allowed
+ *   note?: string,
+ * }} RefundInput
+ *
+ * @typedef {{
+ *   providerRefundId: string,
+ *   status: 'pending' | 'processed' | 'failed',
+ *   amountKobo: number,
+ *   transaction: string | null,
+ * }} RefundResult
  */
 
 /**

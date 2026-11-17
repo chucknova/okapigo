@@ -23,6 +23,7 @@ export { mapStore, redisStore } from './simulator.js';
  *   baseUrl: string,
  *   simulatorStore?: import('./simulator.js').SimulatorStore,
  *   simulatorSecret?: string,
+ *   simulatorAutoRefundMs?: number,   // > 0: simulated refunds complete by themselves (demos)
  * }} config
  * @returns {import('./provider.js').PaymentProvider}
  */
@@ -32,6 +33,7 @@ export function createPaymentProvider({
   baseUrl,
   simulatorStore,
   simulatorSecret,
+  simulatorAutoRefundMs = 0,
 }) {
   if (provider === 'paystack') {
     return createPaystackProvider({ secretKey: /** @type {string} */ (paystackSecretKey) });
@@ -40,5 +42,7 @@ export function createPaymentProvider({
     baseUrl,
     store: simulatorStore,
     webhookSecret: simulatorSecret,
+    autoProcessRefundsMs: simulatorAutoRefundMs,
+    refundWebhookUrl: `${baseUrl}/webhooks/paystack`,
   });
 }
