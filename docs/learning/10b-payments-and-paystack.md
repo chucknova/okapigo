@@ -164,6 +164,9 @@ command again and you get `"reused": true`.
 
 ## 6. Gotchas
 
+- **Correction (found in stage 10e):** the booking lock covers only step 1. A click arriving while
+  the first click was still talking to the provider could create a **second** checkout. Fixed in 10e:
+  in-flight attempts count as started, and that click gets `409 PAYMENT_STARTING`.
 - **Paystack rejects `.example` emails.** The first real call failed with
   `"email" must be a valid email`, for both the smoke test and the placeholder email given for
   phone-only guests, so **every** payment from a guest without an email would have failed in
