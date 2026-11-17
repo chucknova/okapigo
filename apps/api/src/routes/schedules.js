@@ -33,16 +33,13 @@ import {
   UpdateScheduleSchema,
   CreateDepartureSchema,
   UpdateDepartureSchema,
-  DateRangeQuerySchema,
 } from '@okapigo/shared/schemas/schedules';
-import { addDays, localDate, stringToDate, zonedTimeToUtc } from '@okapigo/shared/time';
+import { addDays, stringToDate, zonedTimeToUtc } from '@okapigo/shared/time';
 import { requirePermission } from '../middleware/auth.js';
 import { validate, IdParamsSchema } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
+import { parseDateRange } from '../lib/date-range.js';
 import { serializeSchedule, serializeDeparture } from './serializers.js';
-
-/** The longest date range one calendar request may ask for. */
-const MAX_RANGE_DAYS = 92;
 
 /** @param {{ prisma: import('@prisma/client').PrismaClient }} deps */
 export function schedulesRouter({ prisma }) {
@@ -69,29 +66,9 @@ export function schedulesRouter({ prisma }) {
     return data;
   }
 
-  /**
-   * Reads ?from&to as local dates, defaulting to the next 14 days, capped at 92 days.
-   * @param {import('express').Request} req
-   */
-  function dateRange(req) {
-    const parsed = DateRangeQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      throw new HttpError(400, 'VALIDATION_ERROR', 'Invalid date range.', {
-        issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
-      });
-    }
-    const today = localDate(new Date(), authOf(req).timeZone);
-    const from = parsed.data.from ?? today;
-    const to = parsed.data.to ?? addDays(from, 13);
-    if (to > addDays(from, MAX_RANGE_DAYS)) {
-      throw new HttpError(
-        400,
-        'RANGE_TOO_LONG',
-        `Ask for at most ${MAX_RANGE_DAYS} days at a time.`,
-      );
-    }
-    return { from, to, productId: parsed.data.productId };
-  }
+  /** Reads ?from&to as local dates (defaults and limits in lib/date-range.js). */
+  const dateRange = (/** @type {import('express').Request} */ req) =>
+    parseDateRange(req.query, authOf(req).timeZone);
 
   // --- Schedules -----------------------------------------------------------------------
 

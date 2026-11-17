@@ -28,6 +28,7 @@ import { paymentsRouters } from './routes/payments.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { paymentLinksRouters } from './routes/payment-links.js';
 import { refundsRouter } from './routes/refunds.js';
+import { publicCatalogueRouter } from './routes/public-catalogue.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -107,6 +108,7 @@ export function createApp({
   app.use(authRouter({ prisma, otp, sessions, requireAuth: authenticate }));
   app.use(payments.publicRouter); // the guest's browser lands on these after paying
   app.use(paymentLinks.publicRouter); // /pay/:token
+  app.use(publicCatalogueRouter({ prisma })); // /public/:operatorSlug/… (tours, dates)
 
   // --- Staff API: everything under /api requires sign-in ----------------------
   // DEFAULT DENY: `authenticate` runs before every /api route, so a route added here later

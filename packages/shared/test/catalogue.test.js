@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { nairaToKobo, formatNaira, koboToDecimal } from '../src/money.js';
-import { findAgeOverlap, findCategoryForAge } from '../src/catalogue.js';
+import { findAgeOverlap, findCategoryForAge, fromPriceKobo } from '../src/catalogue.js';
 import { CreateProductSchema, CreatePriceCategorySchema } from '../src/schemas/products.js';
 
 describe('money', () => {
@@ -123,5 +123,25 @@ describe('product schemas', () => {
       amountKobo: 100,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('fromPriceKobo (the "from ₦…" price on cards)', () => {
+  const adult = { key: 'adult', minAge: 13, maxAge: null, amountKobo: 2_500_000 };
+  const child = { key: 'child', minAge: 3, maxAge: 12, amountKobo: 1_250_000 };
+  const infant = { key: 'infant', minAge: 0, maxAge: 2, amountKobo: 0 };
+
+  it("uses the adult-style (open-ended) price, not the cheaper child's price", () => {
+    expect(fromPriceKobo([infant, child, adult])).toBe(2_500_000);
+  });
+
+  it('falls back to the cheapest paid price when no category is open-ended', () => {
+    expect(fromPriceKobo([infant, child])).toBe(1_250_000);
+  });
+
+  it('ignores archived and free categories, and gives null when nothing is priced', () => {
+    expect(fromPriceKobo([{ ...adult, isActive: false }, child])).toBe(1_250_000);
+    expect(fromPriceKobo([infant])).toBeNull();
+    expect(fromPriceKobo([])).toBeNull();
   });
 });

@@ -51,3 +51,24 @@ export function findCategoryForAge(categories, age) {
     ) ?? null
   );
 }
+
+/**
+ * The "from ₦…" price shown on tour cards and link previews.
+ *
+ * Rule: the cheapest ACTIVE category with no upper age (the adult-style price), because
+ * "from ₦12,500" (a child's price) would mislead an adult reading the card. If a product
+ * has no open-ended category (e.g. a kids-only workshop), it falls back to the cheapest
+ * active price above zero. Free categories (infants) never count: "from ₦0" helps nobody.
+ *
+ *   fromPriceKobo([{adult 13+ ₦25,000}, {child 3–12 ₦12,500}, {infant ₦0}])  → 2_500_000
+ *
+ * @param {Array<AgeRanged & { amountKobo: number }>} categories
+ * @returns {number | null}  null when nothing is priced (the card shows no price)
+ */
+export function fromPriceKobo(categories) {
+  const priced = categories.filter((c) => c.isActive !== false && c.amountKobo > 0);
+  const openEnded = priced.filter((c) => c.maxAge === null);
+  const pool = openEnded.length > 0 ? openEnded : priced;
+  if (pool.length === 0) return null;
+  return Math.min(...pool.map((c) => c.amountKobo));
+}
