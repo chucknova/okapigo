@@ -97,7 +97,8 @@ that sold out **while the guest was looking** (shown on screen 3→4, see below)
 
 **✅ Decided (2026-11-17):**
 
-- **Children and infants can't book without an adult.** A basket with no adult can't continue:
+- **Children and infants can't book without an adult.** The adult is anyone in the tour's **adult
+  price category** (13 and over at Ìrìn), so a 13-year-old can bring a younger sibling. A basket with no adult can't continue:
   design the message beside the counters ("Children must travel with an adult"), and keep
   **Continue** disabled until there is one. The server enforces it too (stage 11b).
 - **Pickup points:** the guest picks one on this screen (required for tours that have pickup
