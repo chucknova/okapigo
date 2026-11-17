@@ -11,6 +11,7 @@ import { createPrismaClient, seedDemoOperator } from '@okapigo/db';
 import { createApp } from '../src/app.js';
 import { createSessionService } from '../src/auth/session-service.js';
 import { createSimulatorProvider } from '@okapigo/payments';
+import { memoryRateLimitStore } from '../src/middleware/rate-limit.js';
 
 /** A logger that prints nothing, so test output only shows test results. */
 export const silentLogger = pino({ level: 'silent' });
@@ -79,6 +80,7 @@ export function buildApp(overrides = {}) {
     jobs: createFakeJobs(),
     provider: createSimulatorProvider({ baseUrl: 'http://localhost:4000' }),
     apiPublicUrl: 'http://localhost:4000',
+    rateLimitStore: memoryRateLimitStore(),
     ...overrides,
   });
 }

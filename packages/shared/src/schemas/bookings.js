@@ -38,6 +38,9 @@ const OptionalPhone = z
 
 const name = z.string().trim().min(1, 'Enter a name').max(100);
 
+/** A pickup point is chosen by name; createBooking checks it against the tour's list. */
+export const PickupPointName = z.string().trim().min(1).max(100).nullish();
+
 /** The person paying: reachable by email or phone, and must accept the booking terms. */
 export const LeadBookerSchema = z
   .object({
@@ -68,6 +71,8 @@ export const CreateBookingSchema = z.object({
   travellers: z.array(TravellerSchema).min(1, 'Add at least one traveller').max(50),
   addOns: AddOnSelectionsSchema,
   notes: z.string().trim().max(2000).default(''),
+  // The NAME of one of the tour's pickup points (required on tours that have them).
+  pickupPoint: PickupPointName,
 });
 
 /** PATCH /api/bookings/:id/travellers/:travellerId (age is not editable: that's an amendment) */
@@ -94,4 +99,21 @@ export const ListBookingsQuerySchema = z.object({
   // Search by reference ("ILT-7K4Q") or lead booker name/email/phone.
   q: z.string().trim().min(2).max(100).optional(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
+});
+
+/**
+ * POST /public/:operatorSlug/bookings: the guest checkout (stage 11b).
+ * Like the staff version, plus each traveller's chosen CATEGORY from the "who's coming"
+ * counters, so the server can say "Children are 3–12. For age 13, choose Adult." No notes:
+ * staff notes are internal.
+ */
+export const PublicCreateBookingSchema = z.object({
+  departureId: z.uuid(),
+  lead: LeadBookerSchema,
+  travellers: z
+    .array(TravellerSchema.extend({ categoryKey: z.string().trim().min(1).max(50).optional() }))
+    .min(1, 'Add at least one traveller')
+    .max(20, 'For groups over 20, please contact the operator'),
+  addOns: AddOnSelectionsSchema,
+  pickupPoint: PickupPointName,
 });

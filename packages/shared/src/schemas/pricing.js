@@ -56,3 +56,13 @@ export const CreateHoldSchema = z.object({
   travellers: TravellersSchema,
   addOns: AddOnSelectionsSchema,
 });
+
+/**
+ * POST /public/:operatorSlug/tours/:tourSlug/quote: the live price on checkout screen 2.
+ * With a departureId it also reports seats and add-on stock left on that date.
+ */
+export const PublicQuoteRequestSchema = z.object({
+  departureId: z.uuid().optional(),
+  travellers: TravellersSchema,
+  addOns: AddOnSelectionsSchema,
+});

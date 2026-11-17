@@ -7,15 +7,24 @@
  * operator's tax/fee settings from the database, then calls priceBasket().
  *
  * Staff quotes (this session), holds and bookings (session 7) and the public checkout
- * (session 10) all go through quote(), so every channel prices the same way (INV-24).
+ * (session 11) all go through quote(), so every channel prices the same way (INV-24).
+ *
+ * Two methods:
+ *   quote()            "how much would this cost?" Answers even for a basket that can't be
+ *                      booked yet, and says why in `blocker` (e.g. no adult). A guest still
+ *                      choosing counts needs a price at every step.
+ *   quoteForBooking()  the same, but REFUSES a basket that can't be booked. Every path that
+ *                      holds seats or creates a booking uses this one, so the booking rules
+ *                      (like "children need an adult") apply on every channel.
  */
 import { priceBasket, PricingError } from '@okapigo/shared/pricing';
+import { accompanimentProblem } from '@okapigo/shared/catalogue';
 import { OperatorPricingSchema } from '@okapigo/shared/schemas/pricing';
 import { HttpError } from '../middleware/errors.js';
 
 /** @param {{ prisma: import('@prisma/client').PrismaClient }} deps */
 export function createQuoteService({ prisma }) {
-  return {
+  const service = {
     /**
      * @param {{
      *   operatorId: string,
@@ -57,10 +66,16 @@ export function createQuoteService({ prisma }) {
         });
         // priceCategories: the active categories used, so callers (bookings) can record
         // which category each traveller was charged as.
+        // Booking rules checked on the PRICED basket (each traveller's category is known now).
+        const chargedKeys = quote.lines.flatMap((l) =>
+          l.type === 'ticket' ? Array(l.quantity).fill(l.categoryKey) : [],
+        );
         return {
           product: { id: product.id, title: product.title },
           quote,
           priceCategories: product.priceCategories,
+          /** Why this basket can't be booked as it is, or null. */
+          blocker: accompanimentProblem(product.priceCategories, chargedKeys),
         };
       } catch (err) {
         // "No price for age 1" etc. is a problem with the request → 400 with the code.
@@ -68,5 +83,18 @@ export function createQuoteService({ prisma }) {
         throw err;
       }
     },
+
+    /**
+     * quote(), then refuse it (400 with the blocker's code) if it can't be booked.
+     * @param {Parameters<typeof service.quote>[0]} input
+     */
+    async quoteForBooking(input) {
+      const result = await service.quote(input);
+      if (result.blocker) {
+        throw new HttpError(400, result.blocker.code, result.blocker.message);
+      }
+      return result;
+    },
   };
+  return service;
 }

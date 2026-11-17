@@ -67,8 +67,45 @@ export function findCategoryForAge(categories, age) {
  */
 export function fromPriceKobo(categories) {
   const priced = categories.filter((c) => c.isActive !== false && c.amountKobo > 0);
-  const openEnded = priced.filter((c) => c.maxAge === null);
+  const openEnded = priced.filter(isAdultCategory);
   const pool = openEnded.length > 0 ? openEnded : priced;
   if (pool.length === 0) return null;
   return Math.min(...pool.map((c) => c.amountKobo));
+}
+
+/**
+ * Is this an ADULT category? One with no upper age ("13 and over"). The operator decides
+ * where adulthood starts by setting the category's minimum age (13 at Ìrìn), so the rule
+ * below follows each tour's own prices instead of a fixed number like 18.
+ * @param {{ maxAge: number | null }} category
+ */
+export function isAdultCategory(category) {
+  return category.maxAge === null;
+}
+
+/**
+ * "Children and infants can't book without an adult" (decided 2026-11-17).
+ *
+ * Returns why a basket can't be booked, or null if it's fine:
+ *   - the basket must include at least one traveller charged in an adult category
+ *   - a tour with NO adult category (e.g. a kids-only workshop) has no adult to require,
+ *     so the rule doesn't apply there
+ *
+ * It returns a problem instead of throwing, because a QUOTE for a child-only basket is still
+ * useful (the guest is halfway through choosing). Only holding and booking refuse it.
+ *
+ * @param {Array<AgeRanged>} categories   the tour's price categories
+ * @param {string[]} chargedKeys           the category key each traveller was charged as
+ * @returns {{ code: 'ADULT_REQUIRED', message: string } | null}
+ */
+export function accompanimentProblem(categories, chargedKeys) {
+  const adults = categories.filter((c) => c.isActive !== false && isAdultCategory(c));
+  if (adults.length === 0) return null;
+  const adultKeys = new Set(adults.map((c) => c.key));
+  if (chargedKeys.some((k) => adultKeys.has(k))) return null;
+  const youngest = Math.min(...adults.map((c) => c.minAge));
+  return {
+    code: 'ADULT_REQUIRED',
+    message: `Children must travel with an adult (aged ${youngest} or over).`,
+  };
 }

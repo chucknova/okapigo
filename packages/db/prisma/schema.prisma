@@ -509,6 +509,12 @@ model Booking {
   marketingConsent Boolean  @default(false) @map("marketing_consent")
   notes            String   @default("")
 
+  // The pickup point the guest chose, COPIED from the product: { name, address }. A copy, not
+  // a reference, so renaming a pickup point later can't change where this guest is waiting.
+  // Required on tours that have pickup points (Lekki), null on the others (stage 11b).
+  pickupPoint Json? @map("pickup_point")
+  // (No guest token column: guest links are SIGNED from the booking id, see guest-links.js.)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 

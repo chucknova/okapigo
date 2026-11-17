@@ -119,21 +119,7 @@ export async function createHoldInTx(tx, input) {
       if (known.length !== ids.length) {
         throw new HoldError('UNKNOWN_ADD_ON', 'That add-on is not available for this tour.');
       }
-      /** @type {Array<{ add_on_id: string, used: bigint }>} */
-      const usage = await tx.$queryRaw`
-        SELECT add_on_id, SUM(quantity) AS used FROM (
-          SELECT ha.add_on_id, ha.quantity
-            FROM hold_add_ons ha JOIN holds h ON h.id = ha.hold_id
-           WHERE h.departure_id = ${input.departureId}::uuid AND h.status = 'active'
-          UNION ALL
-          SELECT ba.add_on_id, ba.quantity
-            FROM booking_add_ons ba JOIN bookings b ON b.id = ba.booking_id
-           WHERE b.departure_id = ${input.departureId}::uuid
-             AND b.status = ANY(${[...SEAT_CONSUMING_STATUSES]}::text[])
-        ) claims
-        GROUP BY add_on_id`;
-      // SUM() returns a BigInt from PostgreSQL; Number() is safe at these sizes.
-      const used = new Map(usage.map((u) => [u.add_on_id, Number(u.used)]));
+      const used = await addOnUsage(tx, input.departureId);
       for (const want of addOns) {
         const addOn = /** @type {import('@prisma/client').AddOn} */ (
           known.find((k) => k.id === want.addOnId)
@@ -177,7 +163,7 @@ export async function createHoldInTx(tx, input) {
  *
  * @param {import('@prisma/client').PrismaClient} prisma
  * @param {string} holdId
- * @param {{ reason: 'released' | 'expired', now?: Date }} options
+ * @param {{ reason: 'released' | 'expired', now?: Date, actor?: import('./booking-lifecycle.js').Actor }} options
  *   'expired' only succeeds if the hold really has passed its expiry time, so a job that
  *   fires a little early can't cut a guest's checkout short.
  * If the hold belongs to a booking that is still "held" (never paid or confirmed), that
@@ -256,4 +242,32 @@ export async function expireDueHolds(prisma, { now = new Date(), limit = 500, op
     if (await releaseHold(prisma, id, { reason: 'expired', now })) expired += 1;
   }
   return expired;
+}
+
+/**
+ * How many of each add-on are already claimed on a departure: by ACTIVE HOLDS plus bookings
+ * whose seats are SOLD. (A booking still in "held" is counted through its hold, so it isn't
+ * counted twice.) Used by createHold (under the departure lock, so the numbers are exact) and
+ * by the public quote (no lock: a display figure, "4 left tonight").
+ *
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ * @param {string} departureId
+ * @returns {Promise<Map<string, number>>}  addOnId → quantity claimed
+ */
+export async function addOnUsage(tx, departureId) {
+  /** @type {Array<{ add_on_id: string, used: bigint }>} */
+  const usage = await tx.$queryRaw`
+    SELECT add_on_id, SUM(quantity) AS used FROM (
+      SELECT ha.add_on_id, ha.quantity
+        FROM hold_add_ons ha JOIN holds h ON h.id = ha.hold_id
+       WHERE h.departure_id = ${departureId}::uuid AND h.status = 'active'
+      UNION ALL
+      SELECT ba.add_on_id, ba.quantity
+        FROM booking_add_ons ba JOIN bookings b ON b.id = ba.booking_id
+       WHERE b.departure_id = ${departureId}::uuid
+         AND b.status = ANY(${[...SEAT_CONSUMING_STATUSES]}::text[])
+    ) claims
+    GROUP BY add_on_id`;
+  // SUM() returns a BigInt from PostgreSQL; Number() is safe at these sizes.
+  return new Map(usage.map((u) => [u.add_on_id, Number(u.used)]));
 }

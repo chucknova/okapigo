@@ -49,7 +49,7 @@ export function holdsRouter({ prisma, quotes, jobs }) {
       });
       if (!departure) throw new HttpError(404, 'NOT_FOUND', 'Departure not found.');
 
-      const { quote } = await quotes.quote({
+      const { quote } = await quotes.quoteForBooking({
         operatorId,
         productId: departure.productId,
         travellers,

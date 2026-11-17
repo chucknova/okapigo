@@ -196,6 +196,7 @@ export function serializeBooking(b, timeZone) {
       termsAcceptedAt: b.termsAcceptedAt,
     },
     notes: b.notes,
+    pickupPoint: b.pickupPoint ?? null, // { name, address } copied at booking time, or null
     quote: b.quote,
     // While "held", the guest must pay or be confirmed before this time.
     holdExpiresAt: b.status === 'held' ? b.hold?.expiresAt : null,

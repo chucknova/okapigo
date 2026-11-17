@@ -56,7 +56,7 @@ export function payableBalance(booking, now) {
   }
   const balanceKobo = booking.totalKobo - booking.amountPaidKobo;
   if (balanceKobo <= 0) {
-    // A ₦0 booking (e.g. a free infant-only booking) is confirmed, not paid.
+    // A ₦0 booking (e.g. a free event, or a 100% promo) is confirmed, not paid.
     throw new BookingError('NOTHING_TO_PAY', 'Nothing is owed on this booking.');
   }
   return { balanceKobo };

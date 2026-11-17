@@ -29,6 +29,7 @@ import { webhooksRouter } from './routes/webhooks.js';
 import { paymentLinksRouters } from './routes/payment-links.js';
 import { refundsRouter } from './routes/refunds.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
+import { publicCheckoutRouter } from './routes/public-checkout.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -48,6 +49,8 @@ import { createSessionService } from './auth/session-service.js';
  *   },
  *   provider: import('@okapigo/payments').PaymentProvider,
  *   apiPublicUrl: string,
+ *   rateLimitStore: import('./middleware/rate-limit.js').RateLimitStore,
+ *   publicLimits?: typeof import('./routes/public-checkout.js').DEFAULT_PUBLIC_LIMITS,
  * }} deps
  */
 export function createApp({
@@ -59,6 +62,8 @@ export function createApp({
   jobs,
   provider,
   apiPublicUrl,
+  rateLimitStore,
+  publicLimits,
 }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
@@ -109,6 +114,17 @@ export function createApp({
   app.use(payments.publicRouter); // the guest's browser lands on these after paying
   app.use(paymentLinks.publicRouter); // /pay/:token
   app.use(publicCatalogueRouter({ prisma })); // /public/:operatorSlug/… (tours, dates)
+  app.use(
+    // quote, hold + book, the guest's booking (rate-limited per IP)
+    publicCheckoutRouter({
+      prisma,
+      quotes,
+      jobs,
+      authSecret,
+      rateLimitStore,
+      limits: publicLimits,
+    }),
+  );
 
   // --- Staff API: everything under /api requires sign-in ----------------------
   // DEFAULT DENY: `authenticate` runs before every /api route, so a route added here later

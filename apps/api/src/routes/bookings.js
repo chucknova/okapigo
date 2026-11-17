@@ -57,10 +57,21 @@ const FULL = {
   refunds: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
 };
 
-/** Turns domain errors into HTTP errors: "not found" → 404, everything else → 409 Conflict. */
-function toHttp(err) {
+/** Mistakes in the REQUEST (fix the input and resend), as opposed to conflicts with state. */
+export const BAD_INPUT_CODES = new Set(['PICKUP_POINT_REQUIRED', 'UNKNOWN_PICKUP_POINT']);
+
+/**
+ * Turns domain errors into HTTP errors: "not found" → 404, bad input → 400, everything else
+ * (sold out, hold expired…) → 409 Conflict.
+ */
+export function toHttp(err) {
   if (err instanceof BookingError || err instanceof HoldError) {
-    const status = err.code === 'NOT_FOUND' || err.code === 'DEPARTURE_NOT_FOUND' ? 404 : 409;
+    const status =
+      err.code === 'NOT_FOUND' || err.code === 'DEPARTURE_NOT_FOUND'
+        ? 404
+        : BAD_INPUT_CODES.has(err.code)
+          ? 400
+          : 409;
     return new HttpError(status, err.code, err.message, err.details);
   }
   return err;
@@ -95,7 +106,7 @@ export function bookingsRouter({ prisma, quotes, jobs }) {
     validate({ body: CreateBookingSchema }),
     async (req, res) => {
       const { operatorId, timeZone } = authOf(req);
-      const { departureId, lead, travellers, addOns, notes } = req.body;
+      const { departureId, lead, travellers, addOns, notes, pickupPoint } = req.body;
 
       const departure = await prisma.departure.findFirst({
         where: { id: departureId, operatorId },
@@ -104,7 +115,7 @@ export function bookingsRouter({ prisma, quotes, jobs }) {
       if (!departure) throw new HttpError(404, 'NOT_FOUND', 'Departure not found.');
 
       // 1. Price it with the shared pipeline (same as every channel).
-      const { quote, priceCategories } = await quotes.quote({
+      const { quote, priceCategories } = await quotes.quoteForBooking({
         operatorId,
         productId: departure.productId,
         travellers: travellers.map((t) => ({ age: t.age })),
@@ -145,6 +156,7 @@ export function bookingsRouter({ prisma, quotes, jobs }) {
           totalKobo: quote.totalKobo,
           holdMinutes: departure.product.operator.holdMinutes,
           notes,
+          pickupPointName: pickupPoint ?? null,
           actor: actorOf(req),
         });
       } catch (err) {

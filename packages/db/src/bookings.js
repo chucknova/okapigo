@@ -42,6 +42,7 @@ const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
  *   totalKobo: number,
  *   holdMinutes: number,
  *   notes?: string,
+ *   pickupPointName?: string | null,   // required when the tour has pickup points
  *   actor: Actor,
  *   now?: Date,
  * }} input
@@ -71,6 +72,7 @@ export async function createBooking(prisma, input) {
         // Pin the cancellation terms in force right now (BKG-26). Later policy changes
         // create new versions and never affect this booking.
         const product = await tx.product.findUniqueOrThrow({ where: { id: input.productId } });
+        const pickupPoint = choosePickupPoint(product, input.pickupPointName ?? null);
         const policyVersion = product.cancellationPolicyId
           ? await currentPolicyVersion(tx, product.cancellationPolicyId)
           : null;
@@ -93,6 +95,7 @@ export async function createBooking(prisma, input) {
             termsAcceptedAt: now,
             marketingConsent: input.lead.marketingConsent,
             notes: input.notes ?? '',
+            pickupPoint: pickupPoint ?? undefined, // undefined → SQL NULL
           },
         });
 
@@ -268,4 +271,41 @@ export function updateTraveller(prisma, { operatorId, bookingId, travellerId, ch
     });
     return after;
   }, TX_OPTIONS);
+}
+
+/**
+ * The pickup point a booking will store: a COPY of the product's { name, address }.
+ *
+ * Rules (decided 2026-11-17): a tour with pickup points needs one chosen; a tour without
+ * them can't take one. Checked here, inside createBooking's transaction, so every channel
+ * (staff, web, WhatsApp, OTA) follows them. Throwing rolls back the hold created just before.
+ *
+ * @param {import('@prisma/client').Product} product
+ * @param {string | null} name  as chosen by the guest (matched exactly)
+ * @returns {{ name: string, address: string } | null}
+ */
+function choosePickupPoint(product, name) {
+  const points = /** @type {Array<{ name: string, address: string }>} */ (product.pickupPoints);
+  if (points.length === 0) {
+    if (name) {
+      throw new BookingError('UNKNOWN_PICKUP_POINT', "This tour doesn't offer pickup.");
+    }
+    return null;
+  }
+  if (!name) {
+    throw new BookingError('PICKUP_POINT_REQUIRED', 'Choose where we should pick you up.', {
+      pickupPoints: points.map((p) => p.name),
+    });
+  }
+  const point = points.find((p) => p.name === name);
+  if (!point) {
+    throw new BookingError(
+      'UNKNOWN_PICKUP_POINT',
+      `"${name}" isn't a pickup point for this tour.`,
+      {
+        pickupPoints: points.map((p) => p.name),
+      },
+    );
+  }
+  return { name: point.name, address: point.address };
 }

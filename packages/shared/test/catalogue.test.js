@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { nairaToKobo, formatNaira, koboToDecimal } from '../src/money.js';
-import { findAgeOverlap, findCategoryForAge, fromPriceKobo } from '../src/catalogue.js';
+import {
+  findAgeOverlap,
+  findCategoryForAge,
+  fromPriceKobo,
+  accompanimentProblem,
+} from '../src/catalogue.js';
 import { CreateProductSchema, CreatePriceCategorySchema } from '../src/schemas/products.js';
 
 describe('money', () => {
@@ -143,5 +148,41 @@ describe('fromPriceKobo (the "from ₦…" price on cards)', () => {
     expect(fromPriceKobo([{ ...adult, isActive: false }, child])).toBe(1_250_000);
     expect(fromPriceKobo([infant])).toBeNull();
     expect(fromPriceKobo([])).toBeNull();
+  });
+});
+
+describe('accompanimentProblem (no children without an adult)', () => {
+  const irin = [
+    { key: 'adult', minAge: 13, maxAge: null },
+    { key: 'child', minAge: 3, maxAge: 12 },
+    { key: 'infant', minAge: 0, maxAge: 2 },
+  ];
+
+  it('accepts any basket with at least one adult', () => {
+    expect(accompanimentProblem(irin, ['adult'])).toBeNull();
+    expect(accompanimentProblem(irin, ['child', 'infant', 'adult'])).toBeNull();
+  });
+
+  it('refuses children or infants on their own, naming the adult age', () => {
+    expect(accompanimentProblem(irin, ['child', 'infant'])).toEqual({
+      code: 'ADULT_REQUIRED',
+      message: 'Children must travel with an adult (aged 13 or over).',
+    });
+    expect(accompanimentProblem(irin, ['infant'])?.code).toBe('ADULT_REQUIRED');
+  });
+
+  it('follows the tour: a 13-year-old charged as an adult counts', () => {
+    // The age check lives in the category (13+ at Ìrìn), not in a fixed 18.
+    expect(accompanimentProblem(irin, ['adult', 'child'])).toBeNull();
+  });
+
+  it("doesn't apply to a tour that has no adult category (kids-only)", () => {
+    const kidsOnly = [{ key: 'child', minAge: 6, maxAge: 12 }];
+    expect(accompanimentProblem(kidsOnly, ['child'])).toBeNull();
+  });
+
+  it('ignores an archived adult category', () => {
+    const archived = [{ ...irin[0], isActive: false }, irin[1]];
+    expect(accompanimentProblem(archived, ['child'])).toBeNull();
   });
 });
