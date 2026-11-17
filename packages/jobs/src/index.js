@@ -19,6 +19,7 @@ import { Queue } from 'bullmq';
 export const QUEUES = /** @type {const} */ ({
   holds: 'holds', // per-hold expiry jobs, timed to the second
   maintenance: 'maintenance', // timetabled housekeeping: sweeper, schedule window
+  webhooks: 'webhooks', // payment-provider events to process (stage 10c)
 });
 
 /** Job names within the queues. */
@@ -27,6 +28,8 @@ export const JOBS = /** @type {const} */ ({
   sweepHolds: 'sweep-holds',
   extendSchedules: 'extend-schedules',
   verifyLedger: 'verify-ledger',
+  processWebhook: 'process-webhook',
+  sweepWebhooks: 'sweep-webhooks',
 });
 
 /**
@@ -47,6 +50,7 @@ export function connectionFor(redisUrl) {
  */
 export function createJobClient(redisUrl, { prefix } = {}) {
   const holds = new Queue(QUEUES.holds, { connection: connectionFor(redisUrl), prefix });
+  const webhooks = new Queue(QUEUES.webhooks, { connection: connectionFor(redisUrl), prefix });
 
   return {
     /**
@@ -72,8 +76,29 @@ export function createJobClient(redisUrl, { prefix } = {}) {
       );
     },
 
+    /**
+     * Queues a stored webhook event for processing. Job ID = event ID, so queueing the same
+     * event twice (a duplicate delivery racing the first) creates one job. Retries back off
+     * exponentially: 2 s, 4 s, 8 s… for 8 attempts (about 4 minutes in all), covering a
+     * short Paystack or database outage. After that, the sweeper and staff take over.
+     * @param {string} eventId
+     */
+    async enqueueWebhook(eventId) {
+      await webhooks.add(
+        JOBS.processWebhook,
+        { eventId },
+        {
+          jobId: `webhook-${eventId}`,
+          attempts: 8,
+          backoff: { type: 'exponential', delay: 2000 },
+          removeOnComplete: 1000,
+          removeOnFail: 5000,
+        },
+      );
+    },
+
     async close() {
-      await holds.close();
+      await Promise.all([holds.close(), webhooks.close()]);
     },
   };
 }

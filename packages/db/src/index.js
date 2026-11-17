@@ -40,3 +40,5 @@ export {
   LedgerActionError,
 } from './ledger.js';
 export { startPayment } from './payments.js';
+export { recordWebhookEvent } from './webhooks.js';
+export { processWebhookEvent, sweepWebhookEvents } from './settlement.js';

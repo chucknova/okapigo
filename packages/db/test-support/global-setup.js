@@ -19,6 +19,15 @@ export default async function setup() {
 
   const prisma = createPrismaClient(/** @type {string} */ (process.env.DATABASE_URL));
   try {
+    // Webhook events belong to no business, so deleting a test operator wouldn't remove them.
+    // Delete the ones whose payment belongs to a stale test operator first (stage 10c).
+    await prisma.$executeRaw`
+      DELETE FROM webhook_events w
+       USING payments p, operators o
+       WHERE p.reference = w.payload->'data'->>'reference'
+         AND o.id = p.operator_id
+         AND o.slug ~ '^test-[0-9a-f]{8}$'
+         AND o.created_at < now() - interval '10 minutes'`;
     await prisma.$executeRaw`
       DELETE FROM operators
        WHERE slug ~ '^test-[0-9a-f]{8}$'

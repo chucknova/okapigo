@@ -758,6 +758,11 @@ model Payment {
   feeKobo               Int?      @map("fee_kobo")
   paidAt                DateTime? @map("paid_at") @db.Timestamptz(3)
   failureReason         String?   @map("failure_reason")
+  // How the guest actually paid, as reported by the provider (card, bank, ussd…).
+  channel               String?
+  // Set when a human must look at it, e.g. money that arrived after the hold expired
+  // (HOLD_EXPIRED_BEFORE_PAYMENT) or more money than was owed (OVERPAID).
+  reviewReason          String?   @map("review_reason")
   createdById           String?   @map("created_by_id") @db.Uuid
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -768,4 +773,37 @@ model Payment {
   @@index([bookingId])
   @@index([operatorId, createdAt])
   @@map("payments")
+}
+
+// ===========================================================================
+// WEBHOOK EVENTS (stage 10c)
+// ===========================================================================
+//
+// Every signed event the payment provider sends us, stored ONCE, before anything else.
+//   - Paystack retries an event until we answer 200, so the same event can arrive many
+//     times. The unique (provider, dedupKey) index keeps one copy; the rest are ignored.
+//   - Storing first and processing in a background job means we answer Paystack in
+//     milliseconds, and a crash mid-processing loses nothing: the event is still here.
+//   - The raw payload is kept for audits and for replaying events in tests.
+model WebhookEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  provider    String
+  // e.g. "charge.success"
+  eventType   String    @map("event_type")
+  // What makes an event "the same event": "<event type>:<provider transaction id>".
+  // (Paystack events carry no event id of their own.)
+  dedupKey    String    @map("dedup_key")
+  payload     Json
+  // received → processed / ignored / needs_review; failed after the last retry.
+  status      String    @default("received")
+  // Why it was ignored or needs review, in a few words (e.g. UNKNOWN_REFERENCE).
+  outcome     String?
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(3)
+
+  @@unique([provider, dedupKey])
+  @@index([status, receivedAt])
+  @@map("webhook_events")
 }
