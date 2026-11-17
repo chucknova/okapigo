@@ -517,6 +517,7 @@ model Booking {
   addOns        BookingAddOn[]
   events        BookingEvent[]
   ledgerEntries LedgerEntry[]
+  payments      Payment[]
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -708,9 +709,9 @@ model LedgerEntry {
   operatorId    String   @map("operator_id") @db.Uuid
   transactionId String   @map("transaction_id") @db.Uuid
   accountId     String   @map("account_id") @db.Uuid
-  // Optional links, so "everything about booking ILT-7K4Q2M" is one query. (payment_id
-  // arrives with the payments table in stage 10b.)
+  // Optional links, so "everything about booking ILT-7K4Q2M" (or one payment) is one query.
   bookingId     String?  @map("booking_id") @db.Uuid
+  paymentId     String?  @map("payment_id") @db.Uuid
   // Exactly one is above zero (a CHECK enforces it). Integer kobo, like all money.
   debitKobo     Int      @default(0) @map("debit_kobo")
   creditKobo    Int      @default(0) @map("credit_kobo")
@@ -719,9 +720,52 @@ model LedgerEntry {
   transaction LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   account     LedgerAccount     @relation(fields: [accountId], references: [id], onDelete: Cascade)
   booking     Booking?          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  payment     Payment?          @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@index([accountId, createdAt])
   @@index([transactionId])
   @@index([bookingId])
   @@map("ledger_entries")
+}
+
+// ===========================================================================
+// PAYMENTS (PAY-02 and friends, stage 10b)
+// ===========================================================================
+//
+// One row per payment ATTEMPT. Created (status "initiated") BEFORE we call the provider,
+// so every provider transaction has a local record, even if the call fails halfway or a
+// webhook arrives first. Only a VERIFIED webhook (stage 10c) moves it to "succeeded".
+model Payment {
+  id                    String    @id @default(uuid()) @db.Uuid
+  operatorId            String    @map("operator_id") @db.Uuid
+  bookingId             String    @map("booking_id") @db.Uuid
+  // Which adapter handled it: "simulator" or "paystack".
+  provider              String
+  // card, bank_transfer… (Paystack can report the channel actually used, set in 10c.)
+  method                String
+  // What it was for: full, deposit, balance, custom (payment links, 10d).
+  purpose               String
+  amountKobo            Int       @map("amount_kobo")
+  currency              String    @default("NGN") @db.Char(3)
+  // See packages/shared/src/payment-status.js.
+  status                String    @default("initiated")
+  // OUR reference ("OKG-…"), sent to the provider and echoed back in webhooks. Globally
+  // unique: the PRD's "idempotent on the Paystack reference" hinges on it.
+  reference             String    @unique
+  // From the provider: its own transaction id, the hosted checkout page, its fee.
+  providerTransactionId String?   @map("provider_transaction_id")
+  authorizationUrl      String?   @map("authorization_url")
+  feeKobo               Int?      @map("fee_kobo")
+  paidAt                DateTime? @map("paid_at") @db.Timestamptz(3)
+  failureReason         String?   @map("failure_reason")
+  createdById           String?   @map("created_by_id") @db.Uuid
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ledgerEntries LedgerEntry[]
+
+  @@index([bookingId])
+  @@index([operatorId, createdAt])
+  @@map("payments")
 }

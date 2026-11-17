@@ -39,3 +39,4 @@ export {
   exportLedgerCsv,
   LedgerActionError,
 } from './ledger.js';
+export { startPayment } from './payments.js';

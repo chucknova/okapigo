@@ -63,6 +63,7 @@ export function createLedgerAccounts(tx, operatorId) {
  *   description: string,
  *   lines: import('@okapigo/shared/ledger').Line[],
  *   bookingId?: string | null,
+ *   paymentId?: string | null,
  *   occurredAt?: Date,
  *   reversesId?: string | null,
  *   createdById?: string | null,
@@ -110,6 +111,7 @@ export async function postTransaction(tx, input) {
         transactionId,
         accountId,
         bookingId: input.bookingId ?? null,
+        paymentId: input.paymentId ?? null,
         debitKobo: line.debitKobo,
         creditKobo: line.creditKobo,
       };
