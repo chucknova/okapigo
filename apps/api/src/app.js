@@ -28,6 +28,7 @@ import { paymentsRouters } from './routes/payments.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { paymentLinksRouters } from './routes/payment-links.js';
 import { refundsRouter } from './routes/refunds.js';
+import { alertsRouter } from './routes/alerts.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
 import { publicCheckoutRouter } from './routes/public-checkout.js';
 import { createQuoteService } from './pricing/quote-service.js';
@@ -146,6 +147,7 @@ export function createApp({
   api.use(payments.apiRouter);
   api.use(paymentLinks.apiRouter);
   api.use(refundsRouter({ prisma, provider }));
+  api.use(alertsRouter({ prisma }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

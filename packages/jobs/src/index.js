@@ -31,6 +31,7 @@ export const JOBS = /** @type {const} */ ({
   processWebhook: 'process-webhook',
   sweepWebhooks: 'sweep-webhooks',
   reconcile: 'reconcile',
+  balanceReminders: 'balance-reminders',
 });
 
 /**

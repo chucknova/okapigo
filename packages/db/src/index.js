@@ -63,3 +63,10 @@ export {
 } from './refunds.js';
 export { reconcile } from './reconciliation.js';
 export { guestToken, bookingIdFromGuestToken } from './guest-links.js';
+export {
+  queueBalanceNotices,
+  cancelStaleNotices,
+  listStaffAlerts,
+  dismissStaffAlert,
+  OWING_STATUSES,
+} from './notifications.js';

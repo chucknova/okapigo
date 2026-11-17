@@ -78,6 +78,12 @@ await maintenance.upsertJobScheduler(
   { name: JOBS.sweepWebhooks, opts: { removeOnComplete: 100, removeOnFail: 1000 } },
 );
 await maintenance.upsertJobScheduler(
+  JOBS.balanceReminders,
+  // 09:00 Lagos: a civilised time to receive "your balance is due" on WhatsApp.
+  { pattern: '0 9 * * *', tz: 'Africa/Lagos' },
+  { name: JOBS.balanceReminders, opts: { removeOnComplete: 30, removeOnFail: 100 } },
+);
+await maintenance.upsertJobScheduler(
   JOBS.reconcile,
   { every: 10 * 60_000 },
   { name: JOBS.reconcile, opts: { removeOnComplete: 100, removeOnFail: 1000 } },

@@ -67,3 +67,42 @@ export function depositOffer({
   if (depositKobo <= 0 || depositKobo >= totalKobo) return null;
   return { depositKobo, balanceKobo: totalKobo - depositKobo, balanceDueDate: dueDate };
 }
+
+/** Balance reminders go out this many days before the due date (decided 2026-11-17). */
+export const BALANCE_REMINDER_DAYS = /** @type {const} */ ([7, 3, 1]);
+
+/**
+ * Which balance notice a booking that still owes money should have by today, if any.
+ * The daily job (stage 11d) asks this for every such booking.
+ *
+ *   due Sat 28 Nov (trip Sat 5 Dec), booked 10 Nov:
+ *     today 21 Nov → { kind: 'reminder', daysBefore: 7 }
+ *     today 25 Nov → { kind: 'reminder', daysBefore: 3 }
+ *     today 27 Nov → { kind: 'reminder', daysBefore: 1 }
+ *     today 29 Nov → { kind: 'overdue' }       (staff are alerted; nothing is cancelled)
+ *     today  5 Dec → null                      (trip day: too late for notices to help)
+ *
+ * It answers with the TIGHTEST milestone reached, not "exactly 7, 3 or 1 days to go". So a
+ * day the job didn't run (worker down) is caught up the next day, and the caller's
+ * "at most once per milestone" rule (a unique key) stops repeats. Milestones that had
+ * already passed when the guest BOOKED are skipped: someone who books 2 days before the due
+ * date shouldn't get a "7 days left" reminder.
+ *
+ * @param {{ departureLocalDate: string, bookedLocalDate: string, todayLocalDate: string }} input
+ * @returns {{ kind: 'reminder', daysBefore: number } | { kind: 'overdue' } | null}
+ */
+export function balanceNotice({ departureLocalDate, bookedLocalDate, todayLocalDate }) {
+  if (todayLocalDate >= departureLocalDate) return null;
+  const dueDate = balanceDueDate(departureLocalDate);
+  if (todayLocalDate > dueDate) return { kind: 'overdue' };
+
+  // Tightest first: 1 day, then 3, then 7.
+  for (const days of [...BALANCE_REMINDER_DAYS].sort((a, b) => a - b)) {
+    const milestone = addDays(dueDate, -days);
+    if (todayLocalDate < milestone) continue; // not reached yet; try a wider one
+    // Reached. If the booking is newer than this milestone, it's newer than the wider ones
+    // too (they're earlier), so there's nothing to send.
+    return bookedLocalDate < milestone ? { kind: 'reminder', daysBefore: days } : null;
+  }
+  return null; // more than 7 days to go
+}

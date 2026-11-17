@@ -59,6 +59,7 @@ model Operator {
   payments             Payment[]
   paymentLinks         PaymentLink[]
   refunds              Refund[]
+  notifications        Notification[]
 
   @@map("operators")
 }
@@ -534,6 +535,7 @@ model Booking {
   payments      Payment[]
   paymentLinks  PaymentLink[]
   refunds       Refund[]
+  notifications Notification[]
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -909,3 +911,47 @@ model Refund {
   @@index([status, createdAt])
   @@map("refunds")
 }
+
+// ===========================================================================
+// NOTIFICATIONS: the OUTBOX of messages to send (stage 11d)
+// ===========================================================================
+//
+// A row = "this message should be sent" (to a guest) or "this needs attention" (for staff).
+// The daily balance job WRITES rows; session 14 SENDS guest rows by email and WhatsApp and
+// marks them sent. Writing first and sending separately is the "outbox" pattern: deciding
+// what to send never depends on the email or WhatsApp service being up, and a failed send
+// can be retried without deciding again.
+//
+//   audience "guest", kind "balance_reminder"   7, 3 and 1 days before the balance is due
+//   audience "staff", kind "balance_overdue"    the due date has passed; staff decide what
+//                                                to do (nothing is cancelled automatically)
+//
+// status: pending → sent (delivered) | cancelled (no longer needed: paid, cancelled, trip
+// passed) | dismissed (staff handled the alert).
+model Notification {
+  id         String    @id @default(uuid()) @db.Uuid
+  operatorId String    @map("operator_id") @db.Uuid
+  bookingId  String    @map("booking_id") @db.Uuid
+  audience   String
+  kind       String
+  // ONE per booking per key, enforced by the unique index below: "balance_reminder:7",
+  // "balance_reminder:3", "balance_reminder:1", "balance_overdue". However often the job runs,
+  // a guest gets each reminder at most once.
+  key        String
+  // What the message needs, frozen when it was decided: amount, due date, days left…
+  data       Json
+  status     String    @default("pending")
+  sentAt     DateTime? @map("sent_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, key])
+  // "Open staff alerts for this operator" and "guest messages waiting to be sent".
+  @@index([operatorId, audience, status])
+  @@index([status, audience])
+  @@map("notifications")
+}
+

@@ -89,13 +89,24 @@ describe('processors (called directly)', () => {
     const { operator } = await heritageDeparture();
     const ours = () => prisma.departure.count({ where: { operatorId: operator.id } });
     const before = await ours();
-    const job = { data: { operatorId: operator.id } };
+    const data = { operatorId: operator.id }; // what BullMQ hands a processor: job.data
 
-    const first = await processors[JOBS.extendSchedules](job);
-    await processors[JOBS.extendSchedules](job);
+    const first = await processors[JOBS.extendSchedules](data);
+    await processors[JOBS.extendSchedules](data);
 
     expect(first).toMatchObject({ schedules: 5, failed: [] });
     expect(await ours()).toBe(before); // freshly seeded: nothing to add, nothing duplicated
+  });
+});
+
+describe('balance-reminders', () => {
+  it('runs for one operator when given { operatorId } (BullMQ passes job.data)', async () => {
+    const { operator } = await heritageDeparture();
+
+    const result = await processors[JOBS.balanceReminders]({ operatorId: operator.id });
+
+    // A fresh seed has no bookings owing money: nothing to remind, nothing to cancel.
+    expect(result).toEqual({ checked: 0, reminders: 0, overdue: 0, cancelled: 0 });
   });
 });
 
