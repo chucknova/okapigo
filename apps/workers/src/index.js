@@ -9,6 +9,7 @@
  *        extend-schedules  every night at 02:00 Lagos time
  *        verify-ledger     every night at 03:00 Lagos time
  *        sweep-webhooks    every 60 seconds
+ *        reconcile         every 10 minutes (payments and refunds webhooks missed)
  *   2. starts a BullMQ Worker per queue that runs jobs as they become due
  *   3. shuts down gracefully, finishing the current job before exiting
  *
@@ -75,6 +76,11 @@ await maintenance.upsertJobScheduler(
   JOBS.sweepWebhooks,
   { every: 60_000 },
   { name: JOBS.sweepWebhooks, opts: { removeOnComplete: 100, removeOnFail: 1000 } },
+);
+await maintenance.upsertJobScheduler(
+  JOBS.reconcile,
+  { every: 10 * 60_000 },
+  { name: JOBS.reconcile, opts: { removeOnComplete: 100, removeOnFail: 1000 } },
 );
 await maintenance.close();
 

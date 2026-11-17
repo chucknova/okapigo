@@ -17,6 +17,7 @@ import {
   verifyLedger,
   processWebhookEvent,
   sweepWebhookEvents,
+  reconcile,
 } from '@okapigo/db';
 import { JOBS } from '@okapigo/jobs';
 
@@ -88,6 +89,18 @@ export function createProcessors({ prisma, logger, provider }) {
     async [JOBS.sweepWebhooks]() {
       const result = await sweepWebhookEvents(prisma, provider);
       if (result.found > 0) logger.warn(result, 'webhook sweeper found unprocessed events');
+      return result;
+    },
+
+    /**
+     * Every 10 minutes: ask the provider about payments and refunds that webhooks never
+     * finished (stage 10e). Anything found is processed through the SAME webhook path.
+     */
+    async [JOBS.reconcile]() {
+      const result = await reconcile(prisma, provider);
+      const found = result.settled + result.failed + result.abandoned + result.refundsResolved;
+      if (found > 0 || result.refundsNeverSent > 0)
+        logger.warn(result, 'reconciliation found unfinished money');
       return result;
     },
   };
