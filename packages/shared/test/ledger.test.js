@@ -124,6 +124,7 @@ describe('for ANY sequence of events', () => {
       'refundPaid',
       'unallocatedReceipt',
       'receiptAllocated',
+      'receiptRefunded',
     ];
 
     for (let i = 0; i < 500; i++) {

@@ -97,6 +97,12 @@ export const POSTINGS = {
     return [debit('PROVIDER_CLEARING', kobo), credit('UNALLOCATED_RECEIPTS', kobo)];
   },
 
+  /** We sent an unmatched receipt back (stage 10e). Dr Unallocated receipts / Cr Paystack clearing */
+  receiptRefunded(/** @type {number} */ kobo) {
+    assertAmount(kobo);
+    return [debit('UNALLOCATED_RECEIPTS', kobo), credit('PROVIDER_CLEARING', kobo)];
+  },
+
   /** Staff matched it to a booking. Dr Unallocated receipts / Cr Tour sales */
   receiptAllocated(/** @type {number} */ kobo) {
     assertAmount(kobo);
