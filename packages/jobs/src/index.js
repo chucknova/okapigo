@@ -30,6 +30,7 @@ export const JOBS = /** @type {const} */ ({
   verifyLedger: 'verify-ledger',
   processWebhook: 'process-webhook',
   sweepWebhooks: 'sweep-webhooks',
+  reconcile: 'reconcile',
 });
 
 /**
