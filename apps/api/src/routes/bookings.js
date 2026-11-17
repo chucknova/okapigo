@@ -53,6 +53,7 @@ const FULL = {
   hold: true,
   departure: true,
   product: true,
+  payments: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] },
 };
 
 /** Turns domain errors into HTTP errors: "not found" → 404, everything else → 409 Conflict. */

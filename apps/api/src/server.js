@@ -16,6 +16,7 @@ import { createPrismaClient } from '@okapigo/db';
 import { createRedis } from './lib/connections.js';
 import { createLogOtpSender } from './auth/otp-sender.js';
 import { createJobClient } from '@okapigo/jobs';
+import { createPaymentProvider } from '@okapigo/payments';
 import { createApp } from './app.js';
 
 const config = loadConfig();
@@ -30,6 +31,14 @@ const redis = createRedis(config.REDIS_URL);
 const otpSender = createLogOtpSender(logger, { nodeEnv: config.NODE_ENV });
 // Enqueues background jobs (e.g. hold expiry) for the workers app to run.
 const jobs = createJobClient(config.REDIS_URL);
+// The payment provider: the simulator, or Paystack TEST mode (a live key never gets this far:
+// loadConfig() above refuses it, and so does the Paystack adapter itself).
+const provider = createPaymentProvider({
+  provider: config.PAYMENT_PROVIDER,
+  paystackSecretKey: config.PAYSTACK_SECRET_KEY,
+  baseUrl: config.API_PUBLIC_URL,
+});
+logger.info({ provider: provider.name }, 'payment provider ready');
 
 // Without an 'error' listener, a lost Redis connection would crash the whole process.
 // We log it instead; the health check reports Redis as down and ioredis reconnects.
@@ -42,6 +51,8 @@ const app = createApp({
   otpSender,
   authSecret: config.AUTH_SECRET,
   jobs,
+  provider,
+  apiPublicUrl: config.API_PUBLIC_URL,
 });
 
 const server = app.listen(config.API_PORT, () => {

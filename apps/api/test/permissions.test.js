@@ -78,6 +78,8 @@ describe('default deny', () => {
     ['get', '/api/ledger/export.csv'],
     ['post', '/api/ledger/adjustments'],
     ['post', `/api/ledger/transactions/${SOME_ID}/reverse`],
+    ['post', `/api/bookings/${SOME_ID}/payments`],
+    ['get', `/api/bookings/${SOME_ID}/payments`],
     ['get', '/api/anything-new'],
   ])('%s %s needs sign-in', async (method, url) => {
     const res = await request(ctx.app)[method](url);

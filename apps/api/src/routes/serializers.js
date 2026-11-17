@@ -217,6 +217,7 @@ export function serializeBooking(b, timeZone) {
       quantity: a.quantity,
       unitKobo: a.unitKobo,
     })),
+    payments: (b.payments ?? []).map(serializePayment),
     timeline: b.events.map((e) => ({
       type: e.type,
       fromStatus: e.fromStatus,
@@ -248,5 +249,27 @@ export function serializePolicy(p) {
     current: p.versions[0] ? serializePolicyVersion(p.versions[0]) : null,
     versions: p.versions.map(serializePolicyVersion),
     productCount: p._count?.products,
+  };
+}
+
+/**
+ * A payment attempt. The provider's raw responses never leave the API.
+ * @param {import('@prisma/client').Payment} p
+ */
+export function serializePayment(p) {
+  return {
+    id: p.id,
+    reference: p.reference,
+    provider: p.provider,
+    method: p.method,
+    purpose: p.purpose,
+    amountKobo: p.amountKobo,
+    status: p.status,
+    // Where to send the guest to pay (only while the attempt is open).
+    authorizationUrl: p.status === 'initiated' ? p.authorizationUrl : null,
+    feeKobo: p.feeKobo,
+    paidAt: p.paidAt,
+    failureReason: p.failureReason,
+    createdAt: p.createdAt,
   };
 }

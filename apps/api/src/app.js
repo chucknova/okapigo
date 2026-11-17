@@ -24,6 +24,7 @@ import { holdsRouter } from './routes/holds.js';
 import { bookingsRouter } from './routes/bookings.js';
 import { policiesRouter } from './routes/policies.js';
 import { ledgerRouter } from './routes/ledger.js';
+import { paymentsRouters } from './routes/payments.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -38,14 +39,26 @@ import { createSessionService } from './auth/session-service.js';
  *   otpSender: import('./auth/otp-sender.js').OtpSender,
  *   authSecret: string,
  *   jobs: { scheduleHoldExpiry: (holdId: string, expiresAt: Date) => Promise<void> },
+ *   provider: import('@okapigo/payments').PaymentProvider,
+ *   apiPublicUrl: string,
  * }} deps
  */
-export function createApp({ logger, prisma, redis, otpSender, authSecret, jobs }) {
+export function createApp({
+  logger,
+  prisma,
+  redis,
+  otpSender,
+  authSecret,
+  jobs,
+  provider,
+  apiPublicUrl,
+}) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
   const otp = createOtpService({ prisma, otpSender, authSecret });
   const authenticate = requireAuth(sessions);
   const quotes = createQuoteService({ prisma });
+  const payments = paymentsRouters({ prisma, provider, apiPublicUrl });
 
   const app = express();
 
@@ -81,6 +94,7 @@ export function createApp({ logger, prisma, redis, otpSender, authSecret, jobs }
   // --- Public routes (no sign-in needed) --------------------------------------
   app.use(healthRouter({ prisma, redis }));
   app.use(authRouter({ prisma, otp, sessions, requireAuth: authenticate }));
+  app.use(payments.publicRouter); // the guest's browser lands on these after paying
 
   // --- Staff API: everything under /api requires sign-in ----------------------
   // DEFAULT DENY: `authenticate` runs before every /api route, so a route added here later
@@ -97,6 +111,7 @@ export function createApp({ logger, prisma, redis, otpSender, authSecret, jobs }
   api.use(bookingsRouter({ prisma, quotes, jobs }));
   api.use(policiesRouter({ prisma }));
   api.use(ledgerRouter({ prisma }));
+  api.use(payments.apiRouter);
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

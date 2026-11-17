@@ -10,6 +10,7 @@ import { pino } from 'pino';
 import { createPrismaClient, seedDemoOperator } from '@okapigo/db';
 import { createApp } from '../src/app.js';
 import { createSessionService } from '../src/auth/session-service.js';
+import { createSimulatorProvider } from '@okapigo/payments';
 
 /** A logger that prints nothing, so test output only shows test results. */
 export const silentLogger = pino({ level: 'silent' });
@@ -71,6 +72,8 @@ export function buildApp(overrides = {}) {
     otpSender: createCapturingSender(),
     authSecret: TEST_AUTH_SECRET,
     jobs: createFakeJobs(),
+    provider: createSimulatorProvider({ baseUrl: 'http://localhost:4000' }),
+    apiPublicUrl: 'http://localhost:4000',
     ...overrides,
   });
 }
@@ -88,7 +91,9 @@ export function createTestContext() {
   const prisma = createPrismaClient(process.env.DATABASE_URL);
   const sender = createCapturingSender();
   const jobs = createFakeJobs();
-  const app = buildApp({ prisma, otpSender: sender, jobs });
+  // One simulator per test file, so tests can play "the guest" (complete / fail a payment).
+  const provider = createSimulatorProvider({ baseUrl: 'http://localhost:4000' });
+  const app = buildApp({ prisma, otpSender: sender, jobs, provider });
   const sessions = createSessionService({ prisma });
   /** Slugs created by the current test; everything under them is deleted in cleanup(). */
   const slugs = [];
@@ -97,6 +102,7 @@ export function createTestContext() {
     prisma,
     sender,
     jobs,
+    provider,
     app,
 
     /** Seeds a throwaway copy of Ìrìn Lagos Tours; returns it with its staff by role. */
