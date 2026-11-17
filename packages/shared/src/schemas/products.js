@@ -9,6 +9,7 @@
  * Money fields are integer KOBO (see money.js) and end in "Kobo".
  */
 import { z } from 'zod';
+import { RESERVED_TOUR_SLUGS } from '../slug.js';
 
 const text = (max) => z.string().trim().min(1).max(max);
 /** Whole kobo, never negative. 0 is allowed (e.g. a free infant place). */
@@ -45,7 +46,8 @@ const productFields = {
   slug: z
     .string()
     .trim()
-    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Use lowercase letters, numbers and hyphens'),
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Use lowercase letters, numbers and hyphens')
+    .refine((s) => !RESERVED_TOUR_SLUGS.has(s), 'That word is reserved for booking pages'),
   title: text(120),
   summary: text(300),
   description: text(10_000),

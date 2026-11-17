@@ -29,6 +29,7 @@ import { webhooksRouter } from './routes/webhooks.js';
 import { paymentLinksRouters } from './routes/payment-links.js';
 import { refundsRouter } from './routes/refunds.js';
 import { alertsRouter } from './routes/alerts.js';
+import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
 import { publicCheckoutRouter } from './routes/public-checkout.js';
 import { createQuoteService } from './pricing/quote-service.js';
@@ -52,6 +53,7 @@ import { createSessionService } from './auth/session-service.js';
  *   apiPublicUrl: string,
  *   rateLimitStore: import('./middleware/rate-limit.js').RateLimitStore,
  *   publicLimits?: typeof import('./routes/public-checkout.js').DEFAULT_PUBLIC_LIMITS,
+ *   webPublicUrl?: string,   // where guests see booking links; default: apiPublicUrl
  * }} deps
  */
 export function createApp({
@@ -65,6 +67,7 @@ export function createApp({
   apiPublicUrl,
   rateLimitStore,
   publicLimits,
+  webPublicUrl = apiPublicUrl,
 }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
@@ -150,6 +153,10 @@ export function createApp({
   api.use(alertsRouter({ prisma }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
+
+  // --- Share pages with link previews: /:operatorSlug and /:operatorSlug/:tourSlug ------
+  // LAST, so every route above wins; reserved words are skipped (see share-pages.js).
+  app.use(sharePagesRouter({ prisma, webPublicUrl }));
 
   // --- Errors (must come after all routes) -----------------------------------
   app.use(notFound);

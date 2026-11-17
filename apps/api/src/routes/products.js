@@ -29,7 +29,7 @@ import {
   PRODUCT_STATUSES,
 } from '@okapigo/shared/schemas/products';
 import { findAgeOverlap } from '@okapigo/shared/catalogue';
-import { slugify } from '@okapigo/shared/slug';
+import { slugify, RESERVED_TOUR_SLUGS } from '@okapigo/shared/slug';
 import { requirePermission } from '../middleware/auth.js';
 import { validate, IdParamsSchema } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
@@ -126,7 +126,10 @@ export function productsRouter({ prisma }) {
 
   router.post('/products', canEdit, validate({ body: CreateProductSchema }), async (req, res) => {
     const operatorId = operatorIdOf(req);
-    const slug = req.body.slug ?? slugify(req.body.title);
+    // From the title when not given. A title like "Checkout" would make a reserved slug
+    // (see slug.js), so it becomes "checkout-tour". (A GIVEN slug is checked by the schema.)
+    const derived = slugify(req.body.title);
+    const slug = req.body.slug ?? (RESERVED_TOUR_SLUGS.has(derived) ? `${derived}-tour` : derived);
     if (req.body.status === 'published') {
       // A brand-new product has no prices yet, so it can't start out on sale.
       assertPublishable({ priceCategories: [] });

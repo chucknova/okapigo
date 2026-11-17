@@ -23,3 +23,47 @@ export function slugify(text, maxLength = 50) {
     .slice(0, maxLength)
     .replace(/^-+|-+$/g, ''); // no leading/trailing hyphens
 }
+
+/**
+ * Words an OPERATOR slug can't be. Booking links live at the root of the site
+ * (okapigo.app/irin-lagos-tours), next to the app's own paths (/api, /pay, /health…). An
+ * operator called "API Tours" must not get the slug "api" and break, or shadow, those paths.
+ * Includes a few words kept for later pages, so adding them can never clash with a business.
+ */
+export const RESERVED_OPERATOR_SLUGS = new Set([
+  // used today
+  'api',
+  'auth',
+  'health',
+  'pay',
+  'payments',
+  'public',
+  'simulator',
+  'webhooks',
+  // kept for later (guest web, operator app, static files, docs)
+  'about',
+  'admin',
+  'app',
+  'assets',
+  'book',
+  'booking',
+  'bookings',
+  'checkout',
+  'embed',
+  'help',
+  'login',
+  'privacy',
+  'signup',
+  'static',
+  'terms',
+  'trip',
+  'trips',
+  'widget',
+  'www',
+]);
+
+/**
+ * Words a TOUR slug can't be: the guest web (session 12) needs paths under an operator,
+ * like /irin-lagos-tours/checkout, that must never be mistaken for a tour.
+ */
+export const RESERVED_TOUR_SLUGS = new Set(['book', 'checkout', 'embed', 'pay', 'trip', 'trips']);

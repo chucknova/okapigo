@@ -10,7 +10,10 @@ const app = buildApp();
 
 describe('error handling', () => {
   it('returns a JSON 404 for unknown routes', async () => {
-    const res = await request(app).get('/does-not-exist');
+    // Three segments: can't be a booking link. (Since stage 11e, one- and two-segment paths
+    // like /irin-lagos-tours/heritage-walk are booking links with an HTML "not found" page;
+    // see share-pages.test.js.)
+    const res = await request(app).get('/does/not/exist');
 
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('NOT_FOUND');

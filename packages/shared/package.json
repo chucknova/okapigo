@@ -26,7 +26,8 @@
     "./ledger": "./src/ledger.js",
     "./schemas/ledger": "./src/schemas/ledger.js",
     "./payment-status": "./src/payment-status.js",
-    "./deposits": "./src/deposits.js"
+    "./deposits": "./src/deposits.js",
+    "./preview": "./src/preview.js"
   },
   "scripts": {
     "test": "vitest run"

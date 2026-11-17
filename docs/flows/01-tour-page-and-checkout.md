@@ -167,15 +167,17 @@ the confirmation flow (brief 02) · Edit (back to any earlier screen while the h
 
 ## Data and API (for reference)
 
-| Need                                     | Endpoint                           | Status                                          |
-| ---------------------------------------- | ---------------------------------- | ----------------------------------------------- |
-| Tours, prices, content                   | public catalogue API               | **new, session 11** (staff version exists)      |
-| Seats per departure                      | public availability                | **new, session 11** (`listAvailability` exists) |
-| Live price                               | public quote (same pricing engine) | **new, session 11** (`POST /api/quotes` exists) |
-| Hold + create booking                    | public booking (channel "web")     | **new, session 11** (`createBooking` exists)    |
-| Start payment (full or deposit)          | public payment start               | **new, session 11** (`startPayment` exists)     |
-| Deposit rules (30%, due date, reminders) | product settings                   | **new, session 11**                             |
-| Link previews (title, image, price)      | server-rendered meta tags          | **new, session 11**                             |
+| Need                                     | Endpoint                                                       | Status       |
+| ---------------------------------------- | -------------------------------------------------------------- | ------------ |
+| Tour cards, tour page content and prices | `GET /public/:operator`, `GET /public/:operator/tours/:tour`   | ✅ stage 11a |
+| Dates and seats left                     | `GET /public/:operator/tours/:tour/departures?from&to`         | ✅ stage 11a |
+| Live price (+ seats and add-on stock)    | `POST /public/:operator/tours/:tour/quote`                     | ✅ stage 11b |
+| Hold seats + create the booking          | `POST /public/:operator/bookings` → a private guest link token | ✅ stage 11b |
+| Review the booking / give seats back     | `GET /public/bookings/:token`, `POST …/release`                | ✅ stage 11b |
+| Pay: full, deposit or balance            | `POST /public/bookings/:token/pay` → Paystack's page           | ✅ stage 11c |
+| Deposit rules (30%, due 7 days before)   | per tour; `paymentOptions` on the booking                      | ✅ stage 11c |
+| Balance reminders, overdue alerts        | daily job → notifications outbox; `GET /api/alerts` (staff)    | ✅ stage 11d |
+| Link previews (title, price, next date)  | server-rendered tags at `/:operator` and `/:operator/:tour`    | ✅ stage 11e |
+| The 1200×630 preview CARD image          | waits for your design (screen B)                               | session 12   |
 
-All of the booking, pricing, hold and payment logic already exists and is tested; session 11 adds the
-public endpoints and these screens on top.
+Everything these screens need now exists and is tested; session 12 builds the screens on top.

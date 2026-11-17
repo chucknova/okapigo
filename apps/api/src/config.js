@@ -70,6 +70,9 @@ const EnvSchema = z
     SIMULATOR_WEBHOOK_SECRET: optional(z.string().min(16)),
     // The API's public address: where Paystack sends the guest back, and simulator pages live.
     API_PUBLIC_URL: z.url().default('http://localhost:4000'),
+    // Where GUESTS see booking links (okapigo.app/irin-lagos-tours). Used in link previews.
+    // Unset = the same as API_PUBLIC_URL (today the API serves those pages itself).
+    WEB_PUBLIC_URL: optional(z.url()),
   })
   // Choosing Paystack without a key would only fail later, on a guest's first payment.
   .refine((env) => env.PAYMENT_PROVIDER !== 'paystack' || env.PAYSTACK_SECRET_KEY, {

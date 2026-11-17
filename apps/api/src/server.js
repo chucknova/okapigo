@@ -61,6 +61,7 @@ const app = createApp({
   apiPublicUrl: config.API_PUBLIC_URL,
   // Rate-limit counters in Redis, shared by every API process (see middleware/rate-limit.js).
   rateLimitStore: redisRateLimitStore(redis),
+  webPublicUrl: config.WEB_PUBLIC_URL ?? config.API_PUBLIC_URL,
 });
 
 const server = app.listen(config.API_PORT, () => {

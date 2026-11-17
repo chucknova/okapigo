@@ -17,7 +17,7 @@ import {
   OtpRequestSchema,
   OtpVerifySchema,
 } from '@okapigo/shared/schemas/auth';
-import { slugify } from '@okapigo/shared/slug';
+import { slugify, RESERVED_OPERATOR_SLUGS } from '@okapigo/shared/slug';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { serializeUser } from './serializers.js';
@@ -126,6 +126,9 @@ export function authRouter({ prisma, otp, sessions, requireAuth }) {
  */
 async function uniqueSlug(tx, businessName) {
   const base = slugify(businessName, 40) || 'tours';
-  const taken = await tx.operator.findUnique({ where: { slug: base }, select: { id: true } });
+  // A reserved word ("api", "pay"…) gets a suffix, exactly as if it were taken.
+  const taken =
+    RESERVED_OPERATOR_SLUGS.has(base) ||
+    (await tx.operator.findUnique({ where: { slug: base }, select: { id: true } }));
   return taken ? `${base}-${randomBytes(2).toString('hex')}` : base;
 }
