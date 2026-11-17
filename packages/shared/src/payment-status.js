@@ -50,3 +50,22 @@ export function generatePaymentReference() {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(20));
   return `OKG-${Array.from(bytes, (b) => ALPHABET[b % 32]).join('')}`;
 }
+
+/**
+ * The email we give the payment provider for a guest who only gave a phone number
+ * (Paystack requires an email for its receipt).
+ *
+ *   placeholderEmail('ILT-7K4Q2M') → 'guest-ilt-7k4q2m@example.com'
+ *
+ * Why example.com: it must pass Paystack's email check AND never reach a real person.
+ *   - "@something.example" fails Paystack's check ('"email" must be a valid email'), because
+ *     .example is a reserved name, not a real top-level domain. (Found by the first real
+ *     Paystack call, stage 10b.)
+ *   - Inventing a domain risks it belonging to a stranger, who would get our guests' receipts.
+ *   - example.com sits under a real TLD (so it passes) but is reserved by IANA for
+ *     documentation (RFC 2606) and publishes a "null MX" record (RFC 7505): it accepts no mail.
+ * @param {string} bookingReference
+ */
+export function placeholderEmail(bookingReference) {
+  return `guest-${bookingReference.toLowerCase()}@example.com`;
+}

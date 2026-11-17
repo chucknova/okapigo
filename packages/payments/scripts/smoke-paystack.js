@@ -27,14 +27,21 @@ if (!secretKey) {
 const paystack = createPaystackProvider({ secretKey }); // refuses a live key
 const reference = generatePaymentReference();
 
-const started = await paystack.initializeTransaction({
-  reference,
-  amountKobo: 10_000, // ₦100
-  email: 'smoke-test@okapigo.example',
-  callbackUrl: 'http://localhost:4000/payments/callback',
-  channels: ['card'],
-  metadata: { purpose: 'OkapiGo smoke test' },
-});
+let started;
+try {
+  started = await paystack.initializeTransaction({
+    reference,
+    amountKobo: 10_000, // ₦100
+    email: 'okapigo-smoke-test@example.com', // reserved domain: valid, but receives no mail
+    callbackUrl: 'http://localhost:4000/payments/callback',
+    channels: ['card'],
+    metadata: { purpose: 'OkapiGo smoke test' },
+  });
+} catch (err) {
+  // Print what Paystack said, plainly, instead of a stack trace.
+  console.log(`✗ Paystack refused: ${err.message} (${err.code}, HTTP ${err.httpStatus ?? '-'})`);
+  process.exit(1);
+}
 console.log('1. initialize ✓ checkout page:', started.authorizationUrl);
 
 const verified = await paystack.verifyTransaction(reference);

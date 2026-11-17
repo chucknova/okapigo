@@ -86,13 +86,13 @@ describe('starting a card payment', () => {
     expect(await ctx.prisma.payment.count({ where: { bookingId: booking.id } })).toBe(1);
   });
 
-  it('a guest who gave only a phone gets a placeholder email that can never receive mail', async () => {
+  it('a guest who gave only a phone gets a placeholder email Paystack accepts but that receives no mail', async () => {
     const { manager, booking } = await setup({
       lead: { name: 'Bayo', phone: '08035550199', acceptTerms: true },
     });
     const { payment } = (await manager.post(`/api/bookings/${booking.id}/payments`).send({})).body;
     expect(ctx.provider.store.get(payment.reference).email).toBe(
-      `${booking.reference.toLowerCase()}@guests.okapigo.example`,
+      `guest-${booking.reference.toLowerCase()}@example.com`,
     );
   });
 

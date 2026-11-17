@@ -16,7 +16,7 @@
  *
  * Nothing here marks a payment "succeeded". Only a verified webhook does (stage 10c).
  */
-import { generatePaymentReference } from '@okapigo/shared/payment-status';
+import { generatePaymentReference, placeholderEmail } from '@okapigo/shared/payment-status';
 import { BookingError } from './booking-lifecycle.js';
 
 const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
@@ -114,8 +114,8 @@ export async function startPayment(
       reference: payment.reference,
       amountKobo: payment.amountKobo,
       // Paystack needs an email for the receipt. Guests who gave only a phone get a
-      // placeholder on the reserved .example domain, which can never receive mail.
-      email: booking.leadEmail ?? `${booking.reference.toLowerCase()}@guests.okapigo.example`,
+      // placeholder that can never receive mail (see placeholderEmail for why example.com).
+      email: booking.leadEmail ?? placeholderEmail(booking.reference),
       callbackUrl,
       channels: [method],
       metadata: { bookingId, bookingReference: booking.reference, paymentId: payment.id },

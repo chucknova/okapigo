@@ -164,6 +164,17 @@ command again and you get `"reused": true`.
 
 ## 6. Gotchas
 
+- **Paystack rejects `.example` emails.** The first real call failed with
+  `"email" must be a valid email`, for both the smoke test and the placeholder email given for
+  phone-only guests, so **every** payment from a guest without an email would have failed in
+  Paystack mode. The fake-fetch tests couldn't catch it: a fake only knows what we tell it, and
+  only a real call teaches you the real rules. `.example` is a reserved name, not a real
+  top-level domain. The fix is `example.com`, which sits under a real TLD (passes the check) but is
+  reserved by IANA (RFC 2606) and accepts no mail (null MX, RFC 7505). The rule now lives in one
+  function, `placeholderEmail()`, with tests.
+- **"Abandoned" means "not completed yet" to Paystack.** Verifying a transaction seconds after
+  creating it says `abandoned`. That's why our lifecycle allows `abandoned → succeeded`, and why
+  only webhooks (10c) decide.
 - **`timeout` doesn't exist on macOS.** My first "start with a live key" check returned exit
   code 127 (_command not found_), so it never ran. A run that "didn't fail" isn't a run that
   passed: always read the exit code.
