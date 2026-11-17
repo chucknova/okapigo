@@ -95,10 +95,14 @@ that sold out **while the guest was looking** (shown on screen 3→4, see below)
 
 **States:** price updating · seats limit reached · add-on sold out.
 
-**❓ Questions for you:**
+**✅ Decided (2026-11-17):**
 
-- Should children or infants be allowed **without an adult**? (The system allows it today.)
-- The pickup choice isn't stored on bookings yet. I'll add it if your design includes it.
+- **Children and infants can't book without an adult.** A basket with no adult can't continue:
+  design the message beside the counters ("Children must travel with an adult"), and keep
+  **Continue** disabled until there is one. The server enforces it too (stage 11b).
+- **Pickup points:** the guest picks one on this screen (required for tours that have pickup
+  points). The choice is stored on the booking (stage 11b) and shown on the confirmation, the trip
+  hub and the guide's manifest.
 
 ## Checkout screen 3: Your details
 

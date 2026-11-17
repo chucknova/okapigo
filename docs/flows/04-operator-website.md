@@ -47,6 +47,9 @@ Each style needs **light and dark** variants. The operator picks the style and t
 
 ## Operator side: choosing a style (in the operator app)
 
+> **Deferred:** designed later with the operator app (see the README). The notes below stay as
+> input for that brief.
+
 **Shows:** the styles as **live previews with the operator's real content** (MKT-09), not stock
 images; a light/dark toggle; **Apply**.
 

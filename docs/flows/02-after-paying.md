@@ -89,9 +89,9 @@ Please draft the wording (and, for email, a simple layout). They'll use your tok
 | Cancellation         | when cancelled                                                     | reference, refund amount and when to expect it            |
 | Refund sent          | when the refund is processed                                       | amount, "may take 5–10 working days to appear"            |
 
-**❓ Questions for you:**
+**✅ Decided (2026-11-17):**
 
-- When is a deposit balance due? **Proposal:** 7 days before the trip, and if a guest books later
-  than that, no deposit option is offered.
-- What happens if the balance isn't paid in time? **Proposal:** staff are alerted; nothing is
-  cancelled automatically.
+- **The balance is due 7 days before the trip.** A guest booking later than that isn't offered a
+  deposit: they pay in full (screen 4 shows no deposit choice).
+- **If the balance isn't paid in time,** staff are alerted and **nothing is cancelled
+  automatically**. Staff decide (call the guest, send a link, or cancel).

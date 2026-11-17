@@ -51,8 +51,18 @@ From the trip hub: **Cancel booking** → a confirmation step that shows **the r
 the policy**, before they confirm ("You'll get ₦12,500 back (50%), because the trip is in 30 hours")
 → **Cancel** → "Cancelled. Your ₦12,500 refund is on its way."
 
-**❓ For you:** should guests be able to cancel themselves, or only ask the operator? (The system
-supports both; the PRD journey shows the guest cancelling.)
+**✅ Decided (2026-11-17): both.** The guest can cancel themselves (above), **or** ask the operator
+instead, e.g. to change the date or to ask for more back than the policy gives.
+
+**Ask the operator** → a short form: what they want (_change date_ · _cancel_ · _something else_)
+and a message → **Send** → "Sent. Ìrìn will reply by WhatsApp or email." Staff see the request
+on the booking and answer it (they can cancel with a different refund, which staff are already
+allowed to do). Please design:
+
+- the two choices side by side, so it's clear that cancelling yourself is instant and asking is
+  not
+- the request form and its "sent" state
+- the banner while a request is open ("Your request was sent on Tue 1 Dec")
 
 ## Data
 

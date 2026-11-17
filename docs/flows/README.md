@@ -16,6 +16,30 @@ must respect. Business logic already exists in the API; screens only display dat
 **Suggested design order:** 01 → 02 → 05 → 04 → 03. Checkout is the critical path; the widget
 reuses checkout's screens inside a frame, so it needs the least new design.
 
+## Decisions so far
+
+| Date       | Question                                       | Decision                                                  | Brief | Built in       |
+| ---------- | ---------------------------------------------- | --------------------------------------------------------- | ----- | -------------- |
+| 2026-11-17 | Can children or infants book without an adult? | **No.** At least one adult per booking, on every channel  | 01    | stage 11b      |
+| 2026-11-17 | Is the pickup point stored?                    | **Yes**, required on tours with pickup points             | 01    | stage 11b      |
+| 2026-11-17 | When is a deposit balance due?                 | **7 days before the trip**; later bookings pay in full    | 02    | stage 11c      |
+| 2026-11-17 | Balance not paid in time?                      | **Staff are alerted**; nothing is cancelled automatically | 02    | stage 11d      |
+| 2026-11-17 | Can guests cancel from the trip hub?           | **Yes, and they can ask the operator instead**            | 05    | session 12     |
+| 2026-11-17 | When is the widget's Embed page designed?      | **Later, with the operator app** (see below)              | 03    | sessions 15–16 |
+
+## Deferred to the operator app briefs
+
+These are **operator** screens. They'll be designed with the rest of the operator app (its own
+flow briefs, before sessions 15–16), so they share its look and navigation. **Don't design them
+now.**
+
+| Screen                                                | From brief | Why it's deferred                  |
+| ----------------------------------------------------- | ---------- | ---------------------------------- |
+| Embed page (snippet, live preview, approved websites) | 03         | Your decision, 2026-11-17          |
+| Website style picker (live previews, light/dark)      | 04         | Same reason: an operator screen    |
+| Business details form (tagline, about, contacts)      | 04         | Same reason: an operator screen    |
+| Answering a guest's "ask the operator" request        | 05         | Staff side of the trip hub request |
+
 ---
 
 ## Constraints for every screen

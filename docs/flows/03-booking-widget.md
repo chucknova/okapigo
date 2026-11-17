@@ -72,5 +72,7 @@ small notice on screen 4: "You'll be taken to Paystack to pay securely."
 **States:** no approved domains yet (warning: "Add your website first, or the widget won't show");
 copied ✓.
 
-**❓ For you:** this page lives in the **operator app** (sessions 15–16). Design it together with the
-operator app's look, or now with the guest tokens, as you prefer.
+**✅ Decided (2026-11-17): designed later, with the operator app.** It's an operator screen, so
+it should share the operator app's look and navigation. It's listed in the README under
+"Deferred to the operator app briefs", so it can't be forgotten. **Design only the guest side of
+the widget now.**

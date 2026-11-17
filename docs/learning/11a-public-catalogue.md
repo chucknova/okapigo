@@ -3,13 +3,13 @@
 **Session 11** gives the guest web its backend, before any screens exist (the screens wait for
 your designs from `docs/flows/`). It is split into stages:
 
-| Stage   | What                                                 | PRD            |
-| ------- | ---------------------------------------------------- | -------------- |
-| **11a** | **Public tour list, tour page, bookable dates**      | BKG-32 (read)  |
-| 11b     | Public quote, hold and booking (channel "web")       | BKG-02, INV-23 |
-| 11c     | Deposit rules per tour, and starting a guest payment | BKG-06, PAY-02 |
-| 11d     | Balance reminders and overdue alerts                 | BKG-06         |
-| 11e     | Link previews (title, image, price when shared)      | BKG-32         |
+| Stage   | What                                                                                  | PRD            |
+| ------- | ------------------------------------------------------------------------------------- | -------------- |
+| **11a** | **Public tour list, tour page, bookable dates**                                       | BKG-32 (read)  |
+| 11b     | Public quote, hold and booking (channel "web"), adult rule, pickup point, rate limits | BKG-02, INV-23 |
+| 11c     | Deposit rules per tour, and starting a guest payment                                  | BKG-06, PAY-02 |
+| 11d     | Balance reminders and overdue alerts                                                  | BKG-06         |
+| 11e     | Link previews (title, image, price when shared)                                       | BKG-32         |
 
 ## 1. What we built
 
