@@ -58,6 +58,7 @@ model Operator {
   ledgerTransactions   LedgerTransaction[]
   payments             Payment[]
   paymentLinks         PaymentLink[]
+  refunds              Refund[]
 
   @@map("operators")
 }
@@ -521,6 +522,7 @@ model Booking {
   ledgerEntries LedgerEntry[]
   payments      Payment[]
   paymentLinks  PaymentLink[]
+  refunds       Refund[]
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -776,6 +778,9 @@ model Payment {
   allocatedAt           DateTime? @map("allocated_at") @db.Timestamptz(3)
   // Set when the payment was made through a payment link (PAY-05).
   paymentLinkId         String?   @map("payment_link_id") @db.Uuid
+  // Stage 10e: how much of THIS payment is being or has been refunded (requested, pending or
+  // processed refunds; a failed refund gives its amount back). Never more than amountKobo.
+  refundedKobo          Int       @default(0) @map("refunded_kobo")
   createdById           String?   @map("created_by_id") @db.Uuid
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -786,6 +791,7 @@ model Payment {
   booking       Booking?      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   paymentLink   PaymentLink?  @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
   ledgerEntries LedgerEntry[]
+  refunds       Refund[]
 
   @@index([bookingId])
   @@index([operatorId, allocatedAt])
@@ -853,4 +859,42 @@ model PaymentLink {
 
   @@index([bookingId])
   @@map("payment_links")
+}
+
+// ---------------------------------------------------------------------------
+// Refund: money going back to a guest, against ONE payment (PAY-08, stage 10e)
+// ---------------------------------------------------------------------------
+// "Refunds to the original method": a provider refund is tied to the transaction the money
+// came in on, so a booking paid in two parts (deposit + balance) may need two refunds.
+//
+//   requested → pending (the provider accepted it) → processed (money left) / failed
+//
+// Recorded BEFORE calling the provider, like payments. The ledger is only written when the
+// provider confirms the money actually left (a verified refund.processed webhook).
+model Refund {
+  id               String    @id @default(uuid()) @db.Uuid
+  operatorId       String    @map("operator_id") @db.Uuid
+  // Null when refunding an unmatched receipt (money that was never applied to a booking).
+  bookingId        String?   @map("booking_id") @db.Uuid
+  paymentId        String    @map("payment_id") @db.Uuid
+  provider         String
+  amountKobo       Int       @map("amount_kobo")
+  status           String    @default("requested")
+  reason           String
+  // The provider's id for the refund: how webhooks and reconciliation find it again.
+  providerRefundId String?   @map("provider_refund_id")
+  failureReason    String?   @map("failure_reason")
+  createdById      String?   @map("created_by_id") @db.Uuid
+  processedAt      DateTime? @map("processed_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  booking  Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  payment  Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerRefundId])
+  @@index([bookingId])
+  @@index([status, createdAt])
+  @@map("refunds")
 }

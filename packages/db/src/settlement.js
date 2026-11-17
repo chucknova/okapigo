@@ -27,6 +27,7 @@ import { secureBookingInTx } from './bookings.js';
 import { releaseHoldInTx } from './holds.js';
 import { BookingError } from './booking-lifecycle.js';
 import { payableBalance } from './payments.js';
+import { markRefundProcessed, markRefundFailed } from './refunds.js';
 
 const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
 const SYSTEM = /** @type {const} */ ({ type: 'system' });
@@ -76,6 +77,7 @@ export async function processWebhookEvent(prisma, provider, eventId, { now = new
  * @param {Date} now
  */
 async function handle(prisma, provider, event, now) {
+  if (event.eventType.startsWith('refund.')) return handleRefundEvent(prisma, provider, event);
   if (event.eventType !== 'charge.success') {
     return { status: 'ignored', outcome: 'UNHANDLED_EVENT_TYPE' };
   }
@@ -229,6 +231,50 @@ async function handle(prisma, provider, event, now) {
     }
     return { status: 'processed', outcome: 'SETTLED' };
   }, TX_OPTIONS);
+}
+
+/**
+ * refund.pending / refund.processed / refund.failed (stage 10e).
+ *
+ * Find OUR refund by the provider's refund id, then ask the provider what really happened
+ * (fetchRefund), exactly as payments are re-verified, and record it. markRefundProcessed /
+ * markRefundFailed lock the refund row, so a duplicate or racing delivery can't pay out twice.
+ *
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ name: string, fetchRefund: (id: string) => Promise<any> }} provider
+ * @param {import('@prisma/client').WebhookEvent} event
+ */
+async function handleRefundEvent(prisma, provider, event) {
+  const data = /** @type {any} */ (event.payload)?.data ?? {};
+  const providerRefundId = data.id != null ? String(data.id) : null;
+  const refund = providerRefundId
+    ? await prisma.refund.findUnique({
+        where: { provider_providerRefundId: { provider: provider.name, providerRefundId } },
+      })
+    : null;
+  if (!refund) return { status: 'ignored', outcome: 'UNKNOWN_REFUND' };
+
+  const confirmed = await provider.fetchRefund(/** @type {string} */ (providerRefundId));
+  if (confirmed.status === 'processed') {
+    const result = await markRefundProcessed(prisma, refund.id);
+    return result === 'WAS_FAILED'
+      ? { status: 'needs_review', outcome: 'PROCESSED_AFTER_FAILED' }
+      : {
+          status: 'processed',
+          outcome: result === 'PROCESSED' ? 'REFUND_PROCESSED' : 'ALREADY_PROCESSED',
+        };
+  }
+  if (confirmed.status === 'failed') {
+    const result = await markRefundFailed(
+      prisma,
+      refund.id,
+      'The provider could not complete the refund',
+    );
+    return result === 'WAS_PROCESSED'
+      ? { status: 'needs_review', outcome: 'FAILED_AFTER_PROCESSED' }
+      : { status: 'processed', outcome: 'REFUND_FAILED' };
+  }
+  return { status: 'processed', outcome: 'REFUND_STILL_PENDING' };
 }
 
 /**

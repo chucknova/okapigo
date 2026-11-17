@@ -134,7 +134,11 @@ export async function startPayment(prisma, provider, input) {
         method,
         amountKobo,
         paymentLinkId: paymentLink?.id ?? null,
-        authorizationUrl: { not: null },
+        // NOT filtered on having a checkout URL yet. An attempt whose provider call is still
+        // in flight (steps 2–3 below, outside the lock) must count too: otherwise a second
+        // click arriving in that gap creates a SECOND checkout the guest could also pay. A
+        // flaky race test caught exactly that in stage 10e. The caller gets the attempt
+        // without a URL and asks the guest to try again in a moment.
         createdAt: { gt: new Date(now.getTime() - REUSE_WINDOW_MS) },
       },
       orderBy: { createdAt: 'desc' },
