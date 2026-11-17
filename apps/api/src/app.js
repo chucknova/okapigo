@@ -27,6 +27,7 @@ import { ledgerRouter } from './routes/ledger.js';
 import { paymentsRouters } from './routes/payments.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { paymentLinksRouters } from './routes/payment-links.js';
+import { refundsRouter } from './routes/refunds.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -124,6 +125,7 @@ export function createApp({
   api.use(ledgerRouter({ prisma }));
   api.use(payments.apiRouter);
   api.use(paymentLinks.apiRouter);
+  api.use(refundsRouter({ prisma, provider }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

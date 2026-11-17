@@ -120,7 +120,14 @@ export function paymentLinksRouters({ prisma, provider, apiPublicUrl }) {
   // --- Unmatched receipts: the manual-match fallback (PAY-03) ------------------------------
   apiRouter.get('/payments/unmatched', requirePermission('payments', 'view'), async (req, res) => {
     const receipts = await prisma.payment.findMany({
-      where: { operatorId: authOf(req).operatorId, bookingId: null, status: 'succeeded' },
+      where: {
+        operatorId: authOf(req).operatorId,
+        bookingId: null,
+        status: 'succeeded',
+        // Not already (being) refunded in full. Comparing two COLUMNS of the same row needs a
+        // "field reference": prisma.payment.fields.amountKobo.
+        refundedKobo: { lt: prisma.payment.fields.amountKobo },
+      },
       orderBy: [{ paidAt: 'desc' }, { id: 'desc' }],
     });
     // Help staff: show the reference of the booking a receipt was probably meant for.
@@ -206,7 +213,11 @@ export function paymentLinksRouters({ prisma, provider, apiPublicUrl }) {
         method: 'any',
         callbackUrl: `${apiPublicUrl}/payments/callback`,
       });
-      res.redirect(303, /** @type {string} */ (payment.authorizationUrl));
+      if (!payment.authorizationUrl) {
+        // A double click: the first click's checkout is still being set up.
+        return unusable(res, 409, 'Your payment is being set up. Please try again in a moment.');
+      }
+      res.redirect(303, payment.authorizationUrl);
     } catch (err) {
       if (err instanceof BookingError) {
         return unusable(res, err.code === 'NOT_FOUND' ? 404 : 409, err.message);

@@ -40,6 +40,8 @@ const provider = createPaymentProvider({
   // The simulator's "transactions" live in Redis, so the workers can re-check them.
   simulatorStore: redisStore(redis),
   simulatorSecret: config.SIMULATOR_WEBHOOK_SECRET,
+  // Simulated refunds "process" by themselves 1.5 s later and send their webhook, like Paystack.
+  simulatorAutoRefundMs: 1500,
 });
 logger.info({ provider: provider.name }, 'payment provider ready');
 

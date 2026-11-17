@@ -82,7 +82,47 @@ describe('starting a card payment', () => {
       ),
     );
 
-    expect(new Set(responses.map((r) => r.body.payment.reference)).size).toBe(1);
+    // Exactly one attempt exists. Every click either got that same checkout, or (if it
+    // arrived while the provider was still setting it up) a polite "try again".
+    expect(await ctx.prisma.payment.count({ where: { bookingId: booking.id } })).toBe(1);
+    const references = responses.filter((r) => r.status < 300).map((r) => r.body.payment.reference);
+    expect(new Set(references).size).toBe(1);
+    for (const r of responses.filter((r) => r.status >= 300)) {
+      expect(r.status).toBe(409);
+      expect(r.body.error.code).toBe('PAYMENT_STARTING');
+    }
+  });
+
+  it('a click while the first checkout is still being set up gets "try again", not a second checkout', async () => {
+    const { booking, operator } = await setup();
+    // A provider that answers only when the test says so, so the second click is
+    // GUARANTEED to arrive while the first is still waiting on it.
+    let release;
+    const slow = {
+      ...ctx.provider,
+      initializeTransaction: (input) =>
+        new Promise((resolve, reject) => {
+          release = () => ctx.provider.initializeTransaction(input).then(resolve, reject);
+        }),
+    };
+    const app = buildApp({ prisma: ctx.prisma, provider: slow, jobs: ctx.jobs });
+    const managerUser = await ctx.prisma.user.findFirst({
+      where: { operatorId: operator.id, role: { key: 'manager' } },
+    });
+    const client = as(await ctx.tokenFor(managerUser.id), app);
+    const url = `/api/bookings/${booking.id}/payments`;
+
+    const first = client
+      .post(url)
+      .send({})
+      .then((r) => r); // .then() sends it
+    while (!release) await new Promise((r) => setTimeout(r, 10)); // wait until it reaches the provider
+    const second = await client.post(url).send({});
+    release();
+
+    expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe('PAYMENT_STARTING');
+    expect((await first).status).toBe(201);
     expect(await ctx.prisma.payment.count({ where: { bookingId: booking.id } })).toBe(1);
   });
 

@@ -218,6 +218,17 @@ export function serializeBooking(b, timeZone) {
       unitKobo: a.unitKobo,
     })),
     payments: (b.payments ?? []).map(serializePayment),
+    // Stage 10e: refunds and how much has actually gone back.
+    refunds: (b.refunds ?? []).map((r) => ({
+      id: r.id,
+      amountKobo: r.amountKobo,
+      status: r.status,
+      reason: r.reason,
+      processedAt: r.processedAt,
+    })),
+    refundedKobo: (b.refunds ?? [])
+      .filter((r) => r.status === 'processed')
+      .reduce((sum, r) => sum + r.amountKobo, 0),
     timeline: b.events.map((e) => ({
       type: e.type,
       fromStatus: e.fromStatus,

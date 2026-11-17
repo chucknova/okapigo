@@ -84,6 +84,15 @@ export function paymentsRouters({ prisma, provider, apiPublicUrl }) {
           callbackUrl: `${apiPublicUrl}/payments/callback`,
           actor: { type: 'user', userId },
         });
+        if (!payment.authorizationUrl) {
+          // Another click's checkout is still being set up with the provider (a second
+          // or so). Don't make a second checkout: ask the caller to try again.
+          throw new HttpError(
+            409,
+            'PAYMENT_STARTING',
+            'This payment is being set up. Try again in a moment.',
+          );
+        }
         // 200 when an unfinished checkout was reused, 201 when a new one was made.
         res.status(reused ? 200 : 201).json({ payment: serializePayment(payment), reused });
       } catch (err) {

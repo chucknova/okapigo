@@ -86,6 +86,10 @@ describe('default deny', () => {
     ['get', '/api/payments/unmatched'],
     ['post', `/api/payments/${SOME_ID}/allocate`],
     ['post', '/api/simulator/unmatched-transfer'],
+    ['post', `/api/bookings/${SOME_ID}/refunds`],
+    ['get', `/api/bookings/${SOME_ID}/refunds`],
+    ['post', `/api/payments/${SOME_ID}/refund`],
+    ['get', '/api/refunds'],
     ['get', '/api/anything-new'],
   ])('%s %s needs sign-in', async (method, url) => {
     const res = await request(ctx.app)[method](url);
