@@ -4,9 +4,9 @@ Booking, payments and operations for Nigerian tour operators. This is the MVP, a
 project that runs one fictional business, **Ìrìn Lagos Tours**, from a guest finding a tour to a
 guide checking that guest in with no signal.
 
-> Status: **session 10a of 25** (payments are built in five stages). Staff sign-in with roles,
-> the catalogue, schedules and availability, pricing, holds with zero oversells, bookings with a
-> lifecycle, cancellation policies, and a double-entry, append-only ledger.
+> Status: **stage 10b of 25**. Staff sign-in, catalogue, schedules, pricing, holds with zero
+> oversells, bookings, cancellation policies, a double-entry ledger, and payments started through
+> a simulator or Paystack test mode (live keys refused).
 
 ## Requirements
 
@@ -47,6 +47,19 @@ curl localhost:4000/api/me -H 'Authorization: Bearer <token>'
 Seeded staff: `adaeze@` (owner), `tunde@` (manager), `kemi@`, `chinedu@`, `halima@`, `femi@`
 (guides), all `@irin-lagos-tours.example`, or phones `0803 000 0001` to `0803 000 0006`.
 
+## Payments (test mode only)
+
+Payments run on a built-in **simulator** by default (no account needed). To use **Paystack test
+mode**, put your test keys in `.env` (`PAYSTACK_SECRET_KEY=sk_test_…`, `PAYSTACK_PUBLIC_KEY=pk_test_…`),
+then check them with:
+
+```bash
+pnpm --filter @okapigo/payments smoke
+```
+
+Set `PAYMENT_PROVIDER=paystack` to use Paystack in the app. **Live keys are refused**: the API
+won't start with one.
+
 ## Everyday commands
 
 | Command               | What it does                                            |
@@ -68,6 +81,7 @@ Seeded staff: `adaeze@` (owner), `tunde@` (manager), `kemi@`, `chinedu@`, `halim
 | --------------------- | ------------------------------------------------------------- |
 | `apps/api`            | Express API. The only thing that writes to PostgreSQL         |
 | `apps/workers`        | Background jobs (BullMQ): hold expiry, sweeper, schedule roll |
+| `packages/payments`   | Payment providers: simulator and Paystack (test mode)         |
 | `packages/jobs`       | Queue names and the job client the API uses to enqueue        |
 | `packages/db`         | Prisma schema, migrations, seed script, database client       |
 | `packages/shared`     | Code shared by every app: permissions, money, schemas         |
