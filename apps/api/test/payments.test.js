@@ -55,7 +55,7 @@ describe('starting a card payment', () => {
     expect(p.reference).toMatch(/^OKG-[0-9A-HJKMNP-TV-Z]{20}$/);
     expect(p.authorizationUrl).toBe(`http://localhost:4000/simulator/checkout/${p.reference}`);
     // The "provider" received our reference, amount and the guest's email.
-    expect(ctx.provider.store.get(p.reference)).toMatchObject({
+    expect(ctx.provider.store.map.get(p.reference)).toMatchObject({
       amountKobo: 5_000_000,
       email: 'amara@guest.example',
     });
@@ -91,7 +91,7 @@ describe('starting a card payment', () => {
       lead: { name: 'Bayo', phone: '08035550199', acceptTerms: true },
     });
     const { payment } = (await manager.post(`/api/bookings/${booking.id}/payments`).send({})).body;
-    expect(ctx.provider.store.get(payment.reference).email).toBe(
+    expect(ctx.provider.store.map.get(payment.reference).email).toBe(
       `guest-${booking.reference.toLowerCase()}@example.com`,
     );
   });
@@ -147,7 +147,7 @@ describe('the return page after paying', () => {
   it('changes nothing: only a verified webhook can (stage 10c)', async () => {
     const { manager, booking } = await setup();
     const { payment } = (await manager.post(`/api/bookings/${booking.id}/payments`).send({})).body;
-    ctx.provider.complete(payment.reference); // the "guest" paid at the provider…
+    await ctx.provider.complete(payment.reference); // the "guest" paid at the provider…
 
     const page = await request(ctx.app).get(`/payments/callback?reference=${payment.reference}`);
 
@@ -169,10 +169,14 @@ describe('the return page after paying', () => {
     expect(page.text).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
-  it('the simulator has its own checkout page', async () => {
-    const page = await request(ctx.app).get('/simulator/checkout/OKG-TEST');
+  it('the simulator has its own checkout page, only for real payments', async () => {
+    const { manager, booking } = await setup();
+    const { payment } = (await manager.post(`/api/bookings/${booking.id}/payments`).send({})).body;
+
+    const page = await request(ctx.app).get(`/simulator/checkout/${payment.reference}`);
     expect(page.status).toBe(200);
     expect(page.text).toContain('Simulated checkout');
+    expect((await request(ctx.app).get('/simulator/checkout/OKG-MADE-UP')).status).toBe(404);
   });
 });
 

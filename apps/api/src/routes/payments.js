@@ -8,7 +8,9 @@
  *
  * Public pages (no sign-in; the guest's browser lands here):
  *   GET /payments/callback?reference=…   where Paystack sends the guest back afterwards
- *   GET /simulator/checkout/:reference   the simulator's stand-in for Paystack's page
+ *   GET  /simulator/checkout/:reference           the simulator's stand-in for Paystack's page
+ *   POST /simulator/checkout/:reference/pay       approve: sends a signed webhook, like Paystack
+ *   POST /simulator/checkout/:reference/decline   decline: no webhook, like Paystack
  *
  * IMPORTANT: the callback page changes NOTHING. Anyone can type that URL, so arriving there
  * proves nothing. A payment becomes "succeeded" only through a verified webhook (stage 10c).
@@ -121,16 +123,63 @@ email or WhatsApp in a moment. You can close this page.</p>
   });
 
   if (provider.name === 'simulator') {
-    publicRouter.get('/simulator/checkout/:reference', (req, res) => {
+    const sim = /** @type {any} */ (provider);
+    const webhookUrl = `${apiPublicUrl}/webhooks/paystack`;
+
+    // The simulator's stand-in for Paystack's checkout page: an amount and two buttons.
+    publicRouter.get('/simulator/checkout/:reference', async (req, res) => {
+      const reference = req.params.reference;
+      const tx = await sim.store.get(reference);
+      if (!tx) {
+        res.status(404).type('html').send(page('Not found', '<h1>No such payment</h1>'));
+        return;
+      }
+      const naira = (tx.amountKobo / 100).toLocaleString('en-NG');
+      const action = (verb) => `/simulator/checkout/${encodeURIComponent(reference)}/${verb}`;
       res.type('html').send(
         page(
           'Simulated checkout',
           `<h1>Simulated checkout</h1>
-<p>This stands in for Paystack's payment page (no real money, no network).</p>
-<p>Reference: <code>${escapeHtml(req.params.reference)}</code></p>
-<p>Stage 10c adds "Pay" and "Decline" buttons here that send webhooks, just like Paystack.</p>`,
+<p>This stands in for Paystack's payment page. <strong>No real money, no real card.</strong></p>
+<p style="font-size: 1.5rem">Pay <strong>₦${escapeHtml(naira)}</strong></p>
+<p style="color: #555">Reference: <code>${escapeHtml(reference)}</code> · Status: ${escapeHtml(tx.status)}</p>
+<form method="post" action="${escapeHtml(action('pay'))}" style="display: inline">
+  <button style="padding: .6rem 1.2rem; font-size: 1rem">Pay ₦${escapeHtml(naira)}</button>
+</form>
+<form method="post" action="${escapeHtml(action('decline'))}" style="display: inline; margin-left: 1rem">
+  <button style="padding: .6rem 1.2rem; font-size: 1rem">Decline</button>
+</form>`,
         ),
       );
+    });
+
+    // "Pay": what Paystack does when a card is approved. Mark it paid, send the SIGNED
+    // charge.success webhook to our own webhook URL, then send the browser back.
+    publicRouter.post('/simulator/checkout/:reference/pay', async (req, res) => {
+      const { reference } = req.params;
+      if (!(await sim.store.get(reference))) {
+        res.status(404).end();
+        return;
+      }
+      await sim.complete(reference);
+      const status = await sim.sendWebhook(reference, webhookUrl);
+      req.log.info(
+        { reference, webhookStatus: status },
+        'simulator: payment approved, webhook sent',
+      );
+      // 303 See Other: "now GET this page", the standard answer to a submitted form.
+      res.redirect(303, `/payments/callback?reference=${encodeURIComponent(reference)}`);
+    });
+
+    // "Decline": the card was refused. Paystack sends no webhook for that; neither do we.
+    publicRouter.post('/simulator/checkout/:reference/decline', async (req, res) => {
+      const { reference } = req.params;
+      if (!(await sim.store.get(reference))) {
+        res.status(404).end();
+        return;
+      }
+      await sim.fail(reference, 'Declined by the simulator');
+      res.redirect(303, `/payments/callback?reference=${encodeURIComponent(reference)}`);
     });
   }
 

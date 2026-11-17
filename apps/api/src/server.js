@@ -16,7 +16,7 @@ import { createPrismaClient } from '@okapigo/db';
 import { createRedis } from './lib/connections.js';
 import { createLogOtpSender } from './auth/otp-sender.js';
 import { createJobClient } from '@okapigo/jobs';
-import { createPaymentProvider } from '@okapigo/payments';
+import { createPaymentProvider, redisStore } from '@okapigo/payments';
 import { createApp } from './app.js';
 
 const config = loadConfig();
@@ -37,6 +37,9 @@ const provider = createPaymentProvider({
   provider: config.PAYMENT_PROVIDER,
   paystackSecretKey: config.PAYSTACK_SECRET_KEY,
   baseUrl: config.API_PUBLIC_URL,
+  // The simulator's "transactions" live in Redis, so the workers can re-check them.
+  simulatorStore: redisStore(redis),
+  simulatorSecret: config.SIMULATOR_WEBHOOK_SECRET,
 });
 logger.info({ provider: provider.name }, 'payment provider ready');
 

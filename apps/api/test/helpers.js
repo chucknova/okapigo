@@ -55,10 +55,15 @@ export function createCapturingSender() {
 /** A job client that records what it was asked to schedule, instead of using Redis. */
 export function createFakeJobs() {
   const scheduled = [];
+  const webhooks = [];
   return {
     scheduled,
+    webhooks,
     async scheduleHoldExpiry(holdId, expiresAt) {
       scheduled.push({ holdId, expiresAt });
+    },
+    async enqueueWebhook(eventId) {
+      webhooks.push(eventId);
     },
   };
 }
@@ -137,6 +142,27 @@ export function createTestContext() {
     },
 
     async cleanup() {
+      // Webhook events belong to no business, so deleting operators doesn't remove them.
+      // Remove the ones this test's payments received, and any this test queued.
+      const operatorIds = (
+        await prisma.operator.findMany({ where: { slug: { in: slugs } }, select: { id: true } })
+      ).map((o) => o.id);
+      const refs = (
+        await prisma.payment.findMany({
+          where: { operatorId: { in: operatorIds } },
+          select: { reference: true },
+        })
+      ).map((p) => p.reference);
+      await prisma.webhookEvent.deleteMany({
+        where: {
+          OR: [
+            { id: { in: jobs.webhooks } },
+            ...refs.map((reference) => ({
+              payload: { path: ['data', 'reference'], equals: reference },
+            })),
+          ],
+        },
+      });
       // Deleting an operator cascades to its roles, users and their sessions.
       await prisma.operator.deleteMany({ where: { slug: { in: slugs } } });
       // Codes aren't tenant data (no cascade); remove the ones sent to test addresses.
@@ -145,6 +171,7 @@ export function createTestContext() {
       });
       slugs.length = 0;
       sender.sent.length = 0;
+      jobs.webhooks.length = 0;
     },
 
     close: () => prisma.$disconnect(),

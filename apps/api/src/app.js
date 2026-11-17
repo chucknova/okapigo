@@ -25,6 +25,7 @@ import { bookingsRouter } from './routes/bookings.js';
 import { policiesRouter } from './routes/policies.js';
 import { ledgerRouter } from './routes/ledger.js';
 import { paymentsRouters } from './routes/payments.js';
+import { webhooksRouter } from './routes/webhooks.js';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -38,7 +39,10 @@ import { createSessionService } from './auth/session-service.js';
  *   redis: { ping: () => Promise<unknown> },
  *   otpSender: import('./auth/otp-sender.js').OtpSender,
  *   authSecret: string,
- *   jobs: { scheduleHoldExpiry: (holdId: string, expiresAt: Date) => Promise<void> },
+ *   jobs: {
+ *     scheduleHoldExpiry: (holdId: string, expiresAt: Date) => Promise<void>,
+ *     enqueueWebhook: (eventId: string) => Promise<void>,
+ *   },
  *   provider: import('@okapigo/payments').PaymentProvider,
  *   apiPublicUrl: string,
  * }} deps
@@ -87,6 +91,10 @@ export function createApp({
       },
     }),
   );
+
+  // Webhooks FIRST: they need the raw request bytes to check the signature, and the JSON
+  // parser below would consume them. (See routes/webhooks.js.)
+  app.use(webhooksRouter({ prisma, provider, jobs }));
 
   // Parse JSON request bodies. The size limit stops someone sending a 1 GB body.
   app.use(express.json({ limit: '100kb' }));

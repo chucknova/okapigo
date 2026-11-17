@@ -65,6 +65,9 @@ const EnvSchema = z
           'must be a Paystack test public key (pk_test_…)',
         ),
     ),
+    // Signing secret for the SIMULATOR's webhooks (no real money in simulator mode; a default
+    // is used if unset). Paystack's webhooks are signed with PAYSTACK_SECRET_KEY instead.
+    SIMULATOR_WEBHOOK_SECRET: optional(z.string().min(16)),
     // The API's public address: where Paystack sends the guest back, and simulator pages live.
     API_PUBLIC_URL: z.url().default('http://localhost:4000'),
   })
