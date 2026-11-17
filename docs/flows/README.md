@@ -13,6 +13,9 @@ must respect. Business logic already exists in the API; screens only display dat
 | [04 Operator website](04-operator-website.md)             | The one-page site generated from products, in 2–3 styles                      | MKT-08, MKT-09                           |
 | [05 Trip hub](05-trip-hub.md)                             | One light page per booking: itinerary, map, what to bring, QR ticket          | GST-04                                   |
 
+**Designs received (2026-11-17):** see [`docs/designs/`](../designs/README.md), which also
+holds the stage plan for building them (session 12).
+
 **Suggested design order:** 01 → 02 → 05 → 04 → 03. Checkout is the critical path; the widget
 reuses checkout's screens inside a frame, so it needs the least new design.
 
