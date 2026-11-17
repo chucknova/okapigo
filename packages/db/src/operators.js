@@ -2,12 +2,14 @@
 /**
  * operators.js — creating a new tenant (tour business).
  *
- * Every new operator needs its three preset roles (owner, manager, guide) before anyone can
- * belong to it. This function is the ONE place that happens, used by:
+ * Every new operator needs its three preset roles (owner, manager, guide) and its ledger
+ * accounts (session 10a) before it can do anything. This function is the ONE place that
+ * happens, used by:
  *   - sign-up (apps/api, ACC-01): a real new business
  *   - the demo seed: Ìrìn Lagos Tours and its sandbox copies
  */
 import { PRESET_ROLES } from '@okapigo/shared/permissions';
+import { createLedgerAccounts } from './ledger.js';
 
 /**
  * Creates an operator plus its preset roles. Must be called INSIDE a transaction (pass the
@@ -38,6 +40,9 @@ export async function createOperatorWithPresetRoles(tx, { name, slug }) {
     });
     roleIds[preset.key] = role.id;
   }
+
+  // The 7 standard ledger accounts (Paystack clearing, Tour sales, Refunds payable…).
+  await createLedgerAccounts(tx, operator.id);
 
   return { operator, roleIds };
 }

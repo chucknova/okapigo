@@ -54,6 +54,8 @@ model Operator {
   users                User[]
   products             Product[]
   cancellationPolicies CancellationPolicy[]
+  ledgerAccounts       LedgerAccount[]
+  ledgerTransactions   LedgerTransaction[]
 
   @@map("operators")
 }
@@ -514,6 +516,7 @@ model Booking {
   travellers    Traveller[]
   addOns        BookingAddOn[]
   events        BookingEvent[]
+  ledgerEntries LedgerEntry[]
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -635,4 +638,90 @@ model CancellationPolicyVersion {
 
   @@unique([policyId, version])
   @@map("cancellation_policy_versions")
+}
+
+// ===========================================================================
+// THE LEDGER (PAY-22): double-entry, append-only
+// ===========================================================================
+//
+//   LedgerAccount      Ìrìn's 7 accounts (Paystack clearing, Tour sales, Refunds payable…)
+//   LedgerTransaction  one money EVENT ("payment received for ILT-7K4Q2M")
+//   LedgerEntry        its lines: each a debit OR a credit on one account
+//
+// Guarantees enforced by the DATABASE (see the migration SQL):
+//   - every transaction's debits = credits, checked at COMMIT by a deferred trigger
+//   - entries and transactions can't be UPDATED or DELETED (except when a whole
+//     operator is deleted). Corrections are new, reversing transactions.
+// Posting rules live in packages/shared/src/ledger.js; writing them in src/ledger.js.
+
+model LedgerAccount {
+  id         String   @id @default(uuid()) @db.Uuid
+  operatorId String   @map("operator_id") @db.Uuid
+  // "1100", "4000"… and the key used in code ("PROVIDER_CLEARING", "TOUR_SALES"…)
+  code       String
+  key        String
+  name       String
+  // asset, liability, revenue, expense; `normal` is the side that increases it.
+  type       String
+  normal     String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  operator Operator      @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  entries  LedgerEntry[]
+
+  @@unique([operatorId, code])
+  @@unique([operatorId, key])
+  @@map("ledger_accounts")
+}
+
+model LedgerTransaction {
+  id             String   @id @default(uuid()) @db.Uuid
+  operatorId     String   @map("operator_id") @db.Uuid
+  // What kind of event: payment_received, payment_fee, refund_owed, refund_paid,
+  // unallocated_receipt, receipt_allocated, adjustment, reversal
+  type           String
+  // IDEMPOTENCY: the same event always has the same key (e.g. "refund-owed:<booking id>").
+  // Posting it a second time (a retried job, a duplicate webhook) finds the existing
+  // transaction instead of counting the money twice.
+  idempotencyKey String   @map("idempotency_key")
+  description    String
+  // When the money event happened (may differ from when we recorded it).
+  occurredAt     DateTime @map("occurred_at") @db.Timestamptz(3)
+  // Set on a reversal: the transaction it undoes.
+  reversesId     String?  @unique @map("reverses_id") @db.Uuid
+  // Who posted it: a staff user, or null for the system.
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  operator   Operator           @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  entries    LedgerEntry[]
+  reverses   LedgerTransaction? @relation("Reversal", fields: [reversesId], references: [id], onDelete: Cascade)
+  reversedBy LedgerTransaction? @relation("Reversal")
+
+  @@unique([operatorId, idempotencyKey])
+  @@index([operatorId, occurredAt])
+  @@map("ledger_transactions")
+}
+
+model LedgerEntry {
+  id            String   @id @default(uuid()) @db.Uuid
+  operatorId    String   @map("operator_id") @db.Uuid
+  transactionId String   @map("transaction_id") @db.Uuid
+  accountId     String   @map("account_id") @db.Uuid
+  // Optional links, so "everything about booking ILT-7K4Q2M" is one query. (payment_id
+  // arrives with the payments table in stage 10b.)
+  bookingId     String?  @map("booking_id") @db.Uuid
+  // Exactly one is above zero (a CHECK enforces it). Integer kobo, like all money.
+  debitKobo     Int      @default(0) @map("debit_kobo")
+  creditKobo    Int      @default(0) @map("credit_kobo")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  transaction LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  account     LedgerAccount     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  booking     Booking?          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([transactionId])
+  @@index([bookingId])
+  @@map("ledger_entries")
 }

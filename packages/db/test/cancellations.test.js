@@ -370,3 +370,67 @@ describe('calling off a whole departure (weather at Tarkwa Bay)', () => {
     ).toBe(0);
   });
 });
+
+describe('the ledger records refunds owed (stage 10a)', () => {
+  it('cancelling with a refund posts Dr Sales refunds / Cr Refunds payable, once', async () => {
+    const ctx = await setup();
+    const booking = await paidBooking(ctx); // ₦80,000
+    const args = {
+      operatorId: ctx.operator.id,
+      bookingId: booking.id,
+      initiatedBy: 'guest',
+      reason: 'x y',
+      actor: STAFF,
+    };
+
+    await cancelBooking(prisma, { ...args, now: hoursBefore(ctx, 30) }); // 50% → ₦40,000
+
+    const tx = await prisma.ledgerTransaction.findMany({
+      where: { operatorId: ctx.operator.id },
+      include: { entries: { include: { account: true } } },
+    });
+    expect(tx).toHaveLength(1);
+    expect(tx[0]).toMatchObject({
+      type: 'refund_owed',
+      idempotencyKey: `refund-owed:${booking.id}`,
+    });
+    expect(tx[0].entries.map((e) => [e.account.key, e.debitKobo, e.creditKobo]).sort()).toEqual([
+      ['REFUNDS_PAYABLE', 0, 4_000_000],
+      ['SALES_REFUNDS', 4_000_000, 0],
+    ]);
+  });
+
+  it('nothing is posted when nothing is owed', async () => {
+    const ctx = await setup();
+    const booking = await paidBooking(ctx);
+    await cancelBooking(prisma, {
+      operatorId: ctx.operator.id,
+      bookingId: booking.id,
+      initiatedBy: 'guest',
+      reason: 'late',
+      actor: STAFF,
+      now: hoursBefore(ctx, 2), // 0% tier
+    });
+    expect(await prisma.ledgerTransaction.count({ where: { operatorId: ctx.operator.id } })).toBe(
+      0,
+    );
+  });
+
+  it('calling off a departure records every refund owed', async () => {
+    const ctx = await setup();
+    await paidBooking(ctx, 1);
+    await paidBooking(ctx, 2);
+    await cancelDeparture(prisma, {
+      operatorId: ctx.operator.id,
+      departureId: ctx.departure.id,
+      reason: 'Storm',
+      actor: STAFF,
+    });
+
+    const payable = await prisma.ledgerEntry.aggregate({
+      where: { operatorId: ctx.operator.id, account: { key: 'REFUNDS_PAYABLE' } },
+      _sum: { creditKobo: true },
+    });
+    expect(payable._sum.creditKobo).toBe(12_000_000); // 3 × ₦40,000 owed
+  });
+});

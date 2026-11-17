@@ -20,8 +20,34 @@ import { computeRefund } from '@okapigo/shared/cancellation';
 import { BookingError, transitionBookingInTx } from './booking-lifecycle.js';
 import { releaseHoldInTx } from './holds.js';
 import { findOwnBooking } from './bookings.js';
+import { postTransaction } from './ledger.js';
+import { POSTINGS } from '@okapigo/shared/ledger';
 
 const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
+
+/**
+ * Ledger (session 10a): records a refund we now OWE, in the same database transaction as the
+ * cancellation (Dr Sales refunds / Cr Refunds payable). The books show the debt to the guest
+ * from the moment it arises until it's paid out (stage 10e). The idempotency key is per
+ * booking: a booking is cancelled or marked no-show at most once, so its debt is recorded once.
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ * @param {import('@prisma/client').Booking} booking
+ * @param {number} refundKobo
+ * @param {string} why
+ * @param {Actor} actor
+ */
+async function postRefundOwed(tx, booking, refundKobo, why, actor) {
+  if (refundKobo <= 0) return; // nothing owed, nothing to post
+  await postTransaction(tx, {
+    operatorId: booking.operatorId,
+    type: 'refund_owed',
+    idempotencyKey: `refund-owed:${booking.id}`,
+    description: `Refund owed for ${booking.reference} (${why})`,
+    lines: POSTINGS.refundOwed(refundKobo),
+    bookingId: booking.id,
+    createdById: actor.type === 'user' ? actor.userId : null,
+  });
+}
 
 /** Statuses whose seats are sold and which can still be cancelled. */
 const CANCELLABLE_SOLD = ['confirmed', 'part_paid', 'paid', 'amended'];
@@ -137,6 +163,7 @@ async function cancelBookingInTx(
     where: { id: booking.id },
     data: { refundDueKobo: refund.refundKobo },
   });
+  await postRefundOwed(tx, booking, refund.refundKobo, `${initiatedBy} cancellation`, actor);
   await transitionBookingInTx(tx, {
     bookingId: booking.id,
     to: 'cancelled',
@@ -196,6 +223,7 @@ export function markNoShow(prisma, { operatorId, bookingId, actor, now = new Dat
         where: { id: booking.id },
         data: { refundDueKobo: refund.refundKobo },
       });
+      await postRefundOwed(tx, booking, refund.refundKobo, 'no-show', actor);
     }
     return refund;
   }, TX_OPTIONS);
