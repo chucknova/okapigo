@@ -46,9 +46,13 @@ export function createProcessors({ prisma, logger, provider }) {
       return { expired };
     },
 
-    /** Every night: extend each schedule's 60-day window by the day that just passed. */
-    async [JOBS.extendSchedules]() {
-      const result = await extendAllSchedules(prisma);
+    /**
+     * Every night: extend each schedule's 60-day window by the day that just passed.
+     * Optional job data { operatorId } limits it to one business (tests, manual re-runs).
+     * @param {{ data?: { operatorId?: string } }} [job]
+     */
+    async [JOBS.extendSchedules](job) {
+      const result = await extendAllSchedules(prisma, { operatorId: job?.data?.operatorId });
       logger.info({ ...result, failed: result.failed.length }, 'extend-schedules');
       if (result.failed.length > 0) {
         // Fail the job so BullMQ retries it later. Safe, because the work is idempotent:

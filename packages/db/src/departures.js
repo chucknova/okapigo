@@ -188,11 +188,13 @@ export async function listAvailability(
  * The caller decides what to do about failures (the worker fails the job so it retries).
  *
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ now?: Date }} [options]
+ * @param {{ now?: Date, operatorId?: string }} [options]
+ *   operatorId: only this operator's schedules (tests, or re-running one business by hand).
+ *   The nightly job leaves it out and walks everyone.
  */
-export async function extendAllSchedules(prisma, { now = new Date() } = {}) {
+export async function extendAllSchedules(prisma, { now = new Date(), operatorId } = {}) {
   const schedules = await prisma.schedule.findMany({
-    where: { isActive: true },
+    where: { isActive: true, operatorId },
     select: { id: true },
   });
   let created = 0;

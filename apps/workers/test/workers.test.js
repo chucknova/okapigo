@@ -82,19 +82,21 @@ describe('processors (called directly)', () => {
   });
 
   it('extend-schedules is safe to run any number of times', async () => {
-    // Other test files create and delete operators while this runs, so check OUR operator's
-    // departures rather than global counts. (That concurrent deleting is exactly what the
-    // job must survive: it caught a real bug, see extendAllSchedules.)
+    // Limited to OUR operator. Walking every schedule in the database made this test's time
+    // depend on how many operators other test files had seeded at that moment, and it timed
+    // out under load (stage 11b). Surviving a schedule deleted mid-run is now tested
+    // deterministically in packages/db/test/departures.test.js.
     const { operator } = await heritageDeparture();
     const ours = () => prisma.departure.count({ where: { operatorId: operator.id } });
     const before = await ours();
+    const job = { data: { operatorId: operator.id } };
 
-    const first = await processors[JOBS.extendSchedules]();
-    await processors[JOBS.extendSchedules]();
+    const first = await processors[JOBS.extendSchedules](job);
+    await processors[JOBS.extendSchedules](job);
 
-    expect(first.failed).toEqual([]);
+    expect(first).toMatchObject({ schedules: 5, failed: [] });
     expect(await ours()).toBe(before); // freshly seeded: nothing to add, nothing duplicated
-  }, 30_000); // walks EVERY schedule in the database, twice, while other tests run
+  });
 });
 
 describe('verify-ledger', () => {

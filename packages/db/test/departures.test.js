@@ -7,7 +7,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { localDate, dayOfWeek } from '@okapigo/shared/time';
-import { createPrismaClient, seedDemoOperator, syncScheduleDepartures } from '../src/index.js';
+import {
+  createPrismaClient,
+  seedDemoOperator,
+  syncScheduleDepartures,
+  extendAllSchedules,
+} from '../src/index.js';
 
 const NOW = new Date('2026-12-01T06:00:00Z');
 const LAGOS = 'Africa/Lagos';
@@ -176,5 +181,43 @@ describe('the overselling guard (CHECK constraint)', () => {
         },
       }),
     ).rejects.toThrow(/departures_product_id_starts_at_key/);
+  });
+});
+
+describe('extendAllSchedules', () => {
+  it('rolls every window forward, and skips a schedule deleted while it runs', async () => {
+    const { product, schedule } = await seedTour('lagos-island-heritage-walk');
+    const operatorId = product.operatorId;
+
+    // A Prisma client that deletes one schedule right AFTER the job has listed them: the
+    // race that happens when an operator (e.g. a visitor sandbox) is deleted mid-run.
+    // Doing it at exactly this moment makes the race deterministic instead of lucky.
+    const racing = new Proxy(prisma, {
+      get(target, prop) {
+        if (prop === 'schedule') {
+          return new Proxy(target.schedule, {
+            get(model, method) {
+              if (method !== 'findMany') return Reflect.get(model, method);
+              return async (/** @type {any} */ args) => {
+                const listed = await model.findMany(args);
+                await target.schedule.delete({ where: { id: schedule.id } });
+                return listed;
+              };
+            },
+          });
+        }
+        const value = Reflect.get(target, prop);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+
+    // A week later: every other schedule has a week of new days to add.
+    const result = await extendAllSchedules(/** @type {any} */ (racing), {
+      now: new Date(NOW.getTime() + 7 * DAY),
+      operatorId,
+    });
+
+    expect(result).toMatchObject({ schedules: 5, skipped: 1, failed: [] });
+    expect(result.created).toBeGreaterThan(0);
   });
 });
