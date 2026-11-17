@@ -13,14 +13,32 @@ import { createPaystackProvider } from './paystack.js';
 export { createSimulatorProvider, simulatedFeeKobo } from './simulator.js';
 export { createPaystackProvider } from './paystack.js';
 export { ProviderError, LiveKeyError } from './provider.js';
+export { computeSignature, signatureMatches, parseWebhook, SIGNATURE_HEADER } from './webhooks.js';
+export { mapStore, redisStore } from './simulator.js';
 
 /**
- * @param {{ provider: 'simulator' | 'paystack', paystackSecretKey?: string, baseUrl: string }} config
+ * @param {{
+ *   provider: 'simulator' | 'paystack',
+ *   paystackSecretKey?: string,
+ *   baseUrl: string,
+ *   simulatorStore?: import('./simulator.js').SimulatorStore,
+ *   simulatorSecret?: string,
+ * }} config
  * @returns {import('./provider.js').PaymentProvider}
  */
-export function createPaymentProvider({ provider, paystackSecretKey, baseUrl }) {
+export function createPaymentProvider({
+  provider,
+  paystackSecretKey,
+  baseUrl,
+  simulatorStore,
+  simulatorSecret,
+}) {
   if (provider === 'paystack') {
     return createPaystackProvider({ secretKey: /** @type {string} */ (paystackSecretKey) });
   }
-  return createSimulatorProvider({ baseUrl });
+  return createSimulatorProvider({
+    baseUrl,
+    store: simulatorStore,
+    webhookSecret: simulatorSecret,
+  });
 }

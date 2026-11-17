@@ -9,7 +9,9 @@
  *   initializeTransaction(…)  start a payment; get back a hosted checkout URL for the guest
  *   verifyTransaction(ref)    ask the provider what happened to a payment
  *
- * Stage 10c adds verifyWebhookSignature(); stage 10e adds refund().
+ *   verifyWebhookSignature(…) is this webhook really from the provider? (stage 10c)
+ *
+ * Stage 10e adds refund().
  *
  * Two implementations:
  *   simulator.js  in memory, no network: tests, CI and offline demos
@@ -43,6 +45,7 @@
  *   name: 'simulator' | 'paystack',
  *   initializeTransaction: (input: InitializeInput) => Promise<InitializeResult>,
  *   verifyTransaction: (reference: string) => Promise<VerifyResult>,
+ *   verifyWebhookSignature: (rawBody: Buffer | string, signature: string | undefined) => boolean,
  * }} PaymentProvider
  */
 

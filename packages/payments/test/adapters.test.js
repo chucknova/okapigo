@@ -231,7 +231,7 @@ describe('the simulator behaves like Paystack where it matters', () => {
     expect(authorizationUrl).toBe('http://localhost:4000/simulator/checkout/OKG-SIM1');
     expect((await sim.verifyTransaction('OKG-SIM1')).status).toBe('pending');
 
-    sim.complete('OKG-SIM1');
+    await sim.complete('OKG-SIM1');
     expect(await sim.verifyTransaction('OKG-SIM1')).toMatchObject({
       status: 'succeeded',
       feeKobo: simulatedFeeKobo(5_000_000),
@@ -251,8 +251,8 @@ describe('the simulator behaves like Paystack where it matters', () => {
     const sim = createSimulatorProvider({ baseUrl: 'x' });
     await start(sim, 'A');
     await start(sim, 'B');
-    sim.fail('A', 'Insufficient funds');
-    sim.abandon('B');
+    await sim.fail('A', 'Insufficient funds');
+    await sim.abandon('B');
     expect(await sim.verifyTransaction('A')).toMatchObject({
       status: 'failed',
       message: 'Insufficient funds',

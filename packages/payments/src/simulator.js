@@ -1,24 +1,61 @@
 // @ts-check
 /**
- * simulator.js — a pretend payment provider. No network, no account, no money.
+ * simulator.js — a pretend payment provider. No network to Paystack, no account, no money.
  *
  * Used by every test, by CI, and for offline demos (the PRD: "the simulator is free,
  * reliable in demos and testable in CI"). It behaves like Paystack where OkapiGo can see:
- * the same method shapes, the same statuses, a fee on success.
+ * the same method shapes, the same statuses, a fee on success, and (stage 10c) SIGNED
+ * webhooks in Paystack's exact format, sent to our own webhook URL.
  *
- * Its state lives in a Map you can pass in, so a test can create a simulator, start a
- * payment through the API, then decide what "the guest" does:
+ * WHERE ITS STATE LIVES. The API process starts payments; the workers process re-checks
+ * them when a webhook arrives. Two processes don't share memory, so the simulator's
+ * "transactions" live in a STORE both can reach:
+ *   - redisStore(redis)  for the running apps (api + workers share Redis)
+ *   - mapStore()         an in-memory Map, for tests in a single process
  *
- *   const sim = createSimulatorProvider({ baseUrl: 'http://localhost:4000' });
- *   … start a payment …
- *   sim.complete(reference)            // the guest paid
- *   sim.fail(reference, 'Declined')    // the card was declined
- *
- * Stage 10c gives it a checkout page and makes it send webhooks, like the real thing.
+ * Playing "the guest" (tests and the checkout page):
+ *   await sim.complete(reference)          the guest paid
+ *   await sim.fail(reference, 'Declined')  the card was declined
+ *   await sim.sendWebhook(reference, url)  deliver charge.success, signed, like Paystack
  */
 import { ProviderError } from './provider.js';
+import { computeSignature, signatureMatches, SIGNATURE_HEADER } from './webhooks.js';
 
-/** Paystack's local-card fee for the simulator: 1.5% (+ ₦100 above ₦2,500), capped at ₦2,000. */
+/**
+ * Where simulated transactions are kept. Async, so it can be Redis.
+ * @typedef {{ get: (ref: string) => Promise<any>, set: (ref: string, value: any) => Promise<void> }} SimulatorStore
+ */
+
+/** An in-memory store (tests). `map` is exposed so tests can peek inside. */
+export function mapStore(map = new Map()) {
+  return {
+    map,
+    get: async (ref) => map.get(ref),
+    set: async (ref, value) => {
+      map.set(ref, value);
+    },
+  };
+}
+
+/**
+ * A Redis store, so the API and the workers see the same simulated transactions.
+ * Kept for 7 days, then Redis forgets them (simulated data needn't live forever).
+ * @param {{ get: (k: string) => Promise<string | null>, set: (...args: any[]) => Promise<unknown> }} redis an ioredis client
+ */
+export function redisStore(redis) {
+  const key = (ref) => `simulator:tx:${ref}`;
+  return {
+    get: async (ref) => {
+      const raw = await redis.get(key(ref));
+      return raw ? JSON.parse(raw) : undefined;
+    },
+    set: async (ref, value) => {
+      await redis.set(key(ref), JSON.stringify(value), 'EX', 7 * 24 * 60 * 60);
+    },
+  };
+}
+
+/** A Paystack-like card fee: 1.5% (+ ₦100 from ₦2,500), capped at ₦2,000. */
 export function simulatedFeeKobo(amountKobo) {
   const percent = Math.round((amountKobo * 150) / 10_000);
   const flat = amountKobo >= 250_000 ? 10_000 : 0;
@@ -26,71 +63,143 @@ export function simulatedFeeKobo(amountKobo) {
 }
 
 /**
- * @param {{ baseUrl: string, store?: Map<string, any>, now?: () => Date }} options
- * @returns {import('./provider.js').PaymentProvider & {
- *   complete: (reference: string) => void,
- *   fail: (reference: string, message?: string) => void,
- *   abandon: (reference: string) => void,
- *   store: Map<string, any>,
- * }}
+ * The simulator's signing secret. Only meaningful in simulator mode, where no real money
+ * exists, but it still makes our webhook endpoint check signatures the same way as for
+ * Paystack, so that code path is exercised in every demo and test.
  */
-export function createSimulatorProvider({ baseUrl, store = new Map(), now = () => new Date() }) {
+export const DEFAULT_SIMULATOR_SECRET = 'simulator-webhook-secret-not-for-real-money';
+
+/**
+ * @param {{ baseUrl: string, store?: SimulatorStore, webhookSecret?: string, now?: () => Date, fetch?: typeof globalThis.fetch }} options
+ */
+export function createSimulatorProvider({
+  baseUrl,
+  store = mapStore(),
+  webhookSecret = DEFAULT_SIMULATOR_SECRET,
+  now = () => new Date(),
+  fetch = globalThis.fetch,
+}) {
   /** @param {string} reference */
-  function get(reference) {
-    const tx = store.get(reference);
+  async function get(reference) {
+    const tx = await store.get(reference);
     if (!tx) throw new ProviderError('NOT_FOUND', `No simulated transaction ${reference}`);
     return tx;
   }
 
+  /** @param {string} reference @param {Record<string, unknown>} changes */
+  async function update(reference, changes) {
+    await store.set(reference, { ...(await get(reference)), ...changes });
+  }
+
+  /**
+   * A charge.success event shaped exactly like Paystack's (the fields OkapiGo reads, plus a
+   * few others for realism). See packages/payments/test/fixtures/ for a recorded-style example.
+   * @param {string} reference
+   */
+  async function chargeSuccessEvent(reference) {
+    const tx = await get(reference);
+    return {
+      event: 'charge.success',
+      data: {
+        id: tx.id,
+        domain: 'test',
+        status: 'success',
+        reference,
+        amount: tx.amountKobo,
+        currency: 'NGN',
+        fees: simulatedFeeKobo(tx.amountKobo),
+        paid_at: tx.paidAt,
+        channel: 'card',
+        gateway_response: 'Approved',
+        customer: { email: tx.email },
+        metadata: tx.metadata ?? {},
+      },
+    };
+  }
+
   return {
-    name: 'simulator',
+    name: /** @type {const} */ ('simulator'),
     store,
 
-    async initializeTransaction({ reference, amountKobo, email }) {
-      if (store.has(reference)) {
+    async initializeTransaction({ reference, amountKobo, email, metadata }) {
+      if (await store.get(reference)) {
         // Paystack refuses a reused reference ("Duplicate Transaction Reference"); so do we.
         throw new ProviderError('PROVIDER_REJECTED', 'Duplicate Transaction Reference');
       }
       if (!Number.isInteger(amountKobo) || amountKobo <= 0) {
         throw new ProviderError('PROVIDER_REJECTED', 'Invalid amount');
       }
-      store.set(reference, {
+      await store.set(reference, {
         reference,
         amountKobo,
         email,
+        metadata,
         status: 'pending',
-        id: `sim_${store.size + 1}`,
+        // Paystack transaction ids are numbers; random keeps them unique across processes.
+        id: 900_000_000 + Math.floor(Math.random() * 99_999_999),
       });
       return {
         reference,
         accessCode: null,
-        // Stage 10c serves a page here with "Pay" / "Decline" buttons.
         authorizationUrl: `${baseUrl}/simulator/checkout/${encodeURIComponent(reference)}`,
       };
     },
 
     async verifyTransaction(reference) {
-      const tx = get(reference);
+      const tx = await get(reference);
       return {
         status: tx.status,
         amountKobo: tx.amountKobo,
         currency: 'NGN',
         feeKobo: tx.status === 'succeeded' ? simulatedFeeKobo(tx.amountKobo) : null,
-        paidAt: tx.paidAt ?? null,
+        paidAt: tx.paidAt ? new Date(tx.paidAt) : null,
         channel: tx.status === 'pending' ? null : 'card',
-        providerTransactionId: tx.id,
+        providerTransactionId: String(tx.id),
         message: tx.message ?? null,
       };
     },
 
-    complete(reference) {
-      Object.assign(get(reference), { status: 'succeeded', paidAt: now(), message: 'Approved' });
+    verifyWebhookSignature(rawBody, signature) {
+      return signatureMatches(webhookSecret, rawBody, signature);
     },
-    fail(reference, message = 'Declined') {
-      Object.assign(get(reference), { status: 'failed', message });
+
+    /** Signs a body the way Paystack does (tests use this to forge-or-not). */
+    sign(rawBody) {
+      return computeSignature(webhookSecret, rawBody);
     },
-    abandon(reference) {
-      Object.assign(get(reference), { status: 'abandoned' });
+
+    async complete(reference) {
+      await update(reference, {
+        status: 'succeeded',
+        paidAt: now().toISOString(),
+        message: 'Approved',
+      });
+    },
+    async fail(reference, message = 'Declined') {
+      await update(reference, { status: 'failed', message });
+    },
+    async abandon(reference) {
+      await update(reference, { status: 'abandoned' });
+    },
+
+    chargeSuccessEvent,
+
+    /**
+     * Delivers charge.success to a webhook URL, signed, as Paystack would.
+     * @param {string} reference
+     * @param {string} url
+     */
+    async sendWebhook(reference, url) {
+      const body = JSON.stringify(await chargeSuccessEvent(reference));
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          [SIGNATURE_HEADER]: computeSignature(webhookSecret, body),
+        },
+        body,
+      });
+      return res.status;
     },
   };
 }

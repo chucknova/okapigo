@@ -18,6 +18,7 @@
  * we send and how we read replies, without calling Paystack.
  */
 import { ProviderError, LiveKeyError } from './provider.js';
+import { signatureMatches } from './webhooks.js';
 
 const BASE_URL = 'https://api.paystack.co';
 
@@ -106,6 +107,11 @@ export function createPaystackProvider({
 
   return {
     name: 'paystack',
+
+    /** Paystack signs webhooks with the same secret key we call its API with. */
+    verifyWebhookSignature(rawBody, signature) {
+      return signatureMatches(secretKey, rawBody, signature);
+    },
 
     async initializeTransaction({ reference, amountKobo, email, callbackUrl, channels, metadata }) {
       const data = await call('POST', '/transaction/initialize', {
