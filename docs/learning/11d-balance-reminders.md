@@ -121,13 +121,13 @@ date, the **current** balance, and the due date. `POST /api/alerts/:id/dismiss` 
 
 ## 5. Try it yourself
 
-The job runs at 09:00 Lagos time. To see it now, call it directly with a chosen date (from the
-repo root, with the database running):
+The job runs at 09:00 Lagos time. To see it now, call it directly with a chosen date. Run this
+from `packages/db` (the repo root can't import the workspace packages), with the database up:
 
 ```bash
-node --input-type=module -e "
-import { createPrismaClient, queueBalanceNotices } from '@okapigo/db';
-process.loadEnvFile('.env');
+cd packages/db && node --input-type=module -e "
+import { createPrismaClient, queueBalanceNotices } from './src/index.js';
+process.loadEnvFile('../../.env');
 const p = createPrismaClient(process.env.DATABASE_URL);
 console.log(await queueBalanceNotices(p, { now: new Date('2026-12-20T09:00:00+01:00') }));
 await p.\$disconnect();"
