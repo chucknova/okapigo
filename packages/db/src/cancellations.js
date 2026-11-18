@@ -80,6 +80,14 @@ async function refundFor(tx, booking, { kind, initiatedBy, refundOverrideKobo, n
     );
   }
 
+  // The deposit actually PAID (BKG-06): a policy that keeps deposits keeps this much. Until
+  // stage 12f this was always 0, so a cancelled Badagry booking would have given its
+  // "non-refundable" deposit back. Found while building the trip hub's "you'd get back" line.
+  const deposits = await tx.payment.aggregate({
+    where: { bookingId: booking.id, purpose: 'deposit', status: 'succeeded' },
+    _sum: { amountKobo: true },
+  });
+
   const result = computeRefund({
     policy: version
       ? {
@@ -89,7 +97,7 @@ async function refundFor(tx, booking, { kind, initiatedBy, refundOverrideKobo, n
         }
       : { rules: [], noShowRefundBasisPoints: 0, depositRefundable: false },
     amountPaidKobo: booking.amountPaidKobo,
-    depositKobo: 0, // deposits arrive with BKG-06 (session 11)
+    depositKobo: deposits._sum.amountKobo ?? 0,
     departureStartsAt: departure.startsAt,
     at: now,
     kind,

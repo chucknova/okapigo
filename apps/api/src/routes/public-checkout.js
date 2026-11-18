@@ -32,6 +32,7 @@ import {
   addOnUsage,
   guestToken,
   bookingIdFromGuestToken,
+  ticketCode,
   PAYABLE_STATUSES,
   checkPayment,
 } from '@okapigo/db';
@@ -45,6 +46,7 @@ import { HttpError } from '../middleware/errors.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { toHttp } from './bookings.js';
 import { startPaymentForHttp } from './payments.js';
+import { qrPath } from '../lib/qr.js';
 
 const Slug = z
   .string()
@@ -118,10 +120,12 @@ export const DEFAULT_PUBLIC_LIMITS = {
  * The booking as its guest may see it. A whitelist like every serializer, and narrower than
  * the staff one: the guest link could be forwarded, so nothing internal goes out.
  * @param {any} b  booking with product.operator, departure, travellers, addOns.addOn, hold, policyVersion
+ * @param {{ secret: string, now?: Date }} opts  secret: AUTH_SECRET, to sign the ticket code
  */
-function guestView(b, now = new Date()) {
+function guestView(b, { secret, now = new Date() }) {
   const { timeZone } = b.product.operator;
   const balanceKobo = b.totalKobo - b.amountPaidKobo;
+  const cancelEvent = b.events?.[0] ?? null; // the latest "→ cancelled" (GUEST_INCLUDE)
   return {
     reference: b.reference,
     status: b.status,
@@ -129,6 +133,9 @@ function guestView(b, now = new Date()) {
       slug: b.product.operator.slug,
       name: b.product.operator.name,
       timeZone: b.product.operator.timeZone,
+      // "Call" and "WhatsApp" on the trip hub (stage 12f); null hides the button.
+      phone: b.product.operator.phone ?? null,
+      whatsapp: b.product.operator.whatsapp ?? null,
     },
     tour: {
       slug: b.product.slug,
@@ -136,9 +143,13 @@ function guestView(b, now = new Date()) {
       durationMinutes: b.product.durationMinutes,
       meetingPoint: b.product.meetingPoint,
       whatToBring: b.product.whatToBring,
+      // The route, in order (names only: the descriptions are for the tour page).
+      stops: (b.product.stops ?? []).map((/** @type {{ name: string }} */ s) => s.name),
+      arriveMinutesEarly: b.product.arriveMinutesEarly ?? null,
     },
     departure: {
       startsAt: b.departure.startsAt,
+      endsAt: b.departure.endsAt, // "after the trip" begins here (trip-hub.js)
       localDate: localDate(b.departure.startsAt, timeZone),
       localTime: localTime(b.departure.startsAt, timeZone),
     },
@@ -158,6 +169,10 @@ function guestView(b, now = new Date()) {
     quote: b.quote, // the price snapshot: lines, VAT, total (what the guest agreed to pay)
     totalKobo: b.totalKobo,
     amountPaidKobo: b.amountPaidKobo,
+    // The deposit actually paid: a policy that keeps deposits keeps this (trip-hub.js).
+    depositPaidKobo: (b.payments ?? [])
+      .filter((/** @type {any} */ p) => p.purpose === 'deposit' && p.status === 'succeeded')
+      .reduce((/** @type {number} */ sum, /** @type {any} */ p) => sum + p.amountKobo, 0),
     balanceKobo,
     // Part paid (e.g. a deposit): the rest is due 7 days before the trip (deposits.js).
     balanceDueDate:
@@ -184,8 +199,38 @@ function guestView(b, now = new Date()) {
           depositRefundable: b.policyVersion.depositRefundable,
         }
       : null,
+    // THE TICKET (trip hub, stage 12f): a signed code for the guide's scanner, never the
+    // guest link, plus its QR drawing so the saved copy works offline. Only while there's a
+    // trip to go on: a cancelled booking has no ticket.
+    ticket: TICKET_STATUSES.includes(b.status) ? ticketFor(secret, b.id) : null,
+    // Who cancelled, and why (staff's reason is shown to the guest, quoted).
+    cancellation: cancelEvent
+      ? {
+          at: cancelEvent.createdAt,
+          by: cancelEvent.data?.initiatedBy === 'guest' ? 'guest' : 'operator',
+          reason:
+            cancelEvent.data?.initiatedBy === 'guest' ? null : (cancelEvent.data?.reason ?? null),
+          refundKobo: b.refundDueKobo,
+        }
+      : null,
+    // Money confirmed back with the guest ("Refunded ₦62,500 on Thu 26 Nov").
+    refunds: (b.refunds ?? [])
+      .filter((/** @type {any} */ r) => r.status === 'processed' && r.processedAt)
+      .map((/** @type {any} */ r) => ({ amountKobo: r.amountKobo, processedAt: r.processedAt })),
   };
 }
+
+/**
+ * @param {string} secret
+ * @param {string} bookingId
+ */
+function ticketFor(secret, bookingId) {
+  const code = ticketCode(secret, bookingId);
+  return { code, qr: qrPath(code) };
+}
+
+/** Booking statuses that have a trip to go on, so a ticket. */
+const TICKET_STATUSES = ['confirmed', 'part_paid', 'paid', 'amended', 'completed'];
 
 const GUEST_INCLUDE = {
   product: { include: { operator: true } },
@@ -198,6 +243,13 @@ const GUEST_INCLUDE = {
   payments: {
     orderBy: [{ createdAt: /** @type {const} */ ('desc') }, { id: /** @type {const} */ ('desc') }],
   },
+  // The trip hub's cancelled banners (stage 12f): the latest cancellation, and refunds.
+  events: {
+    where: { toStatus: 'cancelled' },
+    orderBy: { createdAt: /** @type {const} */ ('desc') },
+    take: 1,
+  },
+  refunds: true,
 };
 
 /**
@@ -400,7 +452,7 @@ export function publicCheckoutRouter({
       // and pay screens, and every message we send carries a link with it.
       res.status(201).json({
         token: guestToken(authSecret, booking.id),
-        booking: guestView(booking),
+        booking: guestView(booking, { secret: authSecret }),
       });
     },
   );
@@ -414,7 +466,9 @@ export function publicCheckoutRouter({
     async (req, res) => {
       const booking = await findGuestBooking(req.params.token);
       // Private to whoever holds the link: never stored by shared caches.
-      res.set('Cache-Control', 'private, no-store').json({ booking: guestView(booking) });
+      res
+        .set('Cache-Control', 'private, no-store')
+        .json({ booking: guestView(booking, { secret: authSecret }) });
     },
   );
 

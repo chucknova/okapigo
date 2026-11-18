@@ -5,9 +5,10 @@
  * The letter mark is the first letter of the business name ("Ì" for Ìrìn) until logos
  * arrive with uploads (session 18). It's decorative: screen readers read the name next to it.
  *
- * @param {{ operatorName: string, children: import('react').ReactNode }} props  '' while loading
+ * @param {{ operatorName: string, aside?: string, children: import('react').ReactNode }} props
+ *   operatorName: '' while loading · aside: small words on the right ("Your trip")
  */
-export function Shell({ operatorName, children }) {
+export function Shell({ operatorName, aside, children }) {
   return (
     <>
       <header className="okg-header">
@@ -17,6 +18,7 @@ export function Shell({ operatorName, children }) {
               {firstLetter(operatorName)}
             </span>
             <span className="okg-header__name">{operatorName}</span>
+            {aside && <span className="okg-header__aside">{aside}</span>}
           </>
         ) : (
           // Name not known yet (still loading): a placeholder, not "?".

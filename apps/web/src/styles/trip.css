@@ -1,0 +1,334 @@
+/*
+ * trip.css — the trip hub (designs: file 05). Through tokens, like everything else.
+ * Opened outdoors in bright sun: strong contrast, big tap targets (44 px and up).
+ */
+
+.okg-header__aside {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.okg-trip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* --- Banners: full width under the header, one colour per situation -------------------- */
+
+.okg-trip-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 calc(-1 * var(--space-4));
+  padding: 14px var(--space-4);
+}
+/* The first banner touches the header. */
+.okg-trip > .okg-trip-banner:first-child,
+.okg-trip > .okg-trip-today:first-child {
+  margin-top: calc(-1 * var(--space-4));
+}
+.okg-trip-banner__title {
+  font-size: var(--text-md);
+  line-height: 1.35;
+  font-weight: var(--weight-bold);
+}
+.okg-trip-banner__text {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+.okg-trip-banner--good {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+}
+.okg-trip-banner--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.okg-trip-banner--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.okg-trip-banner--success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.okg-trip-banner--neutral {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+/* A dark button on a coloured banner ("Pay ₦45,500", "Message Ìrìn on WhatsApp"). */
+.okg-btn--dark {
+  background: var(--color-band-bg);
+  color: var(--color-band-text);
+}
+
+/* --- Trip day: the dark band ------------------------------------------------------------ */
+
+.okg-trip-today {
+  margin: 0 calc(-1 * var(--space-4));
+  padding: 18px var(--space-4);
+  background: var(--color-band-bg);
+  color: var(--color-band-text);
+}
+.okg-trip-today__label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+}
+.okg-trip-today__title {
+  margin-top: 2px;
+  font-size: var(--text-xl);
+  line-height: 1.25;
+  font-weight: 800;
+}
+.okg-trip-today__sub {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-band-soft);
+}
+
+/* --- Body ------------------------------------------------------------------------------- */
+
+.okg-trip__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* Cancelled: everything below the banner is greyed (contact buttons still work). */
+.okg-trip__body--ended > :not(:has(a[href^='tel:'], a[href*='wa.me'])) {
+  opacity: 0.55;
+}
+
+.okg-trip__heading {
+  padding-top: var(--space-1);
+}
+.okg-trip__when {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+}
+.okg-trip__title {
+  margin: 2px 0 var(--space-1);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-2xl);
+}
+.okg-trip__date {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.okg-trip__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+.okg-trip__h2 {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+/* --- The ticket -------------------------------------------------------------------------- */
+
+.okg-ticket {
+  align-items: center;
+  text-align: center;
+  padding: 20px var(--space-4);
+}
+.okg-ticket__heading {
+  align-self: flex-start;
+}
+.okg-ticket__qr {
+  width: 200px;
+  height: 200px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.okg-ticket--today {
+  border: 2px solid var(--color-text);
+}
+.okg-ticket--today .okg-ticket__qr {
+  width: 240px;
+  height: 240px;
+  border: 0;
+}
+.okg-ticket__ref {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+.okg-ticket--today .okg-ticket__ref {
+  font-size: 28px;
+  letter-spacing: 3px;
+}
+
+/* --- Meeting point and map -------------------------------------------------------------- */
+
+.okg-meeting {
+  padding: 0;
+  overflow: hidden;
+}
+.okg-meeting__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px var(--space-4) var(--space-4);
+}
+.okg-meeting__name {
+  font-weight: var(--weight-bold);
+}
+.okg-meeting__name--big {
+  font-size: var(--text-lg);
+}
+.okg-meeting__links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: 6px;
+}
+.okg-meeting__links--stacked {
+  grid-template-columns: 1fr;
+}
+.okg-meeting__apple {
+  justify-self: center;
+  min-height: var(--control-min-target);
+  display: inline-flex;
+  align-items: center;
+}
+.okg-meeting__pickup {
+  font-size: var(--text-sm);
+}
+
+.okg-map {
+  position: relative;
+  height: 160px;
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+.okg-map__tiles {
+  position: absolute;
+}
+.okg-map__tiles img {
+  position: absolute;
+  display: block;
+}
+/* A teardrop pin, its point on the spot. */
+.okg-map__pin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -32px 0 0 -16px;
+  border-radius: 999px 999px 999px 0;
+  transform: rotate(-45deg);
+  transform-origin: 0 100%;
+  background: var(--color-band-bg);
+  border: 3px solid var(--color-primary);
+}
+.okg-map__credit {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  padding: 0 4px;
+  font-size: 10px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+/* --- Lists ------------------------------------------------------------------------------ */
+
+.okg-trip__checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.okg-trip__tick {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+}
+.okg-trip__tick input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-primary-ink);
+}
+.okg-trip__route {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+/* --- Payment, ask, cancel --------------------------------------------------------------- */
+
+.okg-trip__payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+.okg-trip__owed {
+  font-weight: var(--weight-semibold);
+  color: var(--color-warning);
+}
+.okg-trip__owed--late {
+  color: var(--color-danger);
+}
+.okg-trip__ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.okg-trip__ask-row {
+  display: flex;
+  gap: var(--space-2);
+}
+.okg-trip__ask-row .okg-field__input {
+  flex: 1;
+  min-width: 0;
+}
+.okg-trip__ask-send {
+  width: var(--control-height);
+  padding: 0;
+  flex: none;
+}
+.okg-trip__policy summary {
+  min-height: 32px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-primary-ink);
+  cursor: pointer;
+}
+.okg-trip__policy ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* --- Footer ----------------------------------------------------------------------------- */
+
+.okg-trip__saved {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.okg-trip__footer {
+  margin-top: var(--space-1);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}

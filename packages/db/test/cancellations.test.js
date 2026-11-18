@@ -131,6 +131,34 @@ describe('guest cancellations follow the policy the booking was sold under', () 
     },
   );
 
+  it('a non-refundable deposit is kept: only the rest of what was paid counts (BKG-06)', async () => {
+    const ctx = await setup(); // the seeded policy: depositRefundable false
+    const booking = await paidBooking(ctx); // ₦80,000 paid…
+    await prisma.payment.create({
+      data: {
+        operatorId: ctx.operator.id,
+        bookingId: booking.id,
+        provider: 'simulator',
+        method: 'any',
+        purpose: 'deposit', // …of which ₦24,000 was the deposit
+        amountKobo: 2_400_000,
+        status: 'succeeded',
+        paidAt: new Date(),
+        // 20 characters of Crockford base32, like every reference (the database checks).
+        reference: `OKG-${Array.from({ length: 20 }, () => '0123456789ABCDEFGHJKMNPQRSTVWXYZ'[Math.floor(Math.random() * 32)]).join('')}`,
+      },
+    });
+    const result = await cancelBooking(prisma, {
+      operatorId: ctx.operator.id,
+      bookingId: booking.id,
+      initiatedBy: 'guest',
+      reason: 'Change of plans',
+      actor: STAFF,
+      now: hoursBefore(ctx, 72), // full-refund tier: everything except the deposit
+    });
+    expect(result.refundKobo).toBe(8_000_000 - 2_400_000);
+  });
+
   it('an operator cancellation refunds everything, even an hour before', async () => {
     const ctx = await setup();
     const booking = await paidBooking(ctx);

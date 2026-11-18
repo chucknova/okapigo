@@ -194,7 +194,7 @@ export function policyDeadlines(policy, startsAt, timeZone, operatorName) {
 }
 
 /** "Thu 3 Dec, 09:00" for an instant, in a time zone. @param {number} ms @param {string} timeZone */
-function formatAt(ms, timeZone) {
+export function formatAt(ms, timeZone) {
   const p = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
       weekday: 'short',

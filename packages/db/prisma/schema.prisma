@@ -49,6 +49,11 @@ model Operator {
   // Where the operator works, for headings like "Tours in Lagos" (stage 12b). Optional:
   // without it the catalogue says "Our tours". More business details arrive in stage 12g.
   city         String?
+  // How guests reach the operator, shown as "Call" and "WhatsApp" on the trip hub (stage 12f).
+  // E.164 like the lead phone ("+2348031234567"). Optional: without them the buttons hide.
+  // (The rest of the business details, tagline, about, email, socials, come in stage 12g.)
+  phone        String?
+  whatsapp     String?
   pricing      Json     @default("{\"tax\": {\"name\": \"VAT\", \"basisPoints\": 750, \"inclusive\": true}, \"fees\": []}")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -222,6 +227,9 @@ model Product {
   // A short word or two about HOW the tour runs: "Walking", "Boat", "Van, pickup" (stage 12b,
   // shown on tour cards and pages). Optional.
   activityLabel   String? @map("activity_label")
+  // "Arrive by 08:50": how many minutes before the start guests should be at the meeting
+  // point (trip hub, stage 12f). Optional: without it the line hides. CHECK: 0–120.
+  arriveMinutesEarly Int? @map("arrive_minutes_early")
   // Seats per departure unless a schedule says otherwise (session 5).
   defaultCapacity Int    @map("default_capacity")
 

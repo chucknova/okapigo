@@ -70,4 +70,13 @@ test('a guest books the Heritage Walk for an adult and a child, and pays', async
 
   const final = await (await request.get(`/public/bookings/${token}`)).json();
   expect(final.booking.status).toBe('paid');
+
+  // The trip hub (stage 12f): the QR ticket, the meeting point, the route.
+  await page.getByRole('link', { name: 'Open your trip page' }).click();
+  await expect(page).toHaveURL(new RegExp(`/trip/${token}$`));
+  await expect(
+    page.getByRole('img', { name: `QR ticket for booking ${final.booking.reference}` }),
+  ).toBeVisible();
+  await expect(page.getByText('Tinubu Square').first()).toBeVisible();
+  await expect(page.getByText(/Saved on this phone · last updated/)).toBeVisible();
 });

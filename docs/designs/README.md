@@ -28,7 +28,8 @@ commit, like sessions 10 and 11.
 | 12c     | Checkout 1–2: dates by week, who's coming, extras, pickup point, live price ("Updating…"), the adult rule, seat and stock limits, desktop layout | 01                |
 | 12d     | Checkout 3–4: details and field errors, hold, review and pay, deposit choice, countdown, hold expired / seats ran out, payment set-up states. End-to-end test of journey 1 | 01                |
 | 12e     | After paying: confirming → confirmed, declined, paid late; payment link page and its states; pay your balance; add to calendar. End-to-end test of journey 5 | 02                |
-| 12f     | Trip hub: ticket (QR), map, checklist, route, all banners, offline copy; cancel yourself (new public cancel API); ask Ìrìn (new requests table + staff list) | 05                |
+| 12f-1   | Trip hub: ticket (QR), map, checklist, route, all banners, offline copy | 05                |
+| 12f-2   | Cancel yourself (new public cancel API); ask Ìrìn (new requests table + staff list); the "request open" banner | 05                |
 | 12g     | Operator website: the one page, Lagoon / Classic / Earth × light / dark, business details (new fields + staff API), empty and missing states | 04                |
 | 12h     | Booking widget: embed script (inline + pop-up), resizing frame, booking-completed event, approved domains, UTM capture, its states | 03                |
 
@@ -42,10 +43,10 @@ The **message wording** in file 02 is kept for session 14, which sends the messa
 | "Up to 15 guests", "Daily 09:00", "Thu–Sat 18:30"                | derived from capacity and schedules (no new data)                             | 12b        |
 | Meeting point note: "by the fountain, guide in a green Ìrìn cap" | new `note` on the meeting point                                               | 12b        |
 | Pickup point landmark and time: "Eko Hotel main gate · 07:15"    | add `time` to pickup points; seed updated to the design's landmarks          | 12c        |
-| "Arrive by 08:50" / "please arrive 10 minutes early"             | new tour field (minutes early)                                                | 12e        |
+| "Arrive by 08:50" / "please arrive 10 minutes early"             | new tour field `arriveMinutesEarly` (done)                                    | 12f-1      |
 | "Today's guide: Segun" on the trip day                           | needs guide assignment (session 15); the line stays hidden until then         | 15         |
 | The "Ask a question" AI box                                      | placeholder only, as designed (session 17)                                    | 12f → 17   |
-| Business tagline, about text, city, WhatsApp, phone, email, socials | new operator fields; the form is an operator screen (deferred)             | 12g        |
+| Business tagline, about text, city, WhatsApp, phone, email, socials | new operator fields (phone and WhatsApp done in 12f-1, for the trip hub); the form is an operator screen (deferred) | 12f-1, 12g |
 | Booking links at `irin.okapigo.site/…`, trip pages at `/t/<code>` | decided: paths (below)                                                        | 12a        |
 
 ## Decided: path-based links (2026-11-17)

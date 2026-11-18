@@ -76,3 +76,57 @@ export function bookingIdFromGuestToken(secret, token) {
   // can't discover the signature byte by byte from response times.
   return timingSafeEqual(Buffer.from(token), expected) ? bytesToUuid(id) : null;
 }
+
+// ---------------------------------------------------------------------------------------------
+// THE TICKET CODE (the QR on the trip hub, stage 12f)
+// ---------------------------------------------------------------------------------------------
+// What the guide scans at check-in (OPS-08, session 15). It must NOT be the guest link:
+// anyone who photographs a ticket would then have the private booking page (and, from
+// stage 12f-2, its Cancel button). So it is its own signature, with its own label:
+//
+//   code = "OKG1" + base64url(booking id, 16 bytes) + base64url(HMAC(ticket key, id), 12 bytes)
+//          └ 4 ┘   └────────── 22 characters ──────────┘ └──────────── 16 characters ──────────┘
+//
+// 42 characters fits a small (29×29) QR code that phones scan easily. 96 bits of signature:
+// forging a ticket needs the secret. The guide's app (signed in) turns it back into a
+// booking with bookingIdFromTicketCode(), and shows the names to check against.
+
+const TICKET_LABEL = 'okapigo:ticket:v1';
+const TICKET_PREFIX = 'OKG1';
+const TICKET_SIG_BYTES = 12;
+const TICKET_PATTERN = /^OKG1[A-Za-z0-9_-]{38}$/;
+
+/**
+ * @param {string} secret
+ * @param {Buffer} idBytes
+ */
+const ticketSig = (secret, idBytes) =>
+  createHmac('sha256', createHmac('sha256', secret).update(TICKET_LABEL).digest())
+    .update(idBytes)
+    .digest()
+    .subarray(0, TICKET_SIG_BYTES);
+
+/**
+ * The ticket code for a booking.
+ * @param {string} secret  AUTH_SECRET
+ * @param {string} bookingId
+ */
+export function ticketCode(secret, bookingId) {
+  const id = uuidToBytes(bookingId);
+  return TICKET_PREFIX + id.toString('base64url') + ticketSig(secret, id).toString('base64url');
+}
+
+/**
+ * The booking id inside a valid ticket code, or null (forged, mangled, or a guest link).
+ * @param {string} secret
+ * @param {string} code
+ * @returns {string | null}
+ */
+export function bookingIdFromTicketCode(secret, code) {
+  if (typeof code !== 'string' || !TICKET_PATTERN.test(code)) return null;
+  const id = Buffer.from(code.slice(4, 26), 'base64url');
+  if (id.length !== 16) return null;
+  // Whole-string comparison, for the same reason as guest tokens above.
+  const expected = Buffer.from(ticketCode(secret, bytesToUuid(id)));
+  return timingSafeEqual(Buffer.from(code), expected) ? bytesToUuid(id) : null;
+}

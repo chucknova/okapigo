@@ -29,7 +29,8 @@
     "./deposits": "./src/deposits.js",
     "./preview": "./src/preview.js",
     "./tokens": "./src/tokens.js",
-    "./tour-facts": "./src/tour-facts.js"
+    "./tour-facts": "./src/tour-facts.js",
+    "./trip-hub": "./src/trip-hub.js"
   },
   "scripts": {
     "test": "vitest run"

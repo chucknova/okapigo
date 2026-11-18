@@ -85,8 +85,16 @@ export function createApp({
   // Don't advertise "X-Powered-By: Express" to the world.
   app.disable('x-powered-by');
 
-  // Sets sensible security headers (no MIME sniffing, frame restrictions, etc.).
-  app.use(helmet());
+  // Sets sensible security headers (no MIME sniffing, frame restrictions, etc.). The one
+  // change to helmet's default Content-Security-Policy: the trip hub's small map shows
+  // OpenStreetMap tiles (stage 12f), so images may also come from their tile server.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: { 'img-src': ["'self'", 'data:', 'https://tile.openstreetmap.org'] },
+      },
+    }),
+  );
 
   // Logs one line per request and gives every request an ID (also sent back as the
   // X-Request-Id header). When a guest reports a problem, that ID finds the exact logs.

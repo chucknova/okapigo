@@ -51,6 +51,7 @@ export const TOURS = [
   {
     slug: 'lagos-island-heritage-walk',
     activityLabel: 'Walking',
+    arriveMinutesEarly: 10, // "Arrive by 08:50" on the trip hub (stage 12f)
     // Daily at 09:00, closed on Christmas Day (an exception date).
     schedule: { daysOfWeek: [0, 1, 2, 3, 4, 5, 6], times: ['09:00'], skipChristmas: true },
     title: 'Lagos Island Heritage Walk',
@@ -108,6 +109,7 @@ export const TOURS = [
   {
     slug: 'lagos-street-food-crawl',
     activityLabel: 'Evening',
+    arriveMinutesEarly: 10,
     // Thursday to Saturday evenings.
     schedule: { daysOfWeek: [4, 5, 6], times: ['18:30'] },
     title: 'Lagos Street Food Crawl',
@@ -197,6 +199,7 @@ export const TOURS = [
   {
     slug: 'tarkwa-bay-beach-and-lagoon',
     activityLabel: 'Boat',
+    arriveMinutesEarly: 15,
     // Weekends only.
     schedule: { daysOfWeek: [0, 6], times: ['10:00'] },
     title: 'Tarkwa Bay Beach and Lagoon Trip',
@@ -247,6 +250,7 @@ export const TOURS = [
   {
     slug: 'badagry-heritage-day-trip',
     activityLabel: 'Van, full day',
+    arriveMinutesEarly: 15,
     // Saturdays, early start.
     schedule: { daysOfWeek: [6], times: ['07:00'] },
     title: 'Badagry Heritage Day Trip',

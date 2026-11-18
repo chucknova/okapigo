@@ -28,7 +28,7 @@ import { Review } from './screens/checkout/Review.jsx';
 import { NotFound } from './screens/NotFound.jsx';
 import { Confirm } from './screens/trip/Confirm.jsx';
 import { PayBalance } from './screens/trip/PayBalance.jsx';
-import { TripPlaceholder } from './screens/trip/TripPlaceholder.jsx';
+import { TripHub } from './screens/trip/TripHub.jsx';
 import { PaymentLink, PaymentLinkDone } from './screens/pay/PaymentLink.jsx';
 
 // The gallery is for development, so it's split into its own file that only downloads when
@@ -46,7 +46,7 @@ export function App() {
       {/* Private pages first: "trip" and "pay" are reserved words, never operators. */}
       <Route path="/trip/:token/confirm" component={Confirm} />
       <Route path="/trip/:token/pay" component={PayBalance} />
-      <Route path="/trip/:token" component={TripPlaceholder} />
+      <Route path="/trip/:token" component={TripHub} />
       <Route path="/pay/:token/done" component={PaymentLinkDone} />
       <Route path="/pay/:token" component={PaymentLink} />
       <Route path="/:operator/:tour/book/review" component={Review} />

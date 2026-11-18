@@ -3,7 +3,12 @@
  * Pure functions, no database.
  */
 import { describe, it, expect } from 'vitest';
-import { guestToken, bookingIdFromGuestToken } from '../src/guest-links.js';
+import {
+  guestToken,
+  bookingIdFromGuestToken,
+  ticketCode,
+  bookingIdFromTicketCode,
+} from '../src/guest-links.js';
 
 const SECRET = 'test-secret-that-is-at-least-32-characters-long';
 const ID = '3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b';
@@ -44,5 +49,39 @@ describe('guest links', () => {
       expect(bookingIdFromGuestToken(SECRET, bad)).toBeNull();
     }
     expect(bookingIdFromGuestToken(SECRET, /** @type {any} */ (undefined))).toBeNull();
+  });
+});
+
+describe('ticket codes (the QR on the trip hub)', () => {
+  it('is 42 characters, starts OKG1, and leads back to the booking', () => {
+    const code = ticketCode(SECRET, ID);
+    expect(code).toMatch(/^OKG1[A-Za-z0-9_-]{38}$/);
+    expect(bookingIdFromTicketCode(SECRET, code)).toBe(ID);
+  });
+
+  it('never contains the guest link, and neither can stand in for the other', () => {
+    const code = ticketCode(SECRET, ID);
+    const token = guestToken(SECRET, ID);
+    expect(code).not.toContain(token.slice(22)); // the link's signature isn't in the ticket
+    // A ticket's signature doesn't make a guest link, and a guest link isn't a ticket.
+    expect(
+      bookingIdFromGuestToken(SECRET, code.slice(4, 26) + code.slice(26).padEnd(22, 'A')),
+    ).toBeNull();
+    expect(bookingIdFromTicketCode(SECRET, 'OKG1' + token.slice(0, 38))).toBeNull();
+  });
+
+  it('refuses every single-character change, another secret, and junk', () => {
+    const code = ticketCode(SECRET, ID);
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    for (let i = 4; i < code.length; i++) {
+      const other = alphabet[(alphabet.indexOf(code[i]) + 1) % alphabet.length];
+      expect(
+        bookingIdFromTicketCode(SECRET, code.slice(0, i) + other + code.slice(i + 1)),
+      ).toBeNull();
+    }
+    expect(bookingIdFromTicketCode('another-secret-that-is-at-least-32-chars', code)).toBeNull();
+    for (const bad of ['', 'OKG1', code + 'A', code.replace('OKG1', 'OKG2'), null]) {
+      expect(bookingIdFromTicketCode(SECRET, /** @type {any} */ (bad))).toBeNull();
+    }
   });
 });

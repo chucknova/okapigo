@@ -39,6 +39,9 @@ const PAIRS = [
   ['band-muted', 'band-surface', 4.5],
   ['band-soft', 'band-bg', 4.5],
   ['band-line', 'band-bg', 3],
+  // The trip hub (stage 12f): "TODAY" on the trip-day band, and the balance line on a card.
+  ['primary', 'band-bg', 4.5],
+  ['warning', 'surface', 4.5],
   // Disabled controls are exempt from WCAG, but people still need to read them.
   ['disabled-text', 'disabled-bg', 4.5],
   // Input and stepper edges: "non-text contrast" 3:1.

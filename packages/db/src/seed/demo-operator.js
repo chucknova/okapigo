@@ -56,7 +56,8 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
       // "Tours in Lagos" on the catalogue (stage 12b).
       const operator = await tx.operator.update({
         where: { id: created.operator.id },
-        data: { city: 'Lagos' },
+        // Call and WhatsApp on the trip hub (stage 12f). Fictional numbers.
+        data: { city: 'Lagos', phone: '+2348090000123', whatsapp: '+2348090000123' },
       });
 
       // Phone numbers are unique platform-wide too, but we only have six fictional ones.

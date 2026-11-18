@@ -62,7 +62,12 @@ export {
   markRefundFailed,
 } from './refunds.js';
 export { reconcile, checkPayment } from './reconciliation.js';
-export { guestToken, bookingIdFromGuestToken } from './guest-links.js';
+export {
+  guestToken,
+  bookingIdFromGuestToken,
+  ticketCode,
+  bookingIdFromTicketCode,
+} from './guest-links.js';
 export {
   queueBalanceNotices,
   cancelStaleNotices,
