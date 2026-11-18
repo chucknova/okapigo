@@ -23,6 +23,9 @@ export default defineConfig({
     // and in a full run beside the other packages a first test sometimes passed 20 s.
     // A percentage scales down on CI's smaller machines too.
     maxWorkers: '50%',
+    // Warms Prisma before each file's tests start their clocks: a process's first queries are
+    // compiled, and in a full run every process compiles at once (see the file for details).
+    setupFiles: ['../../packages/db/test-support/warm-up.js'],
     globalSetup: ['../../packages/db/test-support/global-setup.js'],
     // Keep test output clean: the app logger is created with level "silent" in tests.
   },

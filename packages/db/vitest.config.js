@@ -19,6 +19,9 @@ export default defineConfig({
     // apps/api/vitest.config.js for the measurements). Both packages test against the same
     // Postgres at the same time during `pnpm test`.
     maxWorkers: '50%',
+    // Warms Prisma before each file's tests start their clocks: a process's first queries are
+    // compiled, and in a full run every process compiles at once (see the file for details).
+    setupFiles: ['./test-support/warm-up.js'],
     globalSetup: ['./test-support/global-setup.js'],
   },
 });
