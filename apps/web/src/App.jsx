@@ -7,7 +7,8 @@
  *   /:operator/:tour                B · tour page                 stage 12b
  *   /:operator/:tour/book           checkout 1 · choose a date    stage 12c
  *   /:operator/:tour/book/who       checkout 2 · who's coming     stage 12c
- *   /:operator/:tour/book/details   checkout 3–4                  stage 12d (placeholder now)
+ *   /:operator/:tour/book/details   checkout 3 · your details     stage 12d
+ *   /:operator/:tour/book/review    checkout 4 · review and pay   stage 12d
  *
  * The same paths are served by the API with link previews and the page's data embedded
  * (apps/api/src/routes/share-pages.js). wouter (about 2 KB) does the matching.
@@ -16,9 +17,10 @@ import { lazy, Suspense } from 'react';
 import { Route, Switch } from 'wouter';
 import { Catalogue } from './screens/Catalogue.jsx';
 import { TourPage } from './screens/TourPage.jsx';
-import { BookPlaceholder } from './screens/BookPlaceholder.jsx';
 import { ChooseDate } from './screens/checkout/ChooseDate.jsx';
 import { WhoComing } from './screens/checkout/WhoComing.jsx';
+import { Details } from './screens/checkout/Details.jsx';
+import { Review } from './screens/checkout/Review.jsx';
 import { NotFound } from './screens/NotFound.jsx';
 
 // The gallery is for development, so it's split into its own file that only downloads when
@@ -33,7 +35,8 @@ export function App() {
           <Gallery />
         </Suspense>
       </Route>
-      <Route path="/:operator/:tour/book/details" component={BookPlaceholder} />
+      <Route path="/:operator/:tour/book/review" component={Review} />
+      <Route path="/:operator/:tour/book/details" component={Details} />
       <Route path="/:operator/:tour/book/who" component={WhoComing} />
       <Route path="/:operator/:tour/book" component={ChooseDate} />
       <Route path="/:operator/:tour" component={TourPage} />

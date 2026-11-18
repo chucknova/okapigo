@@ -31,7 +31,13 @@ const OptionalPhone = z
   .transform((v, ctx) => {
     if (v === '') return null;
     const phone = normalizePhone(v);
-    if (!phone) ctx.addIssue({ code: 'custom', message: 'Enter a valid phone number' });
+    // The checkout design's wording (stage 12d): it says what a valid number looks like.
+    if (!phone) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Enter 11 digits like 0803 123 4567, or start with +234.',
+      });
+    }
     return phone ?? z.NEVER;
   })
   .nullish();
@@ -48,11 +54,11 @@ export const LeadBookerSchema = z
     email: OptionalEmail,
     phone: OptionalPhone,
     // Consent capture (PRD privacy): must be literally true to book.
-    acceptTerms: z.literal(true, { error: 'Accept the booking terms to continue' }),
+    acceptTerms: z.literal(true, { error: 'Tick this box to continue.' }),
     marketingConsent: z.boolean().default(false),
   })
   .refine((l) => l.email || l.phone, {
-    message: 'Give an email or a phone number',
+    message: 'Give an email or a phone number, or both.',
     path: ['email'],
   });
 

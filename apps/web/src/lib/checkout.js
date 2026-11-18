@@ -207,3 +207,100 @@ export function lineLabel(line) {
   const name = line.type === 'ticket' ? line.label.replace(/\s*\(.*\)\s*$/, '') : line.label;
   return `${line.quantity} × ${name}`;
 }
+
+// --- Step 3: your details -----------------------------------------------------------------
+
+/**
+ * One form slot per traveller, in category order: "Traveller 3 · Child (3–12)".
+ * @param {Record<string, number>} counts
+ * @param {Array<{ key: string, name: string }>} categories
+ * @returns {Array<{ categoryKey: string, categoryName: string }>}
+ */
+export function travellerSlots(counts, categories) {
+  return categories.flatMap((c) =>
+    Array.from({ length: counts[c.key] ?? 0 }, () => ({
+      categoryKey: c.key,
+      categoryName: c.name,
+    })),
+  );
+}
+
+/**
+ * @typedef {{ name: string, email: string, phone: string, marketingConsent: boolean }} LeadForm
+ * @typedef {{ name: string, age: string, dietaryNeeds: string }} TravellerForm
+ */
+
+/**
+ * What's MISSING, before anything is sent. Only "is it filled in?": whether an email or
+ * phone number is VALID, and whether an age fits its category, is the server's job (one
+ * set of rules for every channel), and its answer comes back through serverErrors().
+ * Keys are field paths, the same as the server's: "lead.name", "travellers.2.age".
+ * @param {{ lead: LeadForm, travellers: TravellerForm[], acceptTerms: boolean }} form
+ * @returns {Record<string, string>}
+ */
+export function missingFields({ lead, travellers, acceptTerms }) {
+  /** @type {Record<string, string>} */
+  const errors = {};
+  if (!lead.name.trim()) errors['lead.name'] = 'Enter your full name.';
+  if (!lead.email.trim() && !lead.phone.trim()) {
+    errors['lead.phone'] = 'Give an email or a phone number, or both.';
+  }
+  travellers.forEach((t, i) => {
+    if (!t.name.trim()) errors[`travellers.${i}.name`] = 'Enter their full name.';
+    if (!/^\d{1,3}$/.test(t.age.trim())) errors[`travellers.${i}.age`] = 'Enter their age.';
+  });
+  if (!acceptTerms) errors['lead.acceptTerms'] = 'Tick this box to continue.';
+  return errors;
+}
+
+/**
+ * The server's "no" as field errors, so each message sits next to its field:
+ *   VALIDATION_ERROR      issues[].path ("lead.phone", "travellers.2.age") → message
+ *   AGE_CATEGORY_MISMATCH details.traveller → that traveller's age field
+ * Other codes (SOLD_OUT…) aren't about a field: the screen handles them as states.
+ * @param {{ code?: string, message: string, details?: any }} error  an ApiError
+ * @returns {Record<string, string>}
+ */
+export function serverErrors(error) {
+  if (error.code === 'VALIDATION_ERROR') {
+    /** @type {Record<string, string>} */
+    const errors = {};
+    for (const issue of error.details?.issues ?? []) {
+      // The "email or phone" rule is reported on email; it reads better under the phone.
+      const path = issue.message.startsWith('Give an email or a phone') ? 'lead.phone' : issue.path;
+      errors[path] ??= issue.message;
+    }
+    return errors;
+  }
+  if (error.code === 'AGE_CATEGORY_MISMATCH' && Number.isInteger(error.details?.traveller)) {
+    return { [`travellers.${error.details.traveller}.age`]: error.message };
+  }
+  return {};
+}
+
+/**
+ * Everything a booking is made of. If it hasn't changed since the guest last pressed
+ * "Continue to payment", the same booking (and its hold) is reused instead of a new one.
+ * @param {any} state  the checkout state
+ */
+export function basketKey(state) {
+  return JSON.stringify([
+    state.departure?.id,
+    state.counts,
+    state.addOns,
+    state.pickup,
+    state.lead,
+    state.travellers,
+  ]);
+}
+
+// --- Step 4: review and pay ---------------------------------------------------------------
+
+/**
+ * The hold countdown: 872 000 ms → "14:32". Never negative.
+ * @param {number} ms
+ */
+export function formatCountdown(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}

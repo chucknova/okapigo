@@ -40,6 +40,7 @@ export function useTourForCheckout(operatorSlug, tourSlug) {
  *   backHref: string,
  *   aside?: import('react').ReactNode,       // desktop summary card
  *   bottomBar?: import('react').ReactNode,   // phone: total + Continue
+ *   headerExtra?: import('react').ReactNode, // e.g. the "Seats held 14:32" chip
  *   children: import('react').ReactNode,
  * }} props
  */
@@ -51,6 +52,7 @@ export function CheckoutFrame({
   backHref,
   aside,
   bottomBar,
+  headerExtra,
   children,
 }) {
   return (
@@ -60,10 +62,11 @@ export function CheckoutFrame({
           <Link className="okg-icon-btn okg-icon-btn--plain" href={backHref} aria-label="Back">
             <Icon name="back" size={22} />
           </Link>
-          <div>
+          <div className="okg-checkout__titles">
             <p className="okg-checkout__title">{title}</p>
             <p className="okg-label">{subtitle}</p>
           </div>
+          {headerExtra}
         </div>
         <div
           className="okg-progress okg-phone-only"
@@ -83,6 +86,7 @@ export function CheckoutFrame({
             {firstLetter(operatorName)}
           </span>
           <span className="okg-header__name">{operatorName}</span>
+          {headerExtra}
           <ol className="okg-steps">
             {STEPS.map((s, i) => (
               <li

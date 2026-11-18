@@ -294,6 +294,134 @@ button.okg-date-row:hover {
   gap: var(--space-3);
 }
 
+/* --- Step 3: your details ---------------------------------------------------------------- */
+
+.okg-checkout__titles {
+  flex: 1;
+}
+.okg-form-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.okg-form-card .okg-field__label {
+  font-size: var(--text-sm);
+}
+/* A tick box with its words: the whole line is the tap target (44 px tall at least). */
+.okg-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: var(--control-min-target);
+  padding-top: 10px;
+  font-size: 15px;
+  line-height: 22.5px;
+  cursor: pointer;
+}
+.okg-check input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--color-primary-ink);
+}
+.okg-check--soft {
+  align-items: center;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+}
+.okg-traveller {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.okg-traveller legend {
+  padding: 0 6px;
+  font-size: 15px;
+}
+.okg-traveller__row {
+  display: grid;
+  grid-template-columns: 1fr 84px;
+  gap: 10px;
+}
+.okg-hold-note {
+  padding: var(--space-3) 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  font-size: var(--text-sm);
+  line-height: 21px;
+}
+.okg-problem {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* --- Step 4: review and pay --------------------------------------------------------------- */
+
+.okg-hold-chip {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--color-surface-2);
+  line-height: 1.2;
+}
+.okg-hold-chip--ended {
+  background: var(--color-warning-soft);
+}
+.okg-review-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* After the hold ends, the summary stays visible but dimmed (designs). */
+.okg-review-body--dimmed {
+  opacity: 0.55;
+}
+.okg-review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.okg-review__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+.okg-review__edit {
+  min-height: var(--control-min-target);
+  display: inline-flex;
+  align-items: center;
+}
+.okg-plain-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 15px;
+  line-height: 22.5px;
+}
+.okg-radio-card--tall {
+  align-items: flex-start;
+  padding: 14px;
+}
+.okg-pay-note {
+  padding: 0 var(--space-1);
+}
+.okg-btn--pay {
+  min-height: 56px;
+  font-size: var(--text-lg);
+}
+
 /* --- Desktop (from 960 px) --------------------------------------------------------------- */
 
 @media (min-width: 960px) {

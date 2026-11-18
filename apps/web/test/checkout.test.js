@@ -10,6 +10,11 @@ import {
   seatsNote,
   continueState,
   lineLabel,
+  travellerSlots,
+  missingFields,
+  serverErrors,
+  basketKey,
+  formatCountdown,
 } from '../src/lib/checkout.js';
 
 const dep = (localDate, seatsAvailable, localTime = '09:00') => ({
@@ -128,5 +133,88 @@ describe('continueState: when Continue works, and why not', () => {
 
   it('waits for the newest price, silently', () => {
     expect(continueState({ ...ok, updating: true })).toEqual({ disabled: true, reason: null });
+  });
+});
+
+describe('step 3: details', () => {
+  const blankLead = { name: '', email: '', phone: '', marketingConsent: false };
+
+  it('one form slot per traveller, in category order', () => {
+    const cats = [
+      { key: 'adult', name: 'Adult (13+)' },
+      { key: 'child', name: 'Child (3–12)' },
+    ];
+    expect(travellerSlots({ child: 1, adult: 2 }, cats).map((s) => s.categoryName)).toEqual([
+      'Adult (13+)',
+      'Adult (13+)',
+      'Child (3–12)',
+    ]);
+  });
+
+  it("lists what's missing, by field (formats are the server's job)", () => {
+    const errors = missingFields({
+      lead: blankLead,
+      travellers: [{ name: 'Ada', age: '', dietaryNeeds: '' }],
+      acceptTerms: false,
+    });
+    expect(errors).toEqual({
+      'lead.name': 'Enter your full name.',
+      'lead.phone': 'Give an email or a phone number, or both.',
+      'travellers.0.age': 'Enter their age.',
+      'lead.acceptTerms': 'Tick this box to continue.',
+    });
+    // A bad-looking phone number is NOT flagged here: the server checks formats.
+    expect(
+      missingFields({
+        lead: { ...blankLead, name: 'Ada', phone: '0803' },
+        travellers: [],
+        acceptTerms: true,
+      }),
+    ).toEqual({});
+  });
+
+  it("puts the server's answers next to their fields", () => {
+    expect(
+      serverErrors({
+        code: 'VALIDATION_ERROR',
+        message: 'x',
+        details: {
+          issues: [
+            {
+              path: 'lead.phone',
+              message: 'Enter 11 digits like 0803 123 4567, or start with +234.',
+            },
+            { path: 'lead.email', message: 'Give an email or a phone number, or both.' },
+          ],
+        },
+      }),
+    ).toEqual({ 'lead.phone': 'Enter 11 digits like 0803 123 4567, or start with +234.' });
+    expect(
+      serverErrors({
+        code: 'AGE_CATEGORY_MISMATCH',
+        message: 'Child: ages 3–12. For age 13, go back and choose Adult.',
+        details: { traveller: 2 },
+      }),
+    ).toEqual({ 'travellers.2.age': 'Child: ages 3–12. For age 13, go back and choose Adult.' });
+    expect(serverErrors({ code: 'SOLD_OUT', message: 'x' })).toEqual({});
+  });
+
+  it('a booking is reused only if nothing about it changed', () => {
+    const state = {
+      departure: { id: 'd' },
+      counts: { adult: 1 },
+      addOns: {},
+      pickup: null,
+      lead: blankLead,
+      travellers: [],
+    };
+    expect(basketKey(state)).toBe(basketKey({ ...state }));
+    expect(basketKey(state)).not.toBe(basketKey({ ...state, counts: { adult: 2 } }));
+  });
+
+  it('counts down as m:ss, never below zero', () => {
+    expect(formatCountdown(872_000)).toBe('14:32');
+    expect(formatCountdown(59_100)).toBe('1:00');
+    expect(formatCountdown(-5)).toBe('0:00');
   });
 });

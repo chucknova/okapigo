@@ -17,3 +17,7 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Playwright's results and traces (end-to-end tests)
+test-results/
+playwright-report/

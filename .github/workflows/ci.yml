@@ -79,6 +79,14 @@ jobs:
       - name: Build the guest web (300 KB budget)
         run: pnpm --filter @okapigo/web build
 
+      # End-to-end (stage 12d): a real browser books and pays through the real API, database
+      # and background worker (apps/web/e2e). Playwright downloads its own Chromium here; on a
+      # laptop it uses the installed Google Chrome instead.
+      - name: Install the end-to-end test browser
+        run: pnpm --filter @okapigo/web exec playwright install --with-deps chromium
+      - name: End-to-end tests (journey 1)
+        run: pnpm --filter @okapigo/web e2e
+
       # Dependency scanning (PRD: Security). Fails on known high/critical vulnerabilities
       # in packages that ship to production.
       - name: Audit dependencies

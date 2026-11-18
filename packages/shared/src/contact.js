@@ -56,3 +56,13 @@ export function parseContact(input) {
   const phone = normalizePhone(input);
   return phone ? { channel: 'phone', destination: phone } : null;
 }
+
+/**
+ * A stored phone number the way Nigerians write it: "+2348031234567" → "0803 123 4567".
+ * Other countries' numbers are shown as stored.
+ * @param {string} phone  normalised (+234…)
+ */
+export function formatPhoneForDisplay(phone) {
+  const m = /^\+234(\d{3})(\d{3})(\d{4})$/.exec(phone);
+  return m ? `0${m[1]} ${m[2]} ${m[3]}` : phone;
+}

@@ -5,6 +5,7 @@ import {
   describePolicy,
   priceNote,
   freeCancellationUntil,
+  policyDeadlines,
 } from '../src/tour-facts.js';
 
 describe('formatDurationShort', () => {
@@ -139,5 +140,24 @@ describe('freeCancellationUntil', () => {
         'Africa/Lagos',
       ),
     ).toBeNull();
+  });
+});
+
+describe('policyDeadlines', () => {
+  it("says Ìrìn's Standard policy as dates for one booking", () => {
+    const standard = {
+      rules: [
+        { hoursBefore: 48, refundBasisPoints: 10_000 },
+        { hoursBefore: 24, refundBasisPoints: 5_000 },
+        { hoursBefore: 0, refundBasisPoints: 0 },
+      ],
+      noShowRefundBasisPoints: 0,
+    };
+    expect(policyDeadlines(standard, '2026-12-05T08:00:00Z', 'Africa/Lagos', 'Ìrìn')).toEqual([
+      'Until Thu 3 Dec, 09:00: full refund',
+      'Until Fri 4 Dec, 09:00: 50% back',
+      'After that, or no-show: no refund',
+      'If Ìrìn cancels: full refund',
+    ]);
   });
 });

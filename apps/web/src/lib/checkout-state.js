@@ -21,11 +21,24 @@ import { api } from './api.js';
  *   counts: Record<string, number>,       // price category key → travellers
  *   addOns: Record<string, number>,       // add-on id → quantity
  *   pickup: string | null,                // pickup point name
+ *   lead: { name: string, email: string, phone: string, marketingConsent: boolean },
+ *   travellers: Array<{ name: string, age: string, dietaryNeeds: string }>,
+ *   payOption: 'full' | 'deposit',
+ *   booking: { token: string, key: string } | null,   // the held booking (step 3 → 4)
  * }} CheckoutState
  */
 
 /** @returns {CheckoutState} */
-const empty = () => ({ departure: null, counts: {}, addOns: {}, pickup: null });
+const empty = () => ({
+  departure: null,
+  counts: {},
+  addOns: {},
+  pickup: null,
+  lead: { name: '', email: '', phone: '', marketingConsent: false },
+  travellers: [],
+  payOption: 'full',
+  booking: null,
+});
 
 /** @param {string} key */
 function load(key) {

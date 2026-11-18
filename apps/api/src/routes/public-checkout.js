@@ -320,10 +320,10 @@ export function publicCheckoutRouter({
           throw new HttpError(
             400,
             'AGE_CATEGORY_MISMATCH',
-            // Category names carry their ages ("Child (3–12)"), so naming both explains it.
+            // The design's wording: "Child: ages 3–12. For age 13, go back and choose Adult."
             chosen
-              ? `For age ${t.age}, choose ${charged.name}, not ${chosen.name}.`
-              : `For age ${t.age}, choose ${charged.name}.`,
+              ? `${plainName(chosen)}: ages ${ageRange(chosen)}. For age ${t.age}, go back and choose ${plainName(charged)}.`
+              : `For age ${t.age}, go back and choose ${plainName(charged)}.`,
             { traveller: i, categoryKey: charged.key },
           );
         }
@@ -462,4 +462,14 @@ export function publicCheckoutRouter({
   );
 
   return router;
+}
+
+/** "Child (3–12)" → "Child": the name without its age range. @param {{ name: string }} c */
+function plainName(c) {
+  return c.name.replace(/\s*\(.*\)\s*$/, '');
+}
+
+/** "3–12" or "13 and over". @param {{ minAge: number, maxAge: number | null }} c */
+function ageRange(c) {
+  return c.maxAge === null ? `${c.minAge} and over` : `${c.minAge}–${c.maxAge}`;
 }

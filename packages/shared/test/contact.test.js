@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeEmail, normalizePhone, parseContact } from '../src/contact.js';
+import {
+  normalizeEmail,
+  normalizePhone,
+  parseContact,
+  formatPhoneForDisplay,
+} from '../src/contact.js';
 import { OtpVerifySchema } from '../src/schemas/auth.js';
 import { PermissionsSchema } from '../src/schemas/roles.js';
 import { buildPermissions } from '../src/permissions.js';
@@ -80,5 +85,12 @@ describe('slugify', () => {
     ['  Front Desk (Yaba) ', 'front-desk-yaba'],
   ])('turns %s into %s', (input, expected) => {
     expect(slugify(input)).toBe(expected);
+  });
+});
+
+describe('formatPhoneForDisplay', () => {
+  it('shows Nigerian numbers the local way, others as stored', () => {
+    expect(formatPhoneForDisplay('+2348031234567')).toBe('0803 123 4567');
+    expect(formatPhoneForDisplay('+447700900123')).toBe('+447700900123');
   });
 });

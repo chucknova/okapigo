@@ -183,7 +183,7 @@ describe('POST /public/:operatorSlug/bookings', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatchObject({
       code: 'AGE_CATEGORY_MISMATCH',
-      message: 'For age 13, choose Adult (13+), not Child (3–12).',
+      message: 'Child: ages 3–12. For age 13, go back and choose Adult.',
     });
   });
 

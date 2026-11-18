@@ -157,8 +157,45 @@ export function freeCancellationUntil(policy, startsAt, timeZone) {
     .filter((r) => r.refundBasisPoints >= 10_000)
     .sort((a, b) => a.hoursBefore - b.hoursBefore)[0];
   if (!free || free.hoursBefore === 0) return null;
-  const deadline = new Date(new Date(startsAt).getTime() - free.hoursBefore * 3_600_000);
-  const parts = Object.fromEntries(
+  return formatAt(new Date(startsAt).getTime() - free.hoursBefore * 3_600_000, timeZone);
+}
+
+/**
+ * A booking's cancellation terms as DATES, for the review screen (designs: "4 · Review and
+ * pay", the cancellation details):
+ *   "Until Thu 3 Dec, 09:00: full refund"
+ *   "Until Fri 4 Dec, 09:00: 50% back"
+ *   "After that, or no-show: no refund"
+ *   "If Ìrìn Lagos Tours cancels: full refund"
+ *
+ * @param {{ rules: Array<{ hoursBefore: number, refundBasisPoints: number }>, noShowRefundBasisPoints: number }} policy
+ * @param {Date | string} startsAt
+ * @param {string} timeZone
+ * @param {string} operatorName
+ */
+export function policyDeadlines(policy, startsAt, timeZone, operatorName) {
+  const start = new Date(startsAt).getTime();
+  const rules = [...policy.rules].sort((a, b) => b.hoursBefore - a.hoursBefore);
+  /** @type {string[]} */
+  const lines = [];
+  for (const rule of rules) {
+    const words = refundWords(rule.refundBasisPoints);
+    if (rule.hoursBefore === 0) {
+      const sameNoShow = rule.refundBasisPoints === policy.noShowRefundBasisPoints;
+      lines.push(`After that${sameNoShow ? ', or no-show' : ''}: ${words}`);
+      if (!sameNoShow) lines.push(`No-show: ${refundWords(policy.noShowRefundBasisPoints)}`);
+      continue;
+    }
+    lines.push(`Until ${formatAt(start - rule.hoursBefore * 3_600_000, timeZone)}: ${words}`);
+  }
+  if ((rules.at(-1)?.hoursBefore ?? 0) > 0) lines.push('After that, or no-show: no refund');
+  lines.push(`If ${operatorName} cancels: full refund`);
+  return lines;
+}
+
+/** "Thu 3 Dec, 09:00" for an instant, in a time zone. @param {number} ms @param {string} timeZone */
+function formatAt(ms, timeZone) {
+  const p = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
       weekday: 'short',
       day: 'numeric',
@@ -168,8 +205,8 @@ export function freeCancellationUntil(policy, startsAt, timeZone) {
       hourCycle: 'h23',
       timeZone,
     })
-      .formatToParts(deadline)
-      .map((p) => [p.type, p.value]),
+      .formatToParts(new Date(ms))
+      .map((x) => [x.type, x.value]),
   );
-  return `${parts.weekday} ${parts.day} ${parts.month}, ${parts.hour}:${parts.minute}`;
+  return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute}`;
 }

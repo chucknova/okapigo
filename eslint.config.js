@@ -56,7 +56,12 @@ export default [
   },
   // The web app's build and test config runs in Node.
   {
-    files: ['apps/web/vite.config.js', 'apps/web/scripts/**/*.js'],
+    files: [
+      'apps/web/vite.config.js',
+      'apps/web/playwright.config.js',
+      'apps/web/scripts/**/*.js',
+      'apps/web/e2e/**/*.js',
+    ],
     languageOptions: { globals: { ...globals.node } },
   },
 
