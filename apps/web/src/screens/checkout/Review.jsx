@@ -9,7 +9,7 @@
  * and when the hold ends. "Pay" asks the server for a Paystack checkout for the chosen
  * OPTION (never an amount) and sends the browser there.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatPhoneForDisplay } from '@okapigo/shared/contact';
@@ -24,7 +24,8 @@ import { Notice } from '../../components/Feedback.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
 import { CheckoutFrame, useTourForCheckout } from './CheckoutFrame.jsx';
-import { useEmbedded } from '../embed/Embed.jsx';
+import { useEmbedded } from '../../lib/embedded.js';
+import { usePolling } from '../../lib/polling.js';
 
 // Booked already (paid in full or a deposit): the guest belongs on the confirmation page.
 const BOOKED = ['confirmed', 'part_paid', 'paid', 'amended', 'completed'];
@@ -115,6 +116,23 @@ export function Review({ params }) {
       gone = true;
     };
   }, [token, alreadyBooked, openPayment, navigate]);
+  // IN THE WIDGET, after Paystack opened in its own tab (stage 12h-2): watch the booking.
+  // Every 3 s look again; every third time also ask Paystack (the webhook usually comes
+  // first). Once it's paid, the effect above takes the frame to "Booking confirmed".
+  const ticks = useRef(0);
+  usePolling(
+    () => {
+      ticks.current += 1;
+      if (openPayment && ticks.current % 3 === 0) {
+        api(`/public/bookings/${token}/payments/${openPayment}/check`, { method: 'POST' }).catch(
+          () => {},
+        );
+      }
+      bookingApi.retry();
+    },
+    3_000,
+    paying === 'away',
+  );
   // "Checking your payment…" until that answer is in (worked out, not stored).
   const checking = Boolean(openPayment) && checkedPayment !== openPayment;
 

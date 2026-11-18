@@ -10,6 +10,8 @@
  *   all tours       the list, on a dark host page
  */
 import { test, expect } from '@playwright/test';
+import { existsSync } from 'node:fs';
+import { createPrismaClient } from '@okapigo/db';
 
 const slug = () => /** @type {string} */ (process.env.E2E_OPERATOR_SLUG);
 const host = (/** @type {string} */ origin, /** @type {string} */ extra = '') =>
@@ -56,7 +58,13 @@ test('on an approved website: book a tour inside the widget, pay in a new tab', 
   await expect(tab.getByRole('heading', { name: 'Booking confirmed' })).toBeVisible({
     timeout: 30_000,
   });
-  await expect(widget.getByText('Paystack is open in a new tab')).toBeVisible();
+  // The frame followed the payment (stage 12h-2), and the host page heard about it.
+  await expect(widget.getByRole('heading', { name: 'Booking confirmed' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect
+    .poll(() => page.evaluate(() => /** @type {any} */ (window).okgEvents.length))
+    .toBe(1);
   expect(new URL(page.url()).port).toBe('4200');
 });
 
@@ -89,4 +97,80 @@ test('all tours, on a dark host site', async ({ page }) => {
   await widget.getByRole('link', { name: /Lagos Street Food Crawl/ }).click();
   await expect(widget.getByText('Choose a date').first()).toBeVisible();
   await expect(widget.getByText('Lagos Street Food Crawl · Step 1 of 4')).toBeVisible();
+});
+
+test('the "Book now" button: checkout in an overlay, paid in a new tab, confirmed in the overlay', async ({
+  page,
+  context,
+}) => {
+  // The host page arrived from a newsletter: the code reaches the booking.
+  await page.goto(
+    host(
+      'http://localhost:4200',
+      '&tour=lagos-island-heritage-walk&widget=button&colour=%230F4C5C&utm_source=newsletter',
+    ),
+  );
+  const button = page.locator('#slot button');
+  await expect(button).toHaveText('Book now');
+  await expect(button).toBeVisible(); // shown once the site was approved
+
+  // Open, and close with Escape: focus comes back to the button.
+  await button.click();
+  const overlay = page.frameLocator('[data-okapigo-overlay] iframe');
+  await expect(overlay.getByText('Choose a date').first()).toBeVisible();
+  await expect(overlay.getByRole('button', { name: 'Close' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-okapigo-overlay]')).toHaveCount(0);
+  await expect(button).toBeFocused();
+
+  // Open again and book: a date, one adult, details, review.
+  await button.click();
+  await overlay.getByRole('button', { name: /left$/ }).nth(3).click();
+  await expect(overlay.getByText('Who’s coming?', { exact: true }).first()).toBeVisible();
+  await expect(overlay.getByRole('link', { name: 'Back' })).toBeVisible(); // beside Close now
+  await overlay.getByRole('button', { name: 'Continue' }).last().click();
+  await overlay.getByLabel('Full name').first().fill('Ngozi Eze');
+  await overlay.getByLabel('Email').fill('ngozi.eze@guest.example');
+  await overlay.getByText('I’m travelling too').click();
+  await overlay.getByLabel('Age', { exact: true }).fill('27');
+  await overlay.getByText(/I accept the booking terms/).click();
+  await overlay.getByRole('button', { name: 'Continue to payment' }).click();
+
+  const [tab] = await Promise.all([
+    context.waitForEvent('page'),
+    overlay.getByRole('button', { name: 'Pay ₦25,000' }).click(),
+  ]);
+  await tab.getByRole('button', { name: 'Pay ₦25,000' }).click(); // the simulator's page
+  await expect(tab.getByRole('heading', { name: 'Booking confirmed' })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  // Back on the operator's site: the overlay followed the payment…
+  await expect(overlay.getByRole('heading', { name: 'Booking confirmed' })).toBeVisible({
+    timeout: 30_000,
+  });
+  // …and the host page heard about it, with nothing personal.
+  await expect
+    .poll(() => page.evaluate(() => /** @type {any} */ (window).okgEvents.length))
+    .toBe(1);
+  const [event] = await page.evaluate(() => /** @type {any} */ (window).okgEvents);
+  expect(event).toMatchObject({
+    operator: slug(),
+    tour: 'lagos-island-heritage-walk',
+    amountPaidKobo: 2_500_000,
+    currency: 'NGN',
+  });
+  expect(JSON.stringify(event)).not.toContain('Ngozi');
+
+  // The booking says where it came from: the widget, on this site, from the newsletter.
+  const rootEnv = new URL('../../../.env', import.meta.url);
+  if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
+  const prisma = createPrismaClient(process.env.DATABASE_URL);
+  const booking = await prisma.booking.findFirstOrThrow({ where: { reference: event.reference } });
+  await prisma.$disconnect();
+  expect(booking.attribution).toEqual({
+    via: 'widget',
+    host: 'localhost:4200',
+    utm_source: 'newsletter',
+  });
 });

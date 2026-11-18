@@ -90,14 +90,14 @@ describe('the frames', () => {
 });
 
 describe('embed-check and embed.js', () => {
-  it('answers yes only for an approved Origin, to any site (CORS), and says nothing else', async () => {
+  it('answers yes only for an approved Origin, to any site (CORS), and never the list itself', async () => {
     const { operator } = await approved(['irinlagostours.com']);
     const ask = (/** @type {string | undefined} */ origin) => {
       const r = request(ctx.app).get(`/public/${operator.slug}/embed-check`);
       return origin ? r.set('Origin', origin) : r;
     };
     const yes = await ask('https://irinlagostours.com');
-    expect(yes.body).toEqual({ approved: true });
+    expect(yes.body).toEqual({ approved: true, buttonRadius: 12 }); // + the button's corners (12h-2)
     expect(yes.headers['access-control-allow-origin']).toBe('*');
     expect((await ask('https://evil.example')).body).toEqual({ approved: false });
     expect((await ask('http://irinlagostours.com')).body).toEqual({ approved: false });
@@ -111,5 +111,74 @@ describe('embed-check and embed.js', () => {
     expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
     expect(res.text).toContain('e.origin !== BASE || e.source !== frame.contentWindow');
     expect(res.text).toContain('/embed-check');
+  });
+});
+
+describe('stage 12h-2', () => {
+  /** A held booking through the public checkout, with the given attribution. */
+  async function bookWith(/** @type {any} */ attribution) {
+    const seeded = await ctx.seedOperator();
+    const deps = (
+      await request(ctx.app).get(
+        `/public/${seeded.operator.slug}/tours/lagos-island-heritage-walk/departures`,
+      )
+    ).body.departures;
+    const res = await request(ctx.app)
+      .post(`/public/${seeded.operator.slug}/bookings`)
+      .send({
+        lead: { name: 'Tola Bello', email: 'tola@guest.example', acceptTerms: true },
+        departureId: deps[0].id,
+        travellers: [{ name: 'Tola Bello', age: 30 }],
+        addOns: [],
+        attribution,
+      });
+    return { ...seeded, res };
+  }
+
+  it('where a booking came from is kept, and staff see it', async () => {
+    const attribution = {
+      via: 'widget',
+      host: 'irinlagostours.com',
+      utm_source: 'instagram',
+      utm_campaign: 'december',
+    };
+    const { res, manager, operator } = await bookWith(attribution);
+    expect(res.status).toBe(201);
+    const row = await ctx.prisma.booking.findFirstOrThrow({ where: { operatorId: operator.id } });
+    expect(row.attribution).toEqual(attribution);
+    const staff = await request(ctx.app)
+      .get(`/api/bookings/${row.id}`)
+      .set('Authorization', `Bearer ${await ctx.tokenFor(manager.id)}`);
+    expect(staff.body.booking.attribution).toEqual(attribution);
+  });
+
+  it('none given → null; junk in a link is refused', async () => {
+    const { res, operator } = await bookWith(undefined);
+    expect(res.status).toBe(201);
+    const row = await ctx.prisma.booking.findFirstOrThrow({ where: { operatorId: operator.id } });
+    expect(row.attribution).toBeNull();
+
+    for (const bad of [
+      { utm_source: '<script>alert(1)</script>' },
+      { utm_source: 'x'.repeat(101) },
+      { via: 'carrier-pigeon' },
+      { host: 'irin.com/path?q=1' },
+      { email: 'tola@guest.example' }, // unknown keys aren't stored
+    ]) {
+      expect((await bookWith(bad)).res.status, JSON.stringify(bad)).toBe(400);
+    }
+  });
+
+  it('embed-check gives the "Book now" button the style’s corners', async () => {
+    const { operator, owner: o } = await approved(['irinlagostours.com']);
+    const ask = () =>
+      request(ctx.app)
+        .get(`/public/${operator.slug}/embed-check`)
+        .set('Origin', 'https://irinlagostours.com');
+    expect((await ask()).body).toEqual({ approved: true, buttonRadius: 12 }); // Lagoon
+    await owner(await ctx.tokenFor(o.id))
+      .patch('/api/website')
+      .send({ style: 'earth' });
+    expect((await ask()).body).toEqual({ approved: true, buttonRadius: 999 }); // Earth: pills
   });
 });

@@ -348,7 +348,31 @@ describe('step 4: review and pay', () => {
           </EmbedFrame>
         </Router>,
       );
+      return memory;
     };
+
+    it('while Paystack is open in the other tab, it watches; once paid, the frame shows the confirmation', async () => {
+      withBooking();
+      vi.stubGlobal(
+        'open',
+        vi.fn(() => ({ opener: {}, location: { href: '' }, close: vi.fn() })),
+      );
+      let paid = false;
+      fakeApi({
+        '/public/bookings/TTTT': (path) =>
+          path.endsWith('/pay')
+            ? [201, { payment: { authorizationUrl: 'https://checkout.example/w' } }]
+            : [200, { booking: heldBooking(paid ? { status: 'paid' } : {}) }],
+      });
+      const memory = renderEmbedded('/irin/badagry/book/review');
+      fireEvent.click(await screen.findByRole('button', { name: 'Pay ₦65,000' }));
+      expect(await screen.findByText('Paystack is open in a new tab')).toBeTruthy();
+
+      paid = true; // the guest pays in the other tab; the webhook confirms the booking
+      await waitFor(() => expect(memory.history.at(-1)).toBe(`/trip/${'T'.repeat(44)}/confirm`), {
+        timeout: 6_000,
+      });
+    });
 
     it('says Paystack opens in a new tab, opens it AT THE TAP, then sends it to Paystack', async () => {
       withBooking();

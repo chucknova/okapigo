@@ -14,7 +14,7 @@
  *
  * and then shows: confirmed (full or deposit) · didn't go through · paid after the hold ended.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearch } from 'wouter';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatDuration, formatLocalDay } from '@okapigo/shared/preview';
@@ -24,6 +24,7 @@ import { api } from '../../lib/api.js';
 import { useApi } from '../../lib/data.js';
 import { usePolling } from '../../lib/polling.js';
 import { rememberTrip } from '../../lib/trips.js';
+import { useEmbedded } from '../../lib/embedded.js';
 import { Shell } from '../../components/Shell.jsx';
 import { StatusPanel } from '../../components/StatusPanel.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
@@ -69,6 +70,30 @@ export function Confirm({ params }) {
   useEffect(() => {
     if (b?.reference) rememberTrip(b.reference, token);
   }, [b?.reference, token]);
+
+  // IN THE WIDGET (stage 12h-2): tell the host page a booking was made, once. Only what a
+  // host needs for its own records (the reference, tour, amount): nothing personal. '*' is
+  // safe: only the operator's approved websites can hold this frame (frame-ancestors).
+  const embedded = useEmbedded();
+  const booked = Boolean(b && BOOKED.includes(b.status));
+  const told = useRef(false);
+  useEffect(() => {
+    if (!embedded || !booked || told.current || !b || window.parent === window) return;
+    told.current = true;
+    window.parent.postMessage(
+      {
+        type: 'okapigo:booking-completed',
+        booking: {
+          reference: b.reference,
+          operator: b.operator.slug,
+          tour: b.tour.slug,
+          amountPaidKobo: b.amountPaidKobo,
+          currency: 'NGN',
+        },
+      },
+      '*',
+    );
+  }, [embedded, booked, b]);
 
   if (!b) {
     return (
@@ -177,6 +202,24 @@ function sentTo(lead) {
 }
 
 /**
+ * A link to the guest's trip pages. In the widget they open in their own tab: they're private
+ * pages of their own, not steps of the widget.
+ * @param {{ href: string, className: string, children: import('react').ReactNode }} props
+ */
+function TripLink({ href, className, children }) {
+  const embedded = useEmbedded();
+  return embedded ? (
+    <a className={className} href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ) : (
+    <Link className={className} href={href}>
+      {children}
+    </Link>
+  );
+}
+
+/**
  * D · Booking confirmed: full payment or deposit (designs: file 02, both D screens).
  * @param {{ b: any, token: string, contacts: string | null }} props
  */
@@ -236,15 +279,15 @@ function Confirmed({ b, token, contacts }) {
             Pay by {formatLocalDay(/** @type {string} */ (due))}. We’ll remind you on WhatsApp with
             a link before then.
           </p>
-          <Link className="okg-btn okg-btn--primary" href={`/trip/${token}/pay`}>
+          <TripLink className="okg-btn okg-btn--primary" href={`/trip/${token}/pay`}>
             Pay balance now
-          </Link>
+          </TripLink>
         </section>
       )}
 
-      <Link className="okg-btn okg-btn--primary okg-btn--pay" href={`/trip/${token}`}>
+      <TripLink className="okg-btn okg-btn--primary okg-btn--pay" href={`/trip/${token}`}>
         Open your trip page
-      </Link>
+      </TripLink>
       <p className="okg-label">Your QR ticket, what to bring and the map</p>
 
       <section className="okg-card okg-review">

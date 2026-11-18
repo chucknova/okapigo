@@ -14,7 +14,7 @@
  * The frame tells the host page how tall it is (embed.js resizes the <iframe>), every time
  * its content changes. It sends only a number, so it can send it to any page ('*').
  */
-import { createContext, useContext, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'wouter';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatLocalDay } from '@okapigo/shared/preview';
@@ -25,10 +25,15 @@ import { seatsLabel, summariseDates } from '../../lib/dates.js';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
 import { useTourForCheckout } from '../checkout/CheckoutFrame.jsx';
+import {
+  EmbeddedContext,
+  closeOverlay,
+  overlayVisit,
+  useOverlayClose,
+} from '../../lib/embedded.js';
+import { Icon } from '../../components/Icon.jsx';
 
-/** True inside the widget: Pay opens Paystack in a new tab instead of in the frame. */
-const EmbeddedContext = createContext(false);
-export const useEmbedded = () => useContext(EmbeddedContext);
+export { useEmbedded } from '../../lib/embedded.js';
 
 /** How many date tiles the one-tour widget shows (designs: six, then ›). */
 const TILES = 6;
@@ -40,14 +45,26 @@ const TILES = 6;
  */
 export function EmbedFrame({ children }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [overlay] = useState(() => overlayVisit(location.search));
   // The page behind the card is see-through (embed.css). The server marks its widget pages,
   // but the dev server's page and in-app navigation need the mark set here too.
   useEffect(() => {
     document.documentElement.dataset.embed = '';
-  }, []);
+    if (overlay) document.documentElement.dataset.overlay = '';
+  }, [overlay]);
+  // In the overlay, Escape closes it (pressed in here, the host page never hears it).
+  useEffect(() => {
+    if (!overlay) return;
+    const onKey = (/** @type {KeyboardEvent} */ e) => {
+      if (e.key === 'Escape') closeOverlay();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [overlay]);
   useEffect(() => {
     const el = ref.current;
-    if (!el || window.parent === window) return; // opened on its own, not in a frame
+    // Not in a frame, or in the overlay (a fixed size that scrolls): nothing to report.
+    if (!el || window.parent === window || overlay) return;
     const report = () =>
       window.parent.postMessage({ type: 'okapigo:resize', height: el.offsetHeight }, '*');
     report();
@@ -59,9 +76,9 @@ export function EmbedFrame({ children }) {
     const observer = new ResizeObserver(report);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [overlay]);
   return (
-    <EmbeddedContext.Provider value={true}>
+    <EmbeddedContext.Provider value={{ embedded: true, overlay }}>
       <div className="okg-embed" ref={ref}>
         {children}
       </div>
@@ -176,10 +193,24 @@ export function EmbedTours({ params }) {
     retry,
   } = useApi(`/public/${encodeURIComponent(slug)}`, initial?.view ?? null);
   useLook(view?.operator);
+  const close = useOverlayClose(); // in the overlay: a top bar with Close
   if (!view) return error ? <ErrorState error={error} onRetry={retry} /> : <WidgetSkeleton />;
   const { operator, tours } = view;
   return (
     <section className="okg-embed__tours" aria-label={`${operator.name}: tours`}>
+      {close && (
+        <div className="okg-embed__bar">
+          <span className="okg-strong">{operator.name}</span>
+          <button
+            type="button"
+            className="okg-icon-btn okg-icon-btn--plain"
+            onClick={close}
+            aria-label="Close"
+          >
+            <Icon name="close" size={22} />
+          </button>
+        </div>
+      )}
       {tours.length === 0 ? (
         <p className="okg-muted">New tours coming soon.</p>
       ) : (

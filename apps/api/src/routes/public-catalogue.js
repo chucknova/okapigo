@@ -21,6 +21,7 @@
  * Holds, bookings and payments for guests are added in stages 11b and 11c.
  */
 import { originApproved } from '@okapigo/shared/schemas/website';
+import { STYLES } from '@okapigo/shared/tokens';
 import { Router } from 'express';
 import { z } from 'zod';
 import { listAvailability } from '@okapigo/db';
@@ -97,15 +98,18 @@ export function publicCatalogueRouter({ prisma }) {
     async (req, res) => {
       const operator = await prisma.operator.findUnique({
         where: { slug: req.params.operatorSlug },
-        select: { embedDomains: true },
+        select: { embedDomains: true, websiteStyle: true },
       });
+      const ok = operator ? originApproved(operator.embedDomains, req.get('Origin')) : false;
+      // The "Book now" button's corners follow the operator's style (designs: "radius from
+      // the style"), so embed.js can draw it without knowing anything else.
+      const style =
+        STYLES[/** @type {keyof typeof STYLES} */ (operator?.websiteStyle)] ?? STYLES.lagoon;
       res
         .set('Access-Control-Allow-Origin', '*')
         .set('Vary', 'Origin')
         .set('Cache-Control', 'no-store')
-        .json({
-          approved: operator ? originApproved(operator.embedDomains, req.get('Origin')) : false,
-        });
+        .json(ok ? { approved: true, buttonRadius: style.radius.button } : { approved: false });
     },
   );
 

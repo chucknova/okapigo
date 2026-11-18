@@ -438,6 +438,7 @@ export function publicCheckoutRouter({
           departureId,
           productId: departure.productId,
           channel: 'web',
+          attribution: req.body.attribution,
           lead: {
             name: lead.name,
             email: lead.email ?? null,

@@ -31,6 +31,14 @@
       var slot = document.getElementById('slot');
       slot.setAttribute('data-okapigo', q.get('op') || '');
       if (q.get('tour')) slot.setAttribute('data-tour', q.get('tour'));
+      // The "Book now" button (stage 12h-2): ?widget=button&colour=%230F4C5C
+      if (q.get('widget')) slot.setAttribute('data-widget', q.get('widget'));
+      if (q.get('colour')) slot.setAttribute('data-colour', q.get('colour'));
+      // What a host page does with the booking-completed event: here, keep it for the test.
+      window.okgEvents = [];
+      document.addEventListener('okapigo:booking-completed', function (e) {
+        window.okgEvents.push(e.detail);
+      });
       var s = document.createElement('script');
       s.src = (q.get('base') || 'http://localhost:4100') + '/embed.js';
       s.async = true;

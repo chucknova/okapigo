@@ -3,10 +3,12 @@
  * sold-out and no-dates states, all tours, and the height report to the host page.
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import { EmbedFrame, EmbedTour, EmbedTours } from '../src/screens/embed/Embed.jsx';
+import { CheckoutFrame } from '../src/screens/checkout/CheckoutFrame.jsx';
+import { Confirm } from '../src/screens/trip/Confirm.jsx';
 import { resetEmbedded } from '../src/lib/data.js';
 
 const operator = {
@@ -55,7 +57,11 @@ function renderAt(path, Screen, pattern) {
 }
 const departures = (list) => [200, { from: '2026-11-18', to: '2027-01-12', departures: list }];
 
-beforeEach(() => resetEmbedded());
+beforeEach(() => {
+  resetEmbedded();
+  sessionStorage.clear();
+  window.history.replaceState({}, '', '/');
+});
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -172,5 +178,144 @@ describe('the frame', () => {
     expect(typeof msg.height).toBe('number');
     expect(target).toBe('*'); // safe: it's only a number
     expect(observed[0]?.className).toBe('okg-embed'); // it watches its own box, not the page
+  });
+});
+
+describe('the overlay (stage 12h-2)', () => {
+  /** Opens a screen the way the overlay does: /embed/…?overlay=1. */
+  const inOverlay = (ui) => {
+    window.history.replaceState({}, '', '/embed/irin/walk/book?overlay=1');
+    const memory = memoryLocation({ path: '/irin/walk/book' });
+    render(
+      <Router hook={memory.hook}>
+        <EmbedFrame>{ui}</EmbedFrame>
+      </Router>,
+    );
+  };
+  const step = (n) => (
+    <CheckoutFrame
+      step={n}
+      title="Choose a date"
+      subtitle="Walk · Step 1 of 4"
+      operatorName="Ìrìn"
+      backHref="/irin/walk"
+    >
+      <p>content</p>
+    </CheckoutFrame>
+  );
+
+  it('step 1: Close where Back usually is; it asks the host page to close', () => {
+    const posted = [];
+    vi.spyOn(window, 'parent', 'get').mockReturnValue(
+      /** @type {any} */ ({ postMessage: (m) => posted.push(m) }),
+    );
+    inOverlay(step(1));
+    expect(screen.queryByRole('link', { name: 'Back' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(posted).toContainEqual({ type: 'okapigo:close' });
+    // Escape too (inside the frame, the host page never hears the key).
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(posted.filter((m) => m.type === 'okapigo:close')).toHaveLength(2);
+    // In the overlay the frame doesn't report a height (its size is fixed).
+    expect(posted.some((m) => m.type === 'okapigo:resize')).toBe(false);
+  });
+
+  it('from step 2: Back appears beside Close; and the overlay is remembered between steps', () => {
+    inOverlay(step(2));
+    cleanup();
+    window.history.replaceState({}, '', '/embed/irin/walk/book/who'); // no ?overlay=1 now
+    const memory = memoryLocation({ path: '/irin/walk/book/who' });
+    render(
+      <Router hook={memory.hook}>
+        <EmbedFrame>{step(2)}</EmbedFrame>
+      </Router>,
+    );
+    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Back' })).toBeTruthy();
+  });
+
+  it('outside the overlay there is no Close', () => {
+    const memory = memoryLocation({ path: '/irin/walk/book' });
+    render(
+      <Router hook={memory.hook}>
+        <EmbedFrame>{step(1)}</EmbedFrame>
+      </Router>,
+    );
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Back' })).toBeTruthy();
+  });
+});
+
+describe('booking completed (stage 12h-2)', () => {
+  const T = 'T'.repeat(44);
+  const booked = {
+    reference: 'ILT-7K4Q2M',
+    status: 'paid',
+    operator: { slug: 'irin', name: 'Ìrìn Lagos Tours', timeZone: 'Africa/Lagos' },
+    tour: {
+      slug: 'walk',
+      title: 'Heritage Walk',
+      durationMinutes: 180,
+      meetingPoint: { name: 'Tinubu Square', address: 'Broad Street' },
+    },
+    departure: { startsAt: '2026-12-05T08:00:00Z', localDate: '2026-12-05', localTime: '09:00' },
+    pickupPoint: null,
+    lead: { name: 'Tola Bello', email: 'tola@guest.example', phone: null },
+    travellers: [{ name: 'Tola Bello', age: 30, categoryKey: 'adult', dietaryNeeds: '' }],
+    quote: { lines: [], tax: { name: 'VAT', inclusive: true }, taxKobo: 0 },
+    totalKobo: 2_500_000,
+    amountPaidKobo: 2_500_000,
+    balanceKobo: 0,
+    balanceDueDate: null,
+    paymentOptions: [],
+    payments: [
+      {
+        reference: 'OKG-A',
+        status: 'succeeded',
+        purpose: 'full',
+        amountKobo: 2_500_000,
+        paidAt: '2026-11-18T10:00:00Z',
+      },
+    ],
+    cancellationPolicy: null,
+  };
+
+  it('in the widget, the confirmation tells the host page once, with nothing personal; trip links open a new tab', async () => {
+    const posted = [];
+    vi.spyOn(window, 'parent', 'get').mockReturnValue(
+      /** @type {any} */ ({ postMessage: (m) => posted.push(m) }),
+    );
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    fakeApi({ [`/public/bookings/${T}`]: [200, { booking: booked }] });
+    const memory = memoryLocation({ path: `/trip/${T}/confirm?reference=OKG-A` });
+    render(
+      <Router hook={memory.hook}>
+        <EmbedFrame>
+          <Route path="/trip/:token/confirm" component={Confirm} />
+        </EmbedFrame>
+      </Router>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Booking confirmed' })).toBeTruthy();
+    await waitFor(() =>
+      expect(posted.filter((m) => m.type === 'okapigo:booking-completed')).toHaveLength(1),
+    );
+    const event = posted.find((m) => m.type === 'okapigo:booking-completed');
+    expect(event.booking).toEqual({
+      reference: 'ILT-7K4Q2M',
+      operator: 'irin',
+      tour: 'walk',
+      amountPaidKobo: 2_500_000,
+      currency: 'NGN',
+    });
+    expect(JSON.stringify(event)).not.toContain('Tola');
+    const trip = screen.getByRole('link', { name: 'Open your trip page' });
+    expect(trip.getAttribute('target')).toBe('_blank');
+    expect(trip.getAttribute('href')).toBe(`/trip/${T}`);
   });
 });

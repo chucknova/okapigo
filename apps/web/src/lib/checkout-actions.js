@@ -8,6 +8,7 @@
  */
 import { api } from './api.js';
 import { addOnSelections, basketKey } from './checkout.js';
+import { currentAttribution } from './attribution.js';
 
 /**
  * Holds the seats and creates the booking from what the guest entered. If an older booking
@@ -45,6 +46,8 @@ export async function holdAndBook(operatorSlug, state, slots) {
       })),
       addOns: addOnSelections(state.addOns),
       pickupPoint: state.pickup,
+      // Where this visit came from: website or widget, UTM codes (stage 12h-2).
+      attribution: currentAttribution(),
     },
   });
   return { token: result.token, key: basketKey(state) };

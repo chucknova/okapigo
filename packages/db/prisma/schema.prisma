@@ -543,6 +543,10 @@ model Booking {
   // a reference, so renaming a pickup point later can't change where this guest is waiting.
   // Required on tours that have pickup points (Lekki), null on the others (stage 11b).
   pickupPoint Json? @map("pickup_point")
+  // Where a guest booking came from (stage 12h-2): { via: website | widget, host?, utm_source?,
+  // utm_medium?, utm_campaign?, utm_term?, utm_content? }, from AttributionSchema. Null when
+  // nothing was known (staff bookings, links without codes).
+  attribution Json?
   // (No guest token column: guest links are SIGNED from the booking id, see guest-links.js.)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)

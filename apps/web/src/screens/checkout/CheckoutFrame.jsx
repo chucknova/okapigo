@@ -13,6 +13,7 @@ import { firstLetter } from '../../components/Shell.jsx';
 import { Icon } from '../../components/Icon.jsx';
 import { takeEmbedded, useApi } from '../../lib/data.js';
 import { useLook } from '../../lib/look.js';
+import { useOverlayClose } from '../../lib/embedded.js';
 
 export const STEPS = ['Date', 'Who and extras', 'Details', 'Review and pay'];
 
@@ -58,13 +59,28 @@ export function CheckoutFrame({
   headerExtra,
   children,
 }) {
+  // In the widget's overlay (stage 12h-2), a Close sits where Back usually is; from step 2
+  // on, Back appears beside it (designs: file 03, "Overlay on a phone").
+  const close = useOverlayClose();
   return (
     <div className="okg-checkout">
       <header className="okg-checkout__header">
         <div className="okg-checkout__bar okg-phone-only">
-          <Link className="okg-icon-btn okg-icon-btn--plain" href={backHref} aria-label="Back">
-            <Icon name="back" size={22} />
-          </Link>
+          {close && (
+            <button
+              type="button"
+              className="okg-icon-btn okg-icon-btn--plain"
+              onClick={close}
+              aria-label="Close"
+            >
+              <Icon name="close" size={22} />
+            </button>
+          )}
+          {!(close && step === 1) && (
+            <Link className="okg-icon-btn okg-icon-btn--plain" href={backHref} aria-label="Back">
+              <Icon name="back" size={22} />
+            </Link>
+          )}
           <div className="okg-checkout__titles">
             <p className="okg-checkout__title">{title}</p>
             <p className="okg-label">{subtitle}</p>

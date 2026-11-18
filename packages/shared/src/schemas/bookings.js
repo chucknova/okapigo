@@ -113,6 +113,35 @@ export const ListBookingsQuerySchema = z.object({
  * counters, so the server can say "Children are 3–12. For age 13, choose Adult." No notes:
  * staff notes are internal.
  */
+/**
+ * Where a guest booking came from (BKG-01 "UTM codes carry into the booking", stage 12h-2):
+ * the website or the widget, the widget's host site, and the campaign codes from the address
+ * the guest arrived at (?utm_source=instagram&utm_campaign=december). Typed by nobody we
+ * trust (they're in a link), so short plain text only, and unknown keys are refused.
+ */
+const utm = z
+  .string()
+  .trim()
+  .max(100)
+  .regex(/^[\p{L}\p{N} ._\-+:/]*$/u, 'Letters, numbers and . _ - + : / only.');
+export const AttributionSchema = z
+  .object({
+    via: z.enum(['website', 'widget']).optional(),
+    // The host page's name, for the widget ("irinlagostours.com"): no path, no query.
+    host: z
+      .string()
+      .trim()
+      .max(255)
+      .regex(/^[a-z0-9.-]+(:\d{2,5})?$/i)
+      .optional(),
+    utm_source: utm.optional(),
+    utm_medium: utm.optional(),
+    utm_campaign: utm.optional(),
+    utm_term: utm.optional(),
+    utm_content: utm.optional(),
+  })
+  .strict();
+
 export const PublicCreateBookingSchema = z.object({
   departureId: z.uuid(),
   lead: LeadBookerSchema,
@@ -122,4 +151,5 @@ export const PublicCreateBookingSchema = z.object({
     .max(20, 'For groups over 20, please contact the operator'),
   addOns: AddOnSelectionsSchema,
   pickupPoint: PickupPointName,
+  attribution: AttributionSchema.optional(),
 });

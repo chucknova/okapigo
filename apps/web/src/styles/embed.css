@@ -157,3 +157,20 @@ html[data-embed] .okg-checkout {
   padding: 0 var(--space-4);
   font-size: 15px;
 }
+
+/* --- In the overlay ("Book now" button, stage 12h-2) ----------------------------------------
+   A fixed-size frame over the dimmed host page: the widget fills it and scrolls inside.
+   embed.js rounds the overlay box itself, so no border or radius here. */
+
+html[data-overlay] .okg-embed {
+  min-height: 100vh;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.okg-embed__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}

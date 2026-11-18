@@ -16,9 +16,12 @@ import './styles/site.css';
 import './styles/embed.css';
 import { App } from './App.jsx';
 import { startPreview } from './lib/look.js';
+import { captureAttribution } from './lib/attribution.js';
 
 // ?style=earth&mode=dark on any address previews another website style (lib/look.js).
 startPreview(location.search);
+// UTM codes and the widget's host site, carried into the booking (lib/attribution.js).
+captureAttribution(location.search, location.pathname);
 
 const root = /** @type {HTMLElement} */ (document.getElementById('root'));
 createRoot(root).render(

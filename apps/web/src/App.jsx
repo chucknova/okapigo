@@ -54,6 +54,8 @@ export function App() {
       <Route path="/embed" nest>
         <EmbedFrame>
           <Switch>
+            {/* After paying in the other tab, the confirmation shows in the frame too. */}
+            <Route path="/trip/:token/confirm" component={Confirm} />
             <Route path="/:operator/:tour/book/review" component={Review} />
             <Route path="/:operator/:tour/book/details" component={Details} />
             <Route path="/:operator/:tour/book/who" component={WhoComing} />

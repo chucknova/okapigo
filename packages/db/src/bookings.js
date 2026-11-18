@@ -43,6 +43,7 @@ const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
  *   holdMinutes: number,
  *   notes?: string,
  *   pickupPointName?: string | null,   // required when the tour has pickup points
+ *   attribution?: Record<string, string>,  // where it came from (stage 12h-2)
  *   actor: Actor,
  *   now?: Date,
  * }} input
@@ -96,6 +97,11 @@ export async function createBooking(prisma, input) {
             marketingConsent: input.lead.marketingConsent,
             notes: input.notes ?? '',
             pickupPoint: pickupPoint ?? undefined, // undefined → SQL NULL
+            // Where it came from (stage 12h-2); only when something is known.
+            attribution:
+              input.attribution && Object.keys(input.attribution).length > 0
+                ? input.attribution
+                : undefined,
           },
         });
 
