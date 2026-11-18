@@ -40,6 +40,7 @@ import { Shell } from '../../components/Shell.jsx';
 import { StatusPanel } from '../../components/StatusPanel.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
+import { useLook } from '../../lib/look.js';
 
 const MINUTE_MS = 60_000;
 
@@ -77,6 +78,7 @@ export function TripHub({ params }) {
   }, [fresh, token]);
 
   const b = fresh ?? saved?.booking ?? null;
+  useLook(b?.operator); // the saved copy has it too: the right style, even offline
   const unreachable =
     !fresh &&
     live.error instanceof ApiError &&

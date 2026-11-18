@@ -38,8 +38,10 @@ model Operator {
   currency     String   @default("NGN") @db.Char(3)
   // IANA time zone. Departure times are shown in the operator's local time.
   timeZone     String   @default("Africa/Lagos") @map("time_zone")
-  // Which of the 2–3 generated website styles the operator picked (MKT-08, session 10+).
-  websiteStyle String   @default("classic") @map("website_style")
+  // The look of every guest page (MKT-08, stage 12g): lagoon · classic · earth, and light ·
+  // dark · auto (follow the guest's phone). Only the look: links and content never change.
+  websiteStyle String   @default("lagoon") @map("website_style")
+  websiteMode  String   @default("auto") @map("website_mode")
   // Tax and fee settings fed into the pricing pipeline (packages/shared/src/pricing.js).
   // Shape: { tax: { name, basisPoints, inclusive } | null, fees: [{ name, type, ... }] }
   // validated by OperatorPricingSchema. Default: prices INCLUDE 7.5% VAT, no extra fees.

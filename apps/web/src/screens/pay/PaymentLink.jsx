@@ -20,6 +20,7 @@ import { Shell } from '../../components/Shell.jsx';
 import { StatusPanel } from '../../components/StatusPanel.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
+import { useLook } from '../../lib/look.js';
 
 const TITLE = {
   deposit: 'Pay your deposit',
@@ -37,6 +38,7 @@ export function PaymentLink({ params, done = false }) {
   const [paying, setPaying] = useState(/** @type {'idle' | 'starting' | 'unavailable'} */ ('idle'));
   const [gaveUp, setGaveUp] = useState(false);
   const link = res.data?.link;
+  useLook(link?.operator);
 
   // Back from Paystack: the link turns "paid" once the webhook lands (a few seconds). Look
   // every 2 s for a minute, then stop (the confirmation also goes out by message). From 8 s,

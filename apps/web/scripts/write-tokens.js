@@ -5,8 +5,8 @@
  * (test/tokens.test.js fails if the CSS file is out of date, so forgetting is caught.)
  */
 import { writeFileSync } from 'node:fs';
-import { LAGOON, tokensToCss } from '@okapigo/shared/tokens';
+import { stylesToCss } from '@okapigo/shared/tokens';
 
 const target = new URL('../src/styles/tokens.css', import.meta.url);
-writeFileSync(target, tokensToCss(LAGOON));
+writeFileSync(target, stylesToCss());
 process.stdout.write(`wrote ${target.pathname}\n`);

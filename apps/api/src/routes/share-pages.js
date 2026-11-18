@@ -25,6 +25,7 @@
  * /health, /pay… always win. Reserved words (slug.js) are skipped with next(), and sign-up
  * never gives an operator one of them.
  */
+import { STYLE_NAMES } from '@okapigo/shared/tokens';
 import { Router } from 'express';
 import { formatNaira } from '@okapigo/shared/money';
 import {
@@ -77,8 +78,25 @@ export function jsonForScript(value) {
  *   price?: { kobo: number } | null,
  *   body: string,             // already-escaped HTML: the stand-in shown before the app
  *   data?: unknown,           // embedded for the app (see jsonForScript)
+ *   look?: { style: string, mode: string },  // the operator's website style (stage 12g)
  * }} SharePage
  */
+
+/**
+ * <html data-style="…" data-mode="…">: the operator's look, in the HTML itself, so the page
+ * draws in the right style from the first paint (no flash of Lagoon). Only known values get
+ * through (and they're plain words): Lagoon and "auto" are the defaults, so no attribute.
+ * @param {{ style: string, mode: string } | undefined} look
+ */
+export function lookAttributes(look) {
+  if (!look) return '';
+  const style =
+    STYLE_NAMES.includes(/** @type {any} */ (look.style)) && look.style !== 'lagoon'
+      ? ` data-style="${look.style}"`
+      : '';
+  const mode = look.mode === 'light' || look.mode === 'dark' ? ` data-mode="${look.mode}"` : '';
+  return style + mode;
+}
 
 /**
  * The whole HTML document. EVERY value is escaped: tour titles and summaries are typed by
@@ -130,7 +148,7 @@ function renderSharePage(p, assets) {
       ? ''
       : `<script id="okg-data" type="application/json">${jsonForScript(p.data)}</script>\n`;
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${lookAttributes(p.look)}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -310,6 +328,7 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
             siteName: operator.name,
             image: cardImage(catalogueCard(view), `/${operator.slug}`),
             data: { kind: 'catalogue', operatorSlug, view },
+            look: { style: operator.websiteStyle, mode: operator.websiteMode },
             body: `${standInHeader(operator.name)}
 <main class="okg-page"><h1>${escapeHtml(heading)}</h1>
 <ul>${tours
@@ -371,6 +390,7 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
         // The designed card (designs: "og:image (the 1200×630 card)"), not a raw photo.
         image: cardImage(tourCard(view), `/${operator.slug}/${tour.slug}`),
         price: price !== null ? { kobo: price } : null,
+        look: { style: operator.websiteStyle, mode: operator.websiteMode },
         data: {
           kind: 'tour',
           operatorSlug: operator.slug,

@@ -207,7 +207,12 @@ export function paymentLinksRouters({
       state,
       amountKobo: link.amountKobo,
       purpose: link.purpose, // deposit · balance · custom
-      operator: { slug: operator.slug, name: operator.name },
+      operator: {
+        slug: operator.slug,
+        name: operator.name,
+        websiteStyle: operator.websiteStyle, // the look (stage 12g)
+        websiteMode: operator.websiteMode,
+      },
       tour: { title: booking.product.title },
       departure: {
         localDate: localDate(booking.departure.startsAt, tz),

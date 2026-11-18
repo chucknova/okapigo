@@ -7,11 +7,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { LAGOON, tokensToCss } from '@okapigo/shared/tokens';
+import { stylesToCss } from '@okapigo/shared/tokens';
 
 describe('tokens.css', () => {
   it('is up to date with packages/shared/src/tokens.js', () => {
     const onDisk = readFileSync(new URL('../src/styles/tokens.css', import.meta.url), 'utf8');
-    expect(onDisk, 'run: pnpm --filter @okapigo/web tokens').toBe(tokensToCss(LAGOON));
+    expect(onDisk, 'run: pnpm --filter @okapigo/web tokens').toBe(stylesToCss());
   });
 });

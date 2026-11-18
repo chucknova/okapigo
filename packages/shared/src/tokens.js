@@ -61,6 +61,11 @@ export const LAGOON = {
       'band-muted': '#A9B3A8',
       'band-soft': '#C9D1C8',
       'band-line': '#6E786D',
+      // On the dark band, an accent ("TODAY" on the trip day). Lagoon: its bright primary.
+      'band-accent': '#9BD10F',
+      // The letter mark in the header ("Ì"): a square and its letter.
+      'mark-bg': '#111511',
+      'mark-text': '#9BD10F',
     },
     dark: {
       bg: '#0E120E',
@@ -94,6 +99,9 @@ export const LAGOON = {
       'band-muted': '#A9B3A8',
       'band-soft': '#C9D1C8',
       'band-line': '#6E786D',
+      'band-accent': '#B5E64A',
+      'mark-bg': '#000000',
+      'mark-text': '#B5E64A',
     },
   }),
   font: {
@@ -115,7 +123,7 @@ export const LAGOON = {
   /** px */
   space: { 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48 },
   /** px */
-  radius: { sm: 8, md: 12, lg: 16, pill: 999 },
+  radius: { sm: 8, md: 12, lg: 16, pill: 999, button: 12 },
   border: { width: 1 },
   focus: { width: 2, offset: 2 },
   elevation: {
@@ -129,22 +137,177 @@ export const LAGOON = {
 };
 
 /**
- * The CSS for a token set:
- *   :root { --color-bg: …; --text-md: 16px; … }                  light values (the default)
- *   @media (prefers-color-scheme: dark) { :root:not([data-mode="light"]) { … } }
- *   :root[data-mode="dark"] { … }                                  forced dark
+ * A style built on Lagoon: the same names, its own values. Only what differs is written out,
+ * and the tests check every style has exactly Lagoon's names and passes the same contrast.
+ * @param {string} name
+ * @param {{ color: Palette, font?: Partial<typeof LAGOON.font>, radius?: Partial<typeof LAGOON.radius> }} o
+ * @returns {typeof LAGOON}
+ */
+function styleFrom(name, o) {
+  return {
+    ...LAGOON,
+    name,
+    color: o.color,
+    font: { ...LAGOON.font, ...o.font },
+    radius: { ...LAGOON.radius, ...o.radius },
+  };
+}
+
+/**
+ * Classic: calm, editorial, Georgia headings, radius 6 / 4 (designs: file 04).
+ * ⚠ The design gives the main colours. Status colours, disabled greys and the band's
+ * secondary shades are filled in by Claude to the same contrast targets (12g-1 note).
+ */
+export const CLASSIC = styleFrom('classic', {
+  color: {
+    light: {
+      ...LAGOON.color.light,
+      bg: '#FAF7F0',
+      surface: '#FFFFFF',
+      'surface-2': '#EFE8DA',
+      text: '#1F1B16',
+      'text-muted': '#5C5448',
+      border: '#E6DFD2',
+      'border-strong': '#8A7F6E',
+      primary: '#0F4C5C',
+      'on-primary': '#FFFFFF',
+      'primary-ink': '#0F4C5C',
+      'primary-soft': '#E4EFF1',
+      'disabled-bg': '#ECE6DA',
+      'disabled-text': '#5C5448',
+      'pattern-bg': '#EFE8DA',
+      'pattern-line': '#E6DFD2',
+      'band-bg': '#1F1B16',
+      'band-surface': '#2C2620',
+      'band-text': '#F3EEE4',
+      'band-muted': '#B8AE9E',
+      'band-soft': '#D3CABB',
+      'band-line': '#7A7063',
+      'band-accent': '#8CC7D3',
+      'mark-bg': '#0F4C5C',
+      'mark-text': '#FFFFFF',
+    },
+    dark: {
+      ...LAGOON.color.dark,
+      bg: '#15130F',
+      surface: '#1F1C17',
+      'surface-2': '#2A2620',
+      text: '#F3EEE4',
+      'text-muted': '#B8AE9E',
+      border: '#34302A',
+      'border-strong': '#857B6C',
+      // "Teal lightens to #8CC7D3 with dark text on buttons" (designs).
+      primary: '#8CC7D3',
+      'on-primary': '#0B1F24',
+      'primary-ink': '#8CC7D3',
+      'primary-soft': '#16303A',
+      'disabled-bg': '#2A2620',
+      'disabled-text': '#B8AE9E',
+      'pattern-bg': '#1F1C17',
+      'pattern-line': '#2A2620',
+      'band-surface': '#1F1C17',
+      'band-text': '#F3EEE4',
+      'band-muted': '#B8AE9E',
+      'band-soft': '#D3CABB',
+      'band-line': '#7A7063',
+      'band-accent': '#8CC7D3',
+      'mark-bg': '#8CC7D3',
+      'mark-text': '#0B1F24',
+    },
+  },
+  font: { 'family-heading': 'Georgia, "Times New Roman", serif' },
+  radius: { sm: 4, md: 4, lg: 6, button: 4 },
+});
+
+/**
+ * Earth: warm and natural, system sans, radius 24 with pill buttons (designs: file 04).
+ * ⚠ As for Classic: main colours from the design, the rest filled in to the same targets.
+ */
+export const EARTH = styleFrom('earth', {
+  color: {
+    light: {
+      ...LAGOON.color.light,
+      bg: '#F5EDE3',
+      surface: '#FFFAF4',
+      'surface-2': '#EFE3D4',
+      text: '#2A1E16',
+      'text-muted': '#6B5646',
+      border: '#E5D6C5',
+      'border-strong': '#8F7763',
+      primary: '#A3431C',
+      'on-primary': '#FFFFFF',
+      'primary-ink': '#8A3615',
+      'primary-soft': '#F2C48D',
+      'disabled-bg': '#EAE0D3',
+      'disabled-text': '#6B5646',
+      'pattern-bg': '#EFE3D4',
+      'pattern-line': '#E5D6C5',
+      'band-bg': '#2A1E16',
+      'band-surface': '#3A2C21',
+      'band-text': '#F5E9DC',
+      'band-muted': '#C2AA94',
+      'band-soft': '#DCC8B4',
+      'band-line': '#86705C',
+      'band-accent': '#F2C48D',
+      'mark-bg': '#A3431C',
+      'mark-text': '#FFFFFF',
+    },
+    dark: {
+      ...LAGOON.color.dark,
+      bg: '#1A130E',
+      surface: '#241A13',
+      'surface-2': '#2F2219',
+      text: '#F5E9DC',
+      'text-muted': '#C2AA94',
+      border: '#3A2C21',
+      'border-strong': '#8F7763',
+      // "Terracotta lifts to #E88A5B with dark text on it" (designs).
+      primary: '#E88A5B',
+      'on-primary': '#2A1206',
+      'primary-ink': '#F0A47E',
+      'primary-soft': '#3A2416',
+      'disabled-bg': '#2F2219',
+      'disabled-text': '#C2AA94',
+      'pattern-bg': '#241A13',
+      'pattern-line': '#2F2219',
+      'band-surface': '#241A13',
+      'band-text': '#F5E9DC',
+      'band-muted': '#C2AA94',
+      'band-soft': '#DCC8B4',
+      'band-line': '#86705C',
+      'band-accent': '#F0A47E',
+      'mark-bg': '#E88A5B',
+      'mark-text': '#2A1206',
+    },
+  },
+  radius: { sm: 12, md: 12, lg: 24, button: 999 },
+});
+
+/** Every website style, by the name stored in operators.website_style. Lagoon is the default. */
+export const STYLES = /** @type {const} */ ({ lagoon: LAGOON, classic: CLASSIC, earth: EARTH });
+/** @typedef {keyof typeof STYLES} StyleName */
+export const STYLE_NAMES = /** @type {StyleName[]} */ (Object.keys(STYLES));
+/** light · dark · auto (follow the phone's setting). */
+export const MODES = /** @type {const} */ (['auto', 'light', 'dark']);
+
+/**
+ * The CSS for ONE token set, under a selector (default `:root`, i.e. Lagoon):
+ *   {sel} { --color-bg: …; --text-md: 16px; … }                         light (the default)
+ *   @media (prefers-color-scheme: dark) { {sel}:not([data-mode="light"]) { … } }
+ *   {sel}[data-mode="dark"] { … }                                         forced dark
  *
- * The page follows the phone's light/dark setting unless something sets data-mode on <html>
- * (the operator's chosen mode, stage 12g).
+ * The page follows the phone's light/dark setting unless data-mode is set on <html> (the
+ * operator's chosen mode, stage 12g).
  *
  * @param {typeof LAGOON} set
+ * @param {string} [sel]
  * @returns {string}
  */
-export function tokensToCss(set) {
-  /** @param {ColorSet} colors */
-  const colorVars = (colors) =>
+export function tokensToCss(set, sel = ':root') {
+  /** @param {ColorSet} colors @param {string} pad */
+  const colorVars = (colors, pad = '  ') =>
     Object.entries(colors)
-      .map(([k, v]) => `  --color-${k}: ${v};`)
+      .map(([k, v]) => `${pad}--color-${k}: ${v};`)
       .join('\n');
 
   const shared = [
@@ -164,24 +327,40 @@ export function tokensToCss(set) {
     ...Object.entries(set.control).map(([k, v]) => `  --control-${k}: ${v}px;`),
   ].join('\n');
 
-  return `/* Generated from packages/shared/src/tokens.js (${set.name}). Don't edit by hand:
-   run \`pnpm --filter @okapigo/web tokens\`. */
-:root {
-  color-scheme: light dark;
-${shared}
+  return `${sel} {
+${sel === ':root' ? '  color-scheme: light dark;\n' : ''}${shared}
 ${colorVars(set.color.light)}
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-mode='light']) {
-${colorVars(set.color.dark).replaceAll('\n', '\n  ').replace(/^/, '  ')}
+  ${sel}:not([data-mode='light']) {
+${colorVars(set.color.dark, '    ')}
   }
 }
 
-:root[data-mode='dark'] {
+${sel}[data-mode='dark'] {
 ${colorVars(set.color.dark)}
 }
 `;
+}
+
+/**
+ * The whole tokens.css: Lagoon on :root, then each other style on :root[data-style="…"].
+ * A style's selectors are more specific than Lagoon's, and come later, so they win; the
+ * operator's style is set on <html> by the server (no flash) or the app (stage 12g).
+ * @returns {string}
+ */
+export function stylesToCss() {
+  const others = Object.values(STYLES).filter((s) => s !== LAGOON);
+  return [
+    `/* Generated from packages/shared/src/tokens.js. Don't edit by hand:
+   run \`pnpm --filter @okapigo/web tokens\`. Lagoon is the default; the other website
+   styles apply with <html data-style="…"> (stage 12g). */`,
+    tokensToCss(LAGOON),
+    ...others.map(
+      (s) => `/* --- ${s.name} --- */\n${tokensToCss(s, `:root[data-style='${s.name}']`)}`,
+    ),
+  ].join('\n');
 }
 
 /**

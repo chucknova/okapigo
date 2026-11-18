@@ -27,6 +27,7 @@ import { StatusPanel } from '../../components/StatusPanel.jsx';
 import { Notice } from '../../components/Feedback.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
+import { useLook } from '../../lib/look.js';
 
 /** "Ìrìn Lagos Tours" → "Ìrìn". @param {string} name */
 const shortName = (name) => name.split(/\s+/)[0] || name;
@@ -38,6 +39,7 @@ const shortName = (name) => name.split(/\s+/)[0] || name;
 function useTrip(token) {
   const res = useApi(`/public/bookings/${token}`);
   const b = res.data?.booking ?? null;
+  useLook(b?.operator);
   const frame = b ? null : (
     <Shell operatorName="">
       {res.error ? <ErrorState error={res.error} onRetry={res.retry} /> : <Bar height={28} />}

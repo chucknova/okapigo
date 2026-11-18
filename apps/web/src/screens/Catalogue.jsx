@@ -17,6 +17,7 @@ import { Icon } from '../components/Icon.jsx';
 import { Bar } from '../components/Skeleton.jsx';
 import { ErrorState } from '../components/ErrorState.jsx';
 import { NotFound } from './NotFound.jsx';
+import { useLook } from '../lib/look.js';
 
 /**
  * @typedef {{ slug: string, name: string, city: string | null, pricesInclude: string | null, timeZone: string }} PublicOperator
@@ -38,6 +39,7 @@ export function Catalogue({ params }) {
   );
   /** @type {{ operator: PublicOperator, tours: TourCard[] } | null} */
   const view = data;
+  useLook(view?.operator);
 
   if (error instanceof ApiError && error.status === 404) return <NotFound />;
   if (!view) {

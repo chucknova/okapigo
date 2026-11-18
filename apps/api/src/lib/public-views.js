@@ -30,7 +30,9 @@ export function publicOperator(o) {
     currency: o.currency,
     // Departure dates and times are the operator's local time ("Sat 5 Dec, 09:00").
     timeZone: o.timeZone,
+    // The look of every guest page (stage 12g): lagoon · classic · earth; auto · light · dark.
     websiteStyle: o.websiteStyle,
+    websiteMode: o.websiteMode,
     // "Prices include VAT": the tax's name when catalogue prices already include it.
     pricesInclude: tax?.inclusive ? tax.name : null,
   };

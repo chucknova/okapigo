@@ -23,6 +23,7 @@ import { firstLetter } from '../components/Shell.jsx';
 import { Bar } from '../components/Skeleton.jsx';
 import { ErrorState } from '../components/ErrorState.jsx';
 import { NotFound } from './NotFound.jsx';
+import { useLook } from '../lib/look.js';
 
 /** How far ahead the page looks for dates (the API allows up to 92 days per request). */
 const LOOK_AHEAD_DAYS = 56;
@@ -35,6 +36,7 @@ export function TourPage({ params }) {
   );
   const base = `/public/${encodeURIComponent(opSlug)}/tours/${encodeURIComponent(tourSlug)}`;
   const { data: view, error, retry } = useApi(base, initial?.view ?? null);
+  useLook(view?.operator);
 
   // Dates need the operator's "today", so they wait for the tour (and its time zone).
   const today = view ? localDate(new Date(), view.operator.timeZone) : null;

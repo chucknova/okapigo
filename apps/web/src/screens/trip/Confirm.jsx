@@ -28,6 +28,7 @@ import { Shell } from '../../components/Shell.jsx';
 import { StatusPanel } from '../../components/StatusPanel.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
+import { useLook } from '../../lib/look.js';
 
 const POLL_MS = 2_000;
 const CHECK_AFTER_MS = 8_000;
@@ -44,6 +45,7 @@ export function Confirm({ params }) {
   const [now, setNow] = useState(() => Date.now());
 
   const b = booking.data?.booking;
+  useLook(b?.operator);
   const payment = b && (b.payments.find((p) => p.reference === reference) ?? b.payments[0]);
   const settled = payment && payment.status !== 'initiated';
   const waited = now - startedAt;

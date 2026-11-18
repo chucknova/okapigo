@@ -4,7 +4,7 @@
  * When a redesigner changes a colour, this says at once if a pair stopped passing.
  */
 import { describe, it, expect } from 'vitest';
-import { LAGOON, contrastRatio, tokensToCss } from '../src/tokens.js';
+import { LAGOON, STYLES, contrastRatio, tokensToCss, stylesToCss } from '../src/tokens.js';
 
 describe('contrastRatio', () => {
   it('matches the WCAG reference values', () => {
@@ -31,8 +31,8 @@ const PAIRS = [
   ['danger', 'danger-soft', 4.5],
   ['danger', 'surface', 4.5],
   ['strip-text', 'strip-bg', 4.5],
-  // The letter mark: the letter in primary on the dark square (a graphic: 3:1).
-  ['primary', 'strip-bg', 3],
+  // The letter mark: its letter on its square (a graphic: 3:1).
+  ['mark-text', 'mark-bg', 3],
   // The confirmation band.
   ['band-text', 'band-bg', 4.5],
   ['band-text', 'band-surface', 4.5],
@@ -40,7 +40,7 @@ const PAIRS = [
   ['band-soft', 'band-bg', 4.5],
   ['band-line', 'band-bg', 3],
   // The trip hub (stage 12f): "TODAY" on the trip-day band, and the balance line on a card.
-  ['primary', 'band-bg', 4.5],
+  ['band-accent', 'band-bg', 4.5],
   ['warning', 'surface', 4.5],
   // Disabled controls are exempt from WCAG, but people still need to read them.
   ['disabled-text', 'disabled-bg', 4.5],
@@ -49,19 +49,28 @@ const PAIRS = [
   ['border-strong', 'bg', 3],
 ];
 
-for (const mode of /** @type {const} */ (['light', 'dark'])) {
-  describe(`Lagoon ${mode}: AA contrast`, () => {
-    const c = LAGOON.color[mode];
-    it.each(PAIRS)('%s on %s ≥ %s:1', (fg, bg, min) => {
-      expect(contrastRatio(c[fg], c[bg])).toBeGreaterThanOrEqual(min);
+// Every website style (Lagoon, Classic, Earth), light and dark, meets the same targets.
+for (const style of Object.values(STYLES)) {
+  for (const mode of /** @type {const} */ (['light', 'dark'])) {
+    describe(`${style.name} ${mode}: AA contrast`, () => {
+      const c = style.color[mode];
+      it.each(PAIRS)('%s on %s ≥ %s:1', (fg, bg, min) => {
+        expect(contrastRatio(c[fg], c[bg])).toBeGreaterThanOrEqual(min);
+      });
     });
-  });
+  }
 }
 
-describe('light and dark', () => {
-  it('define exactly the same colour names', () => {
-    expect(Object.keys(LAGOON.color.dark).sort()).toEqual(Object.keys(LAGOON.color.light).sort());
-  });
+describe('every style', () => {
+  it.each(Object.values(STYLES).map((s) => [s.name, s]))(
+    '%s: light and dark define exactly Lagoon’s colour names, and every token family',
+    (_name, style) => {
+      const names = Object.keys(LAGOON.color.light).sort();
+      expect(Object.keys(style.color.light).sort()).toEqual(names);
+      expect(Object.keys(style.color.dark).sort()).toEqual(names);
+      expect(Object.keys(style.radius).sort()).toEqual(Object.keys(LAGOON.radius).sort());
+    },
+  );
 });
 
 describe('tokensToCss', () => {
@@ -74,5 +83,18 @@ describe('tokensToCss', () => {
     expect(css).toContain('--radius-pill: 999px;');
     expect(css).toContain('--elevation-2: 0 12px 32px rgba(17, 21, 17, 0.16);');
     expect(css.match(/--color-primary: #B5E64A;/g)).toHaveLength(2); // system dark + forced dark
+  });
+});
+
+describe('stylesToCss', () => {
+  it('Lagoon on :root; Classic and Earth on their data-style, light and both kinds of dark', () => {
+    const css = stylesToCss();
+    expect(css).toContain(":root[data-style='classic'] {");
+    expect(css).toContain(":root[data-style='earth'][data-mode='dark'] {");
+    expect(css).toContain(":root[data-style='classic']:not([data-mode='light'])");
+    expect(css).toContain('--font-family-heading: Georgia, "Times New Roman", serif;');
+    expect(css).toContain('--radius-button: 999px;'); // Earth's pill buttons
+    // Lagoon's own values are unchanged.
+    expect(css.indexOf('--color-primary: #9BD10F;')).toBeLessThan(css.indexOf('classic'));
   });
 });

@@ -12,6 +12,7 @@ import { Link } from 'wouter';
 import { firstLetter } from '../../components/Shell.jsx';
 import { Icon } from '../../components/Icon.jsx';
 import { takeEmbedded, useApi } from '../../lib/data.js';
+import { useLook } from '../../lib/look.js';
 
 export const STEPS = ['Date', 'Who and extras', 'Details', 'Review and pay'];
 
@@ -25,10 +26,12 @@ export function useTourForCheckout(operatorSlug, tourSlug) {
   const initial = takeEmbedded(
     (d) => d.kind === 'tour' && d.operatorSlug === operatorSlug && d.tourSlug === tourSlug,
   );
-  return useApi(
+  const res = useApi(
     `/public/${encodeURIComponent(operatorSlug)}/tours/${encodeURIComponent(tourSlug)}`,
     initial?.view ?? null,
   );
+  useLook(res.data?.operator); // the operator's website style (stage 12g)
+  return res;
 }
 
 /**

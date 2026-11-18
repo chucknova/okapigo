@@ -13,6 +13,10 @@ import './styles/checkout.css';
 import './styles/after.css';
 import './styles/trip.css';
 import { App } from './App.jsx';
+import { startPreview } from './lib/look.js';
+
+// ?style=earth&mode=dark on any address previews another website style (lib/look.js).
+startPreview(location.search);
 
 const root = /** @type {HTMLElement} */ (document.getElementById('root'));
 createRoot(root).render(

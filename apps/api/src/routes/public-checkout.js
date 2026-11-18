@@ -147,6 +147,9 @@ function guestView(b, { secret, now = new Date() }) {
       // "Call" and "WhatsApp" on the trip hub (stage 12f); null hides the button.
       phone: b.product.operator.phone ?? null,
       whatsapp: b.product.operator.whatsapp ?? null,
+      // The look (stage 12g): trip pages are private, so the style arrives with the data.
+      websiteStyle: b.product.operator.websiteStyle,
+      websiteMode: b.product.operator.websiteMode,
     },
     tour: {
       slug: b.product.slug,

@@ -21,6 +21,7 @@ import { StatusPanel } from '../../components/StatusPanel.jsx';
 import { Notice } from '../../components/Feedback.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
+import { useLook } from '../../lib/look.js';
 
 /** @param {{ params: { token: string } }} props */
 export function PayBalance({ params }) {
@@ -28,6 +29,7 @@ export function PayBalance({ params }) {
   const booking = useApi(`/public/bookings/${token}`);
   const [paying, setPaying] = useState(/** @type {'idle' | 'starting' | 'unavailable'} */ ('idle'));
   const b = booking.data?.booking;
+  useLook(b?.operator);
 
   useEffect(() => {
     if (b?.reference) rememberTrip(b.reference, token);

@@ -30,7 +30,8 @@ describe('GET /public/:operatorSlug (tour cards)', () => {
       city: 'Lagos',
       currency: 'NGN',
       timeZone: 'Africa/Lagos',
-      websiteStyle: 'classic',
+      websiteStyle: 'lagoon', // the default since stage 12g (was "classic" before anyone chose)
+      websiteMode: 'auto',
       pricesInclude: 'VAT', // "prices include VAT" (Ìrìn's prices include 7.5% VAT)
     });
     expect(res.body.tours).toHaveLength(5);
