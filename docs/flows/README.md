@@ -12,6 +12,7 @@ must respect. Business logic already exists in the API; screens only display dat
 | [03 Booking widget](03-booking-widget.md)                 | Embedding booking on another website; the operator's Embed page               | BKG-01                                   |
 | [04 Operator website](04-operator-website.md)             | The one-page site generated from products, in 2–3 styles                      | MKT-08, MKT-09                           |
 | [05 Trip hub](05-trip-hub.md)                             | One light page per booking: itinerary, map, what to bring, QR ticket          | GST-04                                   |
+| [06 WhatsApp booking](06-whatsapp-booking.md)             | The booking conversation, the WhatsApp simulator, staff taking over           | BKG-09, journey 2 (session 13)           |
 
 **Designs received (2026-11-17):** see [`docs/designs/`](../designs/README.md), which also
 holds the stage plan for building them (session 12).
@@ -21,15 +22,19 @@ reuses checkout's screens inside a frame, so it needs the least new design.
 
 ## Decisions so far
 
-| Date       | Question                                       | Decision                                                                                                 | Brief | Built in       |
-| ---------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----- | -------------- |
-| 2026-11-17 | Can children or infants book without an adult? | **No.** At least one adult per booking, on every channel. "Adult" = the tour's adult price (13+ at Ìrìn) | 01    | stage 11b      |
-| 2026-11-17 | Is the pickup point stored?                    | **Yes**, required on tours with pickup points                                                            | 01    | stage 11b      |
-| 2026-11-17 | When is a deposit balance due?                 | **7 days before the trip**; later bookings pay in full                                                   | 02    | stage 11c      |
-| 2026-11-17 | When do balance reminders go out?              | **7, 3 and 1 days before the due date**                                                                  | 02    | stage 11d      |
-| 2026-11-17 | Balance not paid in time?                      | **Staff are alerted**; nothing is cancelled automatically                                                | 02    | stage 11d      |
-| 2026-11-17 | Can guests cancel from the trip hub?           | **Yes, and they can ask the operator instead**                                                           | 05    | session 12     |
-| 2026-11-17 | When is the widget's Embed page designed?      | **Later, with the operator app** (see below)                                                             | 03    | sessions 15–16 |
+| Date       | Question                                       | Decision                                                                                                 | Brief | Built in         |
+| ---------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----- | ---------------- |
+| 2026-11-17 | Can children or infants book without an adult? | **No.** At least one adult per booking, on every channel. "Adult" = the tour's adult price (13+ at Ìrìn) | 01    | stage 11b        |
+| 2026-11-17 | Is the pickup point stored?                    | **Yes**, required on tours with pickup points                                                            | 01    | stage 11b        |
+| 2026-11-17 | When is a deposit balance due?                 | **7 days before the trip**; later bookings pay in full                                                   | 02    | stage 11c        |
+| 2026-11-17 | When do balance reminders go out?              | **7, 3 and 1 days before the due date**                                                                  | 02    | stage 11d        |
+| 2026-11-17 | Balance not paid in time?                      | **Staff are alerted**; nothing is cancelled automatically                                                | 02    | stage 11d        |
+| 2026-11-17 | Can guests cancel from the trip hub?           | **Yes, and they can ask the operator instead**                                                           | 05    | session 12       |
+| 2026-11-17 | When is the widget's Embed page designed?      | **Later, with the operator app** (see below)                                                             | 03    | sessions 15–16   |
+| 2026-11-18 | WhatsApp: travellers' names and ages?          | **The lead's name; ages only for children and infants** (staff name the rest at check-in)                | 06    | session 13       |
+| 2026-11-18 | WhatsApp: how long are seats held?             | **30 minutes** (the website keeps 15)                                                                    | 06    | session 13       |
+| 2026-11-18 | WhatsApp: the staff take-over screen?          | **Later, with the operator app**; its API now                                                            | 06    | session 13 (API) |
+| 2026-11-18 | WhatsApp: how does the ticket arrive?          | **The QR image and the trip page link**                                                                  | 06    | session 13       |
 
 ## Deferred to the operator app briefs
 

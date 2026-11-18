@@ -14,7 +14,8 @@ import { createSimulatorProvider } from '@okapigo/payments';
 import { memoryRateLimitStore } from '../src/middleware/rate-limit.js';
 
 /** A logger that prints nothing, so test output only shows test results. */
-export const silentLogger = pino({ level: 'silent' });
+// Silent unless TEST_LOG_LEVEL asks (e.g. TEST_LOG_LEVEL=error to see what a 500 hid).
+export const silentLogger = pino({ level: process.env.TEST_LOG_LEVEL ?? 'silent' });
 
 export const TEST_AUTH_SECRET = 'test-secret-that-is-at-least-32-characters-long';
 

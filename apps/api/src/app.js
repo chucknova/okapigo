@@ -32,6 +32,7 @@ import { refundsRouter } from './routes/refunds.js';
 import { alertsRouter } from './routes/alerts.js';
 import { guestRequestsRouter } from './routes/guest-requests.js';
 import { websiteRouter } from './routes/website.js';
+import { whatsappSimulatorRouter } from './routes/whatsapp-simulator.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
 import { publicCheckoutRouter } from './routes/public-checkout.js';
@@ -144,6 +145,12 @@ export function createApp({
       apiPublicUrl,
       webPublicUrl,
     }),
+  );
+
+  // The WhatsApp simulator (BKG-09, session 13): a guest's chat, the same booking engine as
+  // the real WhatsApp will use. Public like the website's checkout, and rate-limited.
+  app.use(
+    whatsappSimulatorRouter({ prisma, quotes, jobs, authSecret, webPublicUrl, rateLimitStore }),
   );
 
   // --- Staff API: everything under /api requires sign-in ----------------------

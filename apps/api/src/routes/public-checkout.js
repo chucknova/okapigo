@@ -27,7 +27,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  createBooking,
   releaseHold,
   addOnUsage,
   guestToken,
@@ -39,7 +38,6 @@ import {
   PAYABLE_STATUSES,
   checkPayment,
 } from '@okapigo/db';
-import { findCategoryForAge } from '@okapigo/shared/catalogue';
 import { localDate, localTime } from '@okapigo/shared/time';
 import { depositOffer, balanceDueDate } from '@okapigo/shared/deposits';
 import { PublicQuoteRequestSchema } from '@okapigo/shared/schemas/pricing';
@@ -50,6 +48,7 @@ import { rateLimit } from '../middleware/rate-limit.js';
 import { toHttp } from './bookings.js';
 import { startPaymentForHttp } from './payments.js';
 import { qrPath } from '../lib/qr.js';
+import { bookForGuest } from '../lib/guest-booking.js';
 
 const Slug = z
   .string()
@@ -390,88 +389,24 @@ export function publicCheckoutRouter({
     async (req, res) => {
       const operator = await findOperator(req.params.operatorSlug);
       const { departureId, lead, travellers, addOns, pickupPoint } = req.body;
-
-      // The departure must belong to THIS operator and to a PUBLISHED tour. (A guest can't
-      // book a draft tour by guessing a departure id.)
-      const departure = await prisma.departure.findFirst({
-        where: { id: departureId, operatorId: operator.id, product: { status: 'published' } },
-      });
-      if (!departure) throw new HttpError(404, 'NOT_FOUND', 'Departure not found.');
-
-      // 1. Price it, and apply the booking rules (no children without an adult…).
-      const { quote, priceCategories } = await quotes.quoteForBooking({
-        operatorId: operator.id,
-        productId: departure.productId,
-        travellers: travellers.map((t) => ({ age: t.age })),
-        addOns,
-      });
-
-      // 2. Each traveller's AGE decides their price. If the guest also told us which counter
-      //    they came from, they must agree, or the guest would pay a different price than
-      //    the one they saw on screen 2.
-      const withCategories = travellers.map((t, i) => {
-        const charged = /** @type {import('@prisma/client').PriceCategory} */ (
-          findCategoryForAge(priceCategories, t.age)
-        );
-        if (t.categoryKey && t.categoryKey !== charged.key) {
-          const chosen = priceCategories.find((c) => c.key === t.categoryKey);
-          throw new HttpError(
-            400,
-            'AGE_CATEGORY_MISMATCH',
-            // The design's wording: "Child: ages 3–12. For age 13, go back and choose Adult."
-            chosen
-              ? `${plainName(chosen)}: ages ${ageRange(chosen)}. For age ${t.age}, go back and choose ${plainName(charged)}.`
-              : `For age ${t.age}, go back and choose ${plainName(charged)}.`,
-            { traveller: i, categoryKey: charged.key },
-          );
-        }
-        return { ...t, categoryKey: charged.key };
-      });
-      const addOnLines = quote.lines.filter((l) => l.type === 'addOn');
-
-      // 3. Hold + booking, all or nothing (row lock inside).
-      let created;
-      try {
-        created = await createBooking(prisma, {
-          operatorId: operator.id,
-          operatorSlug: operator.slug,
+      // Price, rules, categories, hold and booking: the same code as WhatsApp (guest-booking.js).
+      const created = await bookForGuest(
+        { prisma, quotes, jobs, log: req.log },
+        {
+          operator,
           departureId,
-          productId: departure.productId,
           channel: 'web',
-          attribution: req.body.attribution,
-          lead: {
-            name: lead.name,
-            email: lead.email ?? null,
-            phone: lead.phone ?? null,
-            marketingConsent: lead.marketingConsent,
-          },
-          travellers: withCategories,
-          addOns: addOnLines.map((l) => ({
-            addOnId: l.addOnId,
-            quantity: l.quantity,
-            unitKobo: l.unitKobo,
-          })),
-          quote,
-          totalKobo: quote.totalKobo,
           holdMinutes: operator.holdMinutes,
-          pickupPointName: pickupPoint ?? null,
-          actor: { type: 'guest' },
-        });
-      } catch (err) {
-        throw toHttp(err);
-      }
-
-      try {
-        await jobs.scheduleHoldExpiry(created.hold.id, created.hold.expiresAt);
-      } catch (err) {
-        req.log.warn(
-          { err, holdId: created.hold.id },
-          'could not schedule hold expiry; sweeper will handle it',
-        );
-      }
+          attribution: req.body.attribution,
+          lead,
+          travellers,
+          addOns,
+          pickupPoint,
+        },
+      );
 
       const booking = await prisma.booking.findUniqueOrThrow({
-        where: { id: created.booking.id },
+        where: { id: created.bookingId },
         include: GUEST_INCLUDE,
       });
       // The token is the guest's key to this booking: the browser keeps it for the review
@@ -708,14 +643,4 @@ export function bookingCalendar(b, tripUrl) {
     'END:VCALENDAR',
     '',
   ].join('\r\n');
-}
-
-/** "Child (3–12)" → "Child": the name without its age range. @param {{ name: string }} c */
-function plainName(c) {
-  return c.name.replace(/\s*\(.*\)\s*$/, '');
-}
-
-/** "3–12" or "13 and over". @param {{ minAge: number, maxAge: number | null }} c */
-function ageRange(c) {
-  return c.maxAge === null ? `${c.minAge} and over` : `${c.minAge}–${c.maxAge}`;
 }

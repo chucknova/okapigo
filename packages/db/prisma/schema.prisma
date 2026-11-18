@@ -78,6 +78,7 @@ model Operator {
   refunds              Refund[]
   notifications        Notification[]
   guestRequests        GuestRequest[]
+  conversations        Conversation[]
 
   @@map("operators")
 }
@@ -565,6 +566,7 @@ model Booking {
   refunds       Refund[]
   notifications Notification[]
   guestRequests GuestRequest[]
+  conversations Conversation[]
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -582,8 +584,12 @@ model Traveller {
   bookingId     String    @map("booking_id") @db.Uuid
   // Order as entered (1, 2, 3…), so lists always show travellers the same way.
   position      Int
+  // Empty ("") when not asked: a WhatsApp booking asks only the lead's name, and staff fill in
+  // the others at check-in (decided 2026-11-18, session 13).
   name          String
-  age           Int
+  // Null when not asked: on WhatsApp only children and infants give an age (to check their
+  // price category); an adult's category says enough. Never a made-up age.
+  age           Int?
   // The price category they were charged as ("adult", "child", "infant").
   categoryKey   String    @map("category_key")
   // Free text, shown on the manifest: "vegetarian", "nut allergy"…
@@ -1016,4 +1022,71 @@ model GuestRequest {
   @@index([operatorId, status, createdAt])
   @@index([bookingId])
   @@map("guest_requests")
+}
+
+// ===========================================================================
+// WHATSAPP BOOKING (BKG-09, session 13)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Conversation: one guest's chat with one operator, on one channel
+// ---------------------------------------------------------------------------
+// Like a WhatsApp thread: one per guest number per operator per channel, kept going. The bot's
+// place in the booking dialogue lives in `state` (validated by ConversationStateSchema in
+// apps/api/src/whatsapp/state.js); `handledBy` says who answers now.
+//
+//   channel:   simulator (the in-app chat, demos and tests) · whatsapp (the Cloud API, 13c)
+//   handledBy: bot · staff (a person took over; the bot stays quiet)
+model Conversation {
+  id         String   @id @default(uuid()) @db.Uuid
+  operatorId String   @map("operator_id") @db.Uuid
+  channel    String
+  // The guest's number, E.164 ("+2348031234567"): on WhatsApp it IS who they are.
+  guestPhone String   @map("guest_phone")
+  // Their WhatsApp profile name, until they tell us the name for a booking.
+  guestName  String   @default("") @map("guest_name")
+  handledBy  String   @default("bot") @map("handled_by")
+  state      Json     @default("{}")
+  // The booking this chat made most recently (to follow its payment, 13b).
+  bookingId  String?  @map("booking_id") @db.Uuid
+  // When the guest asked for a person ("Talk to a person"), until staff answer (13b).
+  needsPersonSince DateTime? @map("needs_person_since") @db.Timestamptz(3)
+  lastMessageAt    DateTime  @default(now()) @map("last_message_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator Operator      @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  booking  Booking?      @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  messages ChatMessage[]
+
+  @@unique([operatorId, channel, guestPhone])
+  // Staff's list: newest first.
+  @@index([operatorId, lastMessageAt])
+  @@map("conversations")
+}
+
+// ---------------------------------------------------------------------------
+// ChatMessage: one message in a conversation, either way
+// ---------------------------------------------------------------------------
+//   direction: in (from the guest) · out (to the guest)
+//   author:    guest · bot · staff
+//   body:      { kind: text | buttons | list | image, text, … } (apps/api/src/whatsapp/messages.js),
+//              only WhatsApp's own building blocks, so every channel can show it
+model ChatMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  operatorId     String   @map("operator_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  direction      String
+  author         String
+  // The member of staff who wrote it (author "staff").
+  authorUserId   String?  @map("author_user_id") @db.Uuid
+  body           Json
+  // The channel's own id for the message (WhatsApp's "wamid…"), to match delivery receipts.
+  providerMessageId String? @map("provider_message_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
 }
