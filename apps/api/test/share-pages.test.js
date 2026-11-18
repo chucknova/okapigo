@@ -53,27 +53,16 @@ describe('GET /:operatorSlug/:tourSlug (a tour link)', () => {
     expect(meta(html, 'og:description')).toContain('Next: Sat'); // Badagry runs on Saturdays
     expect(meta(html, 'product:price:amount')).toBe('65000.00');
     expect(meta(html, 'product:price:currency')).toBe('NGN');
-    // No photo yet (uploads arrive in session 18): a text card, and no og:image at all.
-    expect(meta(html, 'twitter:card')).toBe('summary');
-    expect(meta(html, 'og:image')).toBeUndefined();
-  });
-
-  it('uses the first photo when the tour has one, with its alt text', async () => {
-    const { operator } = await ctx.seedOperator();
-    await ctx.prisma.product.updateMany({
-      where: { operatorId: operator.id, slug: 'tarkwa-bay-beach-and-lagoon' },
-      data: {
-        photos: [
-          { url: 'https://cdn.example/tarkwa.jpg', alt: 'Boats on the lagoon at Tarkwa Bay' },
-        ],
-      },
-    });
-
-    const { text } = await request(app()).get(`/${operator.slug}/tarkwa-bay-beach-and-lagoon`);
-
-    expect(meta(text, 'og:image')).toBe('https://cdn.example/tarkwa.jpg');
-    expect(meta(text, 'og:image:alt')).toBe('Boats on the lagoon at Tarkwa Bay');
-    expect(meta(text, 'twitter:card')).toBe('summary_large_image');
+    // Stage 12b: the designed 1200×630 card is the preview image, photo or not.
+    expect(meta(html, 'twitter:card')).toBe('summary_large_image');
+    expect(meta(html, 'og:image')).toMatch(
+      new RegExp(`^${WEB}/${operator.slug}/badagry-heritage-day-trip/card\\.png\\?v=[\\w-]{16}$`),
+    );
+    expect(meta(html, 'og:image:width')).toBe('1200');
+    expect(meta(html, 'og:image:height')).toBe('630');
+    expect(meta(html, 'og:image:alt')).toBe(
+      'Badagry Heritage Day Trip · Ìrìn Lagos Tours · from ₦65,000',
+    );
   });
 
   it('escapes what operators type, so a title can never become a script', async () => {
@@ -276,4 +265,65 @@ describe('stage 12b: the app and its data inside share pages', () => {
     expect(meta(res.text, 'og:url')).toBe(`${WEB}/${operator.slug}/badagry-heritage-day-trip`);
     expect(embedded(res.text).tourSlug).toBe('badagry-heritage-day-trip');
   });
+});
+
+/** Width and height from a PNG's header (IHDR: bytes 16–23, big-endian). */
+const pngSize = (buf) => ({ width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) });
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const binary = (req) =>
+  req.buffer(true).parse((res, cb) => {
+    const chunks = [];
+    res.on('data', (c) => chunks.push(c));
+    res.on('end', () => cb(null, Buffer.concat(chunks)));
+  });
+
+describe('stage 12b: the 1200×630 preview card', () => {
+  it('is a real PNG of the right size, cacheable for a day', async () => {
+    const { operator } = await ctx.seedOperator();
+    const a = app();
+    const page = await request(a).get(`/${operator.slug}/lagos-island-heritage-walk`);
+    const cardPath = new URL(meta(page.text, 'og:image')).pathname;
+
+    const res = await binary(request(a).get(cardPath));
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('image/png');
+    expect(res.headers['cache-control']).toBe('public, max-age=86400');
+    expect(res.body.subarray(0, 8).equals(PNG_SIGNATURE)).toBe(true);
+    expect(pngSize(res.body)).toEqual({ width: 1200, height: 630 });
+  }, 30_000); // the first card loads the fonts
+
+  it('gets a new address when what it shows changes (so apps fetch the new one)', async () => {
+    const { operator } = await ctx.seedOperator();
+    const a = app();
+    const url = async () =>
+      meta((await request(a).get(`/${operator.slug}/lagos-street-food-crawl`)).text, 'og:image');
+    const before = await url();
+    await ctx.prisma.product.updateMany({
+      where: { operatorId: operator.id, slug: 'lagos-street-food-crawl' },
+      data: { title: 'Lagos Street Food Night' },
+    });
+
+    expect(await url()).not.toBe(before);
+  });
+
+  it('has a catalogue card too, and none for drafts', async () => {
+    const { operator } = await ctx.seedOperator();
+    await ctx.prisma.product.updateMany({
+      where: { operatorId: operator.id, slug: 'lekki-nature-and-craft' },
+      data: { status: 'draft' },
+    });
+    const a = app();
+
+    const catalogue = await request(a).get(`/${operator.slug}`);
+    expect(meta(catalogue.text, 'og:image:alt')).toBe(
+      'Tours in Lagos · Ìrìn Lagos Tours · from ₦25,000',
+    );
+    const card = await binary(request(a).get(`/${operator.slug}/card.png`));
+    expect(pngSize(card.body)).toEqual({ width: 1200, height: 630 });
+
+    expect((await request(a).get(`/${operator.slug}/lekki-nature-and-craft/card.png`)).status).toBe(
+      404,
+    );
+  }, 30_000);
 });

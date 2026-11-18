@@ -15,6 +15,8 @@
  *   GET /:operatorSlug                     the catalogue
  *   GET /:operatorSlug/:tourSlug           a tour page
  *   GET /:operatorSlug/:tourSlug/book      checkout (the app's screens arrive in 12c)
+ *   GET /:operatorSlug/:tourSlug/card.png  the 1200×630 preview card (og:image)
+ *   GET /:operatorSlug/card.png            the catalogue's card
  *
  * When the web app hasn't been built (tests, or an API deployed alone), the pages still
  * work: the stand-in body is readable on its own.
@@ -25,10 +27,16 @@
  */
 import { Router } from 'express';
 import { formatNaira } from '@okapigo/shared/money';
-import { formatDay, tourPreviewDescription, truncate } from '@okapigo/shared/preview';
+import {
+  formatDay,
+  formatDuration,
+  tourPreviewDescription,
+  truncate,
+} from '@okapigo/shared/preview';
 import { RESERVED_OPERATOR_SLUGS, RESERVED_TOUR_SLUGS } from '@okapigo/shared/slug';
 import { escapeHtml } from './payments.js';
 import { webAssetTags } from '../lib/web-assets.js';
+import { createCardCache, CARD_WIDTH, CARD_HEIGHT } from '../lib/share-card.js';
 import {
   loadCatalogueView,
   loadTourView,
@@ -60,7 +68,7 @@ export function jsonForScript(value) {
  *   description: string,      // og:description and <meta name="description">
  *   url: string,              // og:url and <link rel="canonical">
  *   siteName: string,         // og:site_name: the operator's name
- *   image?: { url: string, alt: string } | null,
+ *   image?: { url: string, alt: string, width?: number, height?: number } | null,
  *   price?: { kobo: number } | null,
  *   body: string,             // already-escaped HTML: the stand-in shown before the app
  *   data?: unknown,           // embedded for the app (see jsonForScript)
@@ -91,6 +99,13 @@ function renderSharePage(p, assets) {
       `<meta property="og:image" content="${e(p.image.url)}">`,
       `<meta property="og:image:alt" content="${e(p.image.alt)}">`,
     );
+    if (p.image.width && p.image.height) {
+      // Knowing the size lets apps draw the preview before the image arrives.
+      meta.push(
+        `<meta property="og:image:width" content="${p.image.width}">`,
+        `<meta property="og:image:height" content="${p.image.height}">`,
+      );
+    }
   }
   if (p.price) {
     // Facebook/Instagram product price tags (shown by some apps under the title).
@@ -156,6 +171,45 @@ function standInHeader(operatorName) {
 export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
   const router = Router();
   const base = webPublicUrl.replace(/\/+$/, '');
+  const cards = createCardCache();
+
+  /**
+   * What a tour's card says. Also hashed into the card's address (?v=…), so a changed title
+   * or price gives a new address and apps that cached the old preview fetch the new one.
+   * @param {NonNullable<Awaited<ReturnType<typeof loadTourView>>>} view
+   */
+  const tourCard = ({ operator, tour }) => ({
+    operatorName: operator.name,
+    facts: [formatDuration(tour.durationMinutes), scheduleSentence(tour.scheduleSummary)]
+      .filter(Boolean)
+      .join(' · '),
+    title: tour.title,
+    price: tour.fromPriceKobo !== null ? formatNaira(tour.fromPriceKobo) : null,
+  });
+  /** @param {NonNullable<Awaited<ReturnType<typeof loadCatalogueView>>>} view */
+  const catalogueCard = ({ operator, tours }) => {
+    const prices = tours.map((t) => t.fromPriceKobo).filter((p) => p !== null);
+    return {
+      operatorName: operator.name,
+      facts: `${tours.length} ${tours.length === 1 ? 'tour' : 'tours'}`,
+      title: operator.city ? `Tours in ${operator.city}` : `Tours by ${operator.name}`,
+      price: prices.length > 0 ? formatNaira(Math.min(...prices)) : null,
+      action: 'See tours',
+    };
+  };
+  /** @param {import('../lib/share-card.js').CardInput} input @param {string} path */
+  const cardImage = (input, path) => ({
+    url: `${base}${path}/card.png?v=${cards.key(input)}`,
+    alt: [input.title, input.operatorName, input.price && `from ${input.price}`]
+      .filter(Boolean)
+      .join(' · '),
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+  });
+  /** @param {import('express').Response} res @param {Buffer} png */
+  const sendPng = (res, png) =>
+    // A day: the ?v= in the address changes whenever the card would.
+    res.set('Cache-Control', 'public, max-age=86400').type('png').send(png);
 
   /** @param {import('express').Response} res */
   const sendNotFound = (res) => res.status(404).type('html').send(notFoundPage());
@@ -163,6 +217,23 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
   /** Is this request ours? (Not a reserved word, and shaped like slugs.) */
   const isOperator = (/** @type {string} */ s) => SLUG.test(s) && !RESERVED_OPERATOR_SLUGS.has(s);
   const isTour = (/** @type {string} */ s) => SLUG.test(s) && !RESERVED_TOUR_SLUGS.has(s);
+
+  // --- Preview cards (registered first: "card.png" isn't a slug, so the routes below would
+  //     pass on it anyway, but being explicit is clearer) -------------------------------------
+  router.get('/:operatorSlug/card.png', async (req, res, next) => {
+    if (!isOperator(req.params.operatorSlug)) return next();
+    const view = await loadCatalogueView(prisma, req.params.operatorSlug);
+    if (!view) return sendNotFound(res);
+    sendPng(res, await cards.get(catalogueCard(view)));
+  });
+
+  router.get('/:operatorSlug/:tourSlug/card.png', async (req, res, next) => {
+    const { operatorSlug, tourSlug } = req.params;
+    if (!isOperator(operatorSlug) || !isTour(tourSlug)) return next();
+    const view = await loadTourView(prisma, operatorSlug, tourSlug);
+    if (!view) return sendNotFound(res);
+    sendPng(res, await cards.get(tourCard(view)));
+  });
 
   // --- The catalogue: okapigo.app/irin-lagos-tours ------------------------------------------
   router.get('/:operatorSlug', async (req, res, next) => {
@@ -176,7 +247,6 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
 
     const prices = tours.map((t) => t.fromPriceKobo).filter((p) => p !== null);
     const cheapest = prices.length > 0 ? Math.min(...prices) : null;
-    const photo = tours.map((t) => t.photo).find(Boolean) ?? null;
     const description =
       tours.length === 0
         ? 'New tours coming soon.'
@@ -198,7 +268,7 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
             description,
             url: `${base}/${operator.slug}`,
             siteName: operator.name,
-            image: photo,
+            image: cardImage(catalogueCard(view), `/${operator.slug}`),
             data: { kind: 'catalogue', operatorSlug, view },
             body: `${standInHeader(operator.name)}
 <main class="okg-page"><h1>${escapeHtml(heading)}</h1>
@@ -252,14 +322,14 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
       durationMinutes: tour.durationMinutes,
       nextDay,
     });
-    const photo = /** @type {Array<{ url: string, alt: string }>} */ (tour.photos)[0] ?? null;
     return renderSharePage(
       {
         title: `${tour.title} · ${operator.name}`,
         description,
         url: `${base}${path}`,
         siteName: operator.name,
-        image: photo,
+        // The designed card (designs: "og:image (the 1200×630 card)"), not a raw photo.
+        image: cardImage(tourCard(view), `/${operator.slug}/${tour.slug}`),
         price: price !== null ? { kobo: price } : null,
         data: {
           kind: 'tour',
@@ -299,4 +369,18 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
   });
 
   return router;
+}
+
+/**
+ * "Daily 09:00" → "daily at 09:00", "Thu–Sat 18:30" → "Thu–Sat at 18:30" (the card's facts
+ * line reads as a sentence).
+ * @param {string | null} summary  from scheduleSummary()
+ */
+function scheduleSentence(summary) {
+  // Split before the FIRST time: "Mon, Sun 09:00, 15:00" has two.
+  const match = summary?.match(/^(.*?) (\d\d:\d\d.*)$/);
+  if (!match) return null;
+  const [, days, times] = match;
+  const lower = days === 'Daily' || days === 'Weekends' ? days.toLowerCase() : days;
+  return `${lower} at ${times}`;
 }

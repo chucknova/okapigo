@@ -14,3 +14,10 @@ allowBuilds:
   # BullMQ's optional native speed-up for message encoding. The plain-JavaScript fallback is
   # fine at our scale, so we don't run its build script.
   msgpackr-extract: false
+
+# Force patched versions of packages we only get indirectly (pnpm "overrides").
+overrides:
+  # GHSA-px8p-9vwx-vf98: fflate <0.7.5 can loop forever on a malformed ZIP64 archive. We
+  # get it through satori (the preview-card renderer), which only unpacks our own font
+  # files, so the risk was low, but the fix is a compatible patch release.
+  fflate: '>=0.7.5 <0.8.0'
