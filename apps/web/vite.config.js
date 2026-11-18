@@ -15,7 +15,16 @@ import react from '@vitejs/plugin-react';
 const API = 'http://localhost:4000';
 // Paths the API answers. Everything else is the web app's own route.
 // (Not /pay: since stage 12e, /pay/:token is a guest-web page; its data is /public/….)
-const apiPaths = ['/public', '/api', '/payments', '/simulator', '/webhooks', '/health'];
+// /embed.js: the booking widget's script (stage 12h); in development its frames come from here.
+const apiPaths = [
+  '/public',
+  '/api',
+  '/payments',
+  '/simulator',
+  '/webhooks',
+  '/health',
+  '/embed.js',
+];
 
 export default defineConfig({
   plugins: [react()],

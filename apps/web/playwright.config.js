@@ -33,24 +33,33 @@ export default defineConfig({
     channel: process.env.CI ? undefined : 'chrome',
     trace: 'retain-on-failure',
   },
-  webServer: {
-    // The real API, serving the built web app (apps/web/dist) and the share pages.
-    command: 'node --env-file-if-exists=../../.env ../api/src/server.js',
-    url: `${base}/health`,
-    env: {
-      API_PORT: String(E2E_PORT),
-      API_PUBLIC_URL: base,
-      WEB_PUBLIC_URL: base,
-      // Always the simulator, whatever .env says: the journeys press the simulator's own Pay
-      // button, and must not depend on Paystack's servers or this connection. (Real values
-      // here win over the .env file.)
-      PAYMENT_PROVIDER: 'simulator',
-      // Private job queues (the worker in e2e/global-setup.js uses the same), so a `pnpm dev`
-      // worker running alongside can't take these jobs.
-      JOBS_PREFIX: 'okg-e2e',
-      LOG_LEVEL: 'warn',
+  webServer: [
+    {
+      // The real API, serving the built web app (apps/web/dist) and the share pages.
+      command: 'node --env-file-if-exists=../../.env ../api/src/server.js',
+      url: `${base}/health`,
+      env: {
+        API_PORT: String(E2E_PORT),
+        API_PUBLIC_URL: base,
+        WEB_PUBLIC_URL: base,
+        // Always the simulator, whatever .env says: the journeys press the simulator's own Pay
+        // button, and must not depend on Paystack's servers or this connection. (Real values
+        // here win over the .env file.)
+        PAYMENT_PROVIDER: 'simulator',
+        // Private job queues (the worker in e2e/global-setup.js uses the same), so a `pnpm dev`
+        // worker running alongside can't take these jobs.
+        JOBS_PREFIX: 'okg-e2e',
+        LOG_LEVEL: 'warn',
+      },
+      reuseExistingServer: false,
+      timeout: 60_000,
     },
-    reuseExistingServer: false,
-    timeout: 60_000,
-  },
+    {
+      // A stand-in for the operator's own website, on another origin (the booking widget).
+      command: 'node e2e/host-server.js',
+      url: 'http://localhost:4200/',
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+  ],
 });

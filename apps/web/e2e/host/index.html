@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A host website</title>
+    <style>
+      /* Someone else's website: its own fonts and colours, nothing to do with OkapiGo. */
+      body {
+        font-family: Georgia, serif;
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      body.dark {
+        background: #14161a;
+        color: #f2f2f2;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>The Heritage Walk</h1>
+    <p id="above">…paragraph above the widget.</p>
+    <div id="slot"></div>
+    <p id="below">…paragraph below.</p>
+    <script>
+      // The e2e tests open this page as ?op=<operator>&tour=<tour>&base=<OkapiGo address>,
+      // and it pastes the snippet the way an operator would.
+      var q = new URLSearchParams(location.search);
+      if (q.get('dark')) document.body.className = 'dark';
+      var slot = document.getElementById('slot');
+      slot.setAttribute('data-okapigo', q.get('op') || '');
+      if (q.get('tour')) slot.setAttribute('data-tour', q.get('tour'));
+      var s = document.createElement('script');
+      s.src = (q.get('base') || 'http://localhost:4100') + '/embed.js';
+      s.async = true;
+      document.body.appendChild(s);
+    </script>
+  </body>
+</html>

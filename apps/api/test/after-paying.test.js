@@ -8,6 +8,7 @@
 import { describe, it, expect, afterAll, afterEach } from 'vitest';
 import request from 'supertest';
 import { addDays, localDate } from '@okapigo/shared/time';
+import { createSimulatorProvider } from '@okapigo/payments';
 import { createTestContext, buildApp } from './helpers.js';
 
 const ctx = createTestContext();
@@ -50,6 +51,30 @@ describe('paying from the checkout', () => {
     expect(click.headers.location).toBe(
       `${WEB}/trip/${token}/confirm?reference=${reference}&trxref=${reference}`,
     );
+  });
+
+  it('if the webhook can’t be delivered, the guest is still sent back (check settles it)', async () => {
+    // Paystack never holds a guest because its webhook failed; neither does the simulator.
+    const provider = createSimulatorProvider({
+      baseUrl: 'http://localhost:4000',
+      fetch: /** @type {any} */ (
+        async () => {
+          throw new TypeError('fetch failed'); // nothing listening
+        }
+      ),
+    });
+    const app = buildApp({ prisma: ctx.prisma, provider, webPublicUrl: WEB });
+    const { token } = await heldBooking(app);
+    const { reference } = (
+      await request(app).post(`/public/bookings/${token}/pay`).send({ option: 'full' })
+    ).body.payment;
+
+    const click = await request(app).post(`/simulator/checkout/${reference}/pay`);
+    expect(click.status).toBe(303);
+    expect(click.headers.location).toContain(`/trip/${token}/confirm`);
+    // The confirmation page's check finds the money at the provider.
+    const check = await request(app).post(`/public/bookings/${token}/payments/${reference}/check`);
+    expect(check.body).toEqual({ status: 'succeeded' });
   });
 
   it('lists the payment in the guest view; "check" knows a decline at once', async () => {

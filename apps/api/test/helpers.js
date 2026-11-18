@@ -69,6 +69,28 @@ export function createFakeJobs() {
   };
 }
 
+/**
+ * A payment simulator whose webhooks go NOWHERE: it records what it would have sent. Before
+ * stage 12h the tests' simulator really POSTed to http://localhost:4000, so a test's result
+ * depended on whether a dev API happened to be running there (and that API received the
+ * tests' webhooks). Tests process webhooks themselves (ctx.jobs, webhookFor…).
+ * @returns {ReturnType<typeof createSimulatorProvider> & { sentWebhooks: string[] }}
+ */
+export function createTestSimulator() {
+  /** @type {string[]} */
+  const sentWebhooks = [];
+  const provider = createSimulatorProvider({
+    baseUrl: 'http://localhost:4000',
+    fetch: /** @type {any} */ (
+      async (/** @type {string} */ _url, /** @type {{ body: string }} */ init) => {
+        sentWebhooks.push(init.body);
+        return { status: 200 };
+      }
+    ),
+  });
+  return Object.assign(provider, { sentWebhooks });
+}
+
 /** Builds an app with fakes for anything not provided. */
 export function buildApp(overrides = {}) {
   return createApp({
@@ -78,7 +100,7 @@ export function buildApp(overrides = {}) {
     otpSender: createCapturingSender(),
     authSecret: TEST_AUTH_SECRET,
     jobs: createFakeJobs(),
-    provider: createSimulatorProvider({ baseUrl: 'http://localhost:4000' }),
+    provider: createTestSimulator(),
     apiPublicUrl: 'http://localhost:4000',
     rateLimitStore: memoryRateLimitStore(),
     ...overrides,
@@ -99,7 +121,7 @@ export function createTestContext() {
   const sender = createCapturingSender();
   const jobs = createFakeJobs();
   // One simulator per test file, so tests can play "the guest" (complete / fail a payment).
-  const provider = createSimulatorProvider({ baseUrl: 'http://localhost:4000' });
+  const provider = createTestSimulator();
   const app = buildApp({ prisma, otpSender: sender, jobs, provider });
   const sessions = createSessionService({ prisma });
   /** Slugs created by the current test; everything under them is deleted in cleanup(). */

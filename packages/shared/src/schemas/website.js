@@ -112,3 +112,75 @@ export function readSite(value) {
   const parsed = SiteSchema.safeParse(value ?? {});
   return parsed.success ? parsed.data : {};
 }
+
+// ---------------------------------------------------------------------------------------------
+// APPROVED WEBSITES for the booking widget (BKG-01, stage 12h)
+// ---------------------------------------------------------------------------------------------
+// An operator lists the sites that may show their widget. People paste all sorts:
+// "https://www.IrinLagosTours.com/tours/", "irinlagostours.com". Each is reduced to a host
+// name (plus a port, for local testing only), so the list is one clear form.
+
+/** At most this many: an operator's own site and a few partners (hotels, blogs). */
+export const MAX_EMBED_DOMAINS = 10;
+
+const HOST = /^(?:localhost|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63})(?::\d{2,5})?$/;
+
+/**
+ * "https://www.IrinLagosTours.com/tours/" → "www.irinlagostours.com". Null if it isn't a
+ * website address (an email, a bare word, an IP address).
+ * @param {string} input
+ */
+export function normalizeEmbedDomain(input) {
+  const trimmed = input.trim().toLowerCase();
+  // Drop a scheme and anything after the host (path, query, fragment).
+  const host = trimmed.replace(/^[a-z]+:\/\//, '').split(/[/?#]/)[0];
+  if (!HOST.test(host)) return null;
+  // Ports only for local testing: a real website is on 443.
+  if (host.includes(':') && !host.startsWith('localhost:')) return null;
+  return host;
+}
+
+export const EmbedDomainsSchema = z
+  .array(
+    z
+      .string()
+      .max(260)
+      .transform((v, ctx) => {
+        const host = normalizeEmbedDomain(v);
+        if (!host) ctx.addIssue({ code: 'custom', message: `“${v}” isn’t a website address.` });
+        return host ?? z.NEVER;
+      }),
+  )
+  .max(MAX_EMBED_DOMAINS, `${MAX_EMBED_DOMAINS} websites at most.`)
+  .transform((list) => [...new Set(list)]);
+
+/**
+ * The Content-Security-Policy that lets ONLY these sites show the widget in a frame. With
+ * none, no site may (frame-ancestors 'none'): the browser refuses, whatever the page does.
+ * A real site is https; localhost (testing) is http.
+ * @param {string[]} domains  already normalised
+ */
+export function frameAncestors(domains) {
+  if (domains.length === 0) return "frame-ancestors 'none'";
+  const sources = domains.map((d) => (d.startsWith('localhost') ? `http://${d}` : `https://${d}`));
+  return `frame-ancestors ${sources.join(' ')}`;
+}
+
+/**
+ * Is a page at this Origin ("https://irinlagostours.com") one of the approved sites? The
+ * same rule as frameAncestors, for embed.js to ask before showing anything.
+ * @param {string[]} domains
+ * @param {string | undefined} origin
+ */
+export function originApproved(domains, origin) {
+  if (!origin) return false;
+  let url;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false;
+  }
+  const host = url.host.toLowerCase();
+  if (!domains.includes(host)) return false;
+  return host.startsWith('localhost') ? url.protocol === 'http:' : url.protocol === 'https:';
+}

@@ -203,6 +203,25 @@ email or WhatsApp in a moment. You can close this page.</p>
       );
     });
 
+    /**
+     * Sends the simulator's webhook, like Paystack. If it can't be delivered (the API
+     * restarting, a test with nothing listening), the guest is STILL sent back: Paystack never
+     * holds a guest because its webhook failed. The confirmation page's "check" and the
+     * reconcile job settle the payment from the provider's side (stage 12e). Before this,
+     * a failed delivery crashed the page with a 500 (found in stage 12h).
+     * @param {any} req
+     * @param {string} reference
+     * @param {string} url
+     */
+    const deliver = async (req, reference, url) => {
+      try {
+        return await sim.sendWebhook(reference, url);
+      } catch (err) {
+        req.log.warn({ err, reference }, 'simulator: webhook not delivered (check settles it)');
+        return null;
+      }
+    };
+
     // "Pay": what Paystack does when a card is approved. Mark it paid, send the SIGNED
     // charge.success webhook to our own webhook URL, then send the browser back.
     publicRouter.post('/simulator/checkout/:reference/pay', async (req, res) => {
@@ -212,7 +231,7 @@ email or WhatsApp in a moment. You can close this page.</p>
         return;
       }
       await sim.complete(reference);
-      const status = await sim.sendWebhook(reference, webhookUrl);
+      const status = await deliver(req, reference, webhookUrl);
       req.log.info(
         { reference, webhookStatus: status },
         'simulator: payment approved, webhook sent',
@@ -237,7 +256,7 @@ email or WhatsApp in a moment. You can close this page.</p>
           channel: 'bank_transfer',
           paidAmountKobo: tx.amountKobo - short,
         });
-        await sim.sendWebhook(reference, webhookUrl);
+        await deliver(req, reference, webhookUrl);
         res.redirect(303, await returnAddress(reference));
       });
     }

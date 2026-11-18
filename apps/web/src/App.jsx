@@ -16,6 +16,7 @@
  *   /trip/:token/ask                ask the operator               stage 12f-2
  *   /trip/:token                    the trip hub                   stage 12f-1
  *   /pay/:token(/done)              E · a payment link             stage 12e
+ *   /embed/:operator(/:tour(/book…)) the booking widget, in a frame  stage 12h
  *
  * The same paths are served by the API with link previews and the page's data embedded
  * (apps/api/src/routes/share-pages.js). wouter (about 2 KB) does the matching.
@@ -34,6 +35,7 @@ import { PayBalance } from './screens/trip/PayBalance.jsx';
 import { TripHub } from './screens/trip/TripHub.jsx';
 import { ChangeOrCancel, CancelBooking, AskOperator } from './screens/trip/TripChange.jsx';
 import { PaymentLink, PaymentLinkDone } from './screens/pay/PaymentLink.jsx';
+import { EmbedFrame, EmbedTour, EmbedTours } from './screens/embed/Embed.jsx';
 
 // The gallery is for development, so it's split into its own file that only downloads when
 // someone opens /_gallery. Guests never pay for it in the 300 KB budget.
@@ -46,6 +48,20 @@ export function App() {
         <Suspense fallback={null}>
           <Gallery />
         </Suspense>
+      </Route>
+      {/* The booking widget (stage 12h), inside another website's frame. "nest": every link in
+          these screens is relative to /embed, so checkout stays inside the frame. */}
+      <Route path="/embed" nest>
+        <EmbedFrame>
+          <Switch>
+            <Route path="/:operator/:tour/book/review" component={Review} />
+            <Route path="/:operator/:tour/book/details" component={Details} />
+            <Route path="/:operator/:tour/book/who" component={WhoComing} />
+            <Route path="/:operator/:tour/book" component={ChooseDate} />
+            <Route path="/:operator/:tour" component={EmbedTour} />
+            <Route path="/:operator" component={EmbedTours} />
+          </Switch>
+        </EmbedFrame>
       </Route>
       {/* Private pages first: "trip" and "pay" are reserved words, never operators. */}
       <Route path="/trip/:token/confirm" component={Confirm} />

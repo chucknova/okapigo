@@ -32,7 +32,8 @@ commit, like sessions 10 and 11.
 | 12f-2   | Cancel yourself (new public cancel API); ask Ìrìn (new requests table + staff list); the "request open" banner | 05                |
 | 12g-1   | The three styles: Lagoon / Classic / Earth × light / dark as token sets, applied to every guest page, a staff API to choose, and `?style=` previews | 04                |
 | 12g-2   | The one-page operator site, business details (new fields + staff API), empty and missing states | 04                |
-| 12h     | Booking widget: embed script (inline + pop-up), resizing frame, booking-completed event, approved domains, UTM capture, its states | 03                |
+| 12h-1   | Booking widget, inline: embed.js, approved websites (frame-ancestors), the frame that sizes itself, one tour / all tours, checkout inside the frame, Pay in a new tab | 03                |
+| 12h-2   | The pop-up button and overlay, back from Paystack into the frame, the booking-completed event, UTM capture | 03                |
 
 The **message wording** in file 02 is kept for session 14, which sends the messages.
 

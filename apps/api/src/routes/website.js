@@ -3,18 +3,26 @@
  * The operator's website (MKT-08, stage 12g).
  *
  *   GET   /api/website   marketing: view   the look, the business details, and the choices
- *   PATCH /api/website   marketing: edit   { style?, mode?, phone?, whatsapp?, site? }
+ *   PATCH /api/website   marketing: edit   { style?, mode?, phone?, whatsapp?, site?, embedDomains? }
  *
  * Changing the style or mode changes only the LOOK: content, tour links and booking links
  * stay the same, so links already shared never break (MKT-09). `site` holds the one-page
  * website's words (stage 12g-2, SiteSchema): what's sent is MERGED over what's stored, so a
  * form can save one section at a time; send null (or '') to clear a field. The screen for
  * this is part of the operator app (designed later).
+ *
+ * `embedDomains` (stage 12h) is the whole list of websites allowed to show the booking widget;
+ * it REPLACES the stored list (send [] to allow none).
  */
 import { Router } from 'express';
 import { z } from 'zod';
 import { STYLE_NAMES, MODES } from '@okapigo/shared/tokens';
-import { SiteSchema, SitePhoneSchema, readSite } from '@okapigo/shared/schemas/website';
+import {
+  SiteSchema,
+  SitePhoneSchema,
+  EmbedDomainsSchema,
+  readSite,
+} from '@okapigo/shared/schemas/website';
 import { requirePermission } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
@@ -25,6 +33,7 @@ const WebsiteSchema = z
     phone: SitePhoneSchema.optional(),
     whatsapp: SitePhoneSchema.optional(),
     site: SiteSchema.optional(),
+    embedDomains: EmbedDomainsSchema.optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, 'Send something to change.');
@@ -36,6 +45,7 @@ const view = (o) => ({
   phone: o.phone,
   whatsapp: o.whatsapp,
   site: readSite(o.site),
+  embedDomains: o.embedDomains,
   styles: STYLE_NAMES,
   modes: MODES,
 });
@@ -81,6 +91,7 @@ export function websiteRouter({ prisma }) {
             ...(b.phone !== undefined && { phone: b.phone }),
             ...(b.whatsapp !== undefined && { whatsapp: b.whatsapp }),
             ...(site && { site }),
+            ...(b.embedDomains !== undefined && { embedDomains: b.embedDomains }),
           },
         });
       });

@@ -24,9 +24,33 @@ import { Notice } from '../../components/Feedback.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
 import { CheckoutFrame, useTourForCheckout } from './CheckoutFrame.jsx';
+import { useEmbedded } from '../embed/Embed.jsx';
 
 // Booked already (paid in full or a deposit): the guest belongs on the confirmation page.
 const BOOKED = ['confirmed', 'part_paid', 'paid', 'amended', 'completed'];
+
+/**
+ * Sends the tab opened at the tap to Paystack's page. Paystack's page gets no handle back on
+ * this frame (opener cleared).
+ * @param {Window} tab
+ * @param {string} url
+ */
+function sendTab(tab, url) {
+  tab.opener = null;
+  tab.location.href = url;
+}
+
+/**
+ * Takes the WHOLE window (not just the frame) to Paystack, when a new tab was blocked.
+ * @param {string} url
+ */
+function goTop(url) {
+  try {
+    /** @type {Window} */ (window.top).location.href = url;
+  } catch {
+    window.location.assign(url); // the host page forbids it: the frame, as a last resort
+  }
+}
 
 /** A tick every second while mounted (for the hold countdown). */
 function useNow() {
@@ -47,7 +71,12 @@ export function Review({ params }) {
   const { data: tourView } = useTourForCheckout(opSlug, tourSlug);
   const bookingApi = useApi(token ? `/public/bookings/${token}` : null);
   const now = useNow();
-  const [paying, setPaying] = useState(/** @type {'idle' | 'starting' | 'unavailable'} */ ('idle'));
+  const [paying, setPaying] = useState(
+    /** @type {'idle' | 'starting' | 'unavailable' | 'away'} */ ('idle'),
+  );
+  // In the widget: Paystack's address, once it's open in its own tab.
+  const [awayUrl, setAwayUrl] = useState(/** @type {string | null} */ (null));
+  const embedded = useEmbedded();
   const [checkedPayment, setCheckedPayment] = useState(/** @type {string | null} */ (null));
   const [reholding, setReholding] = useState(false);
   const [reholdProblem, setReholdProblem] = useState(/** @type {string | null} */ (null));
@@ -124,11 +153,26 @@ export function Review({ params }) {
   const pay = async () => {
     if (!option || paying === 'starting' || checking) return; // a second tap does nothing
     setPaying('starting');
+    // IN THE WIDGET (stage 12h): Paystack's page refuses to run inside another site's frame,
+    // so it opens in a new tab. The tab is opened NOW, during the tap: browsers allow a tab
+    // opened by a tap, not one opened after waiting for the server.
+    const tab = embedded ? window.open('', '_blank') : null;
     // "This payment is being set up" (a double tap reached the server): ask again shortly.
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
         const url = await startPayment(/** @type {string} */ (token), option.type);
-        window.location.assign(url); // off to Paystack's page (or the simulator's)
+        if (!embedded) {
+          window.location.assign(url); // off to Paystack's page (or the simulator's)
+          return;
+        }
+        if (tab) {
+          sendTab(tab, url);
+          setAwayUrl(url);
+          setPaying('away');
+          return;
+        }
+        // The browser blocked the tab: take the whole window there instead.
+        goTop(url);
         return;
       } catch (err) {
         if (err instanceof ApiError && err.code === 'PAYMENT_STARTING') {
@@ -139,14 +183,17 @@ export function Review({ params }) {
           err instanceof ApiError &&
           (err.code === 'OPTION_NOT_AVAILABLE' || err.code === 'HOLD_EXPIRED')
         ) {
+          tab?.close();
           bookingApi.retry(); // the server will show the hold as over
           setPaying('idle');
           return;
         }
+        tab?.close();
         setPaying('unavailable');
         return;
       }
     }
+    tab?.close();
     setPaying('unavailable');
   };
 
@@ -349,8 +396,18 @@ export function Review({ params }) {
             Your seats are still held for {formatCountdown(remaining)}. Try again in a moment.
           </Notice>
         )}
+        {paying === 'away' && awayUrl && (
+          <Notice tone="warning" title="Paystack is open in a new tab">
+            Pay there. Your confirmation shows in that tab when you’re done.{' '}
+            <a className="okg-link" href={awayUrl} target="_blank" rel="noopener noreferrer">
+              Open Paystack again
+            </a>
+          </Notice>
+        )}
         <p className="okg-muted okg-small okg-pay-note">
-          You’ll choose card or bank transfer on the next step, secured by Paystack.
+          {embedded
+            ? 'You’ll be taken to Paystack in a new tab to pay securely, then to your confirmation.'
+            : 'You’ll choose card or bank transfer on the next step, secured by Paystack.'}
         </p>
         <button
           type="button"

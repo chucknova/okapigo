@@ -19,6 +19,11 @@ export default async function globalSetup() {
   const prisma = createPrismaClient(process.env.DATABASE_URL);
   const slug = `test-e2e-${randomUUID().slice(0, 8)}`;
   const operator = await seedDemoOperator(prisma, { slug });
+  // The booking widget may appear on the stand-in host site (e2e/host-server.js), and only there.
+  await prisma.operator.update({
+    where: { id: operator.id },
+    data: { embedDomains: ['localhost:4200'] },
+  });
   // Tests read it from here (globalSetup's environment is passed on to the test workers).
   process.env.E2E_OPERATOR_SLUG = slug;
 

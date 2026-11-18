@@ -168,38 +168,38 @@
 
 /* --- Meeting point and map -------------------------------------------------------------- */
 
-.okg-meeting {
+.okg-trip-meeting {
   padding: 0;
   overflow: hidden;
 }
-.okg-meeting__text {
+.okg-trip-meeting__text {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 14px var(--space-4) var(--space-4);
 }
-.okg-meeting__name {
+.okg-trip-meeting__name {
   font-weight: var(--weight-bold);
 }
-.okg-meeting__name--big {
+.okg-trip-meeting__name--big {
   font-size: var(--text-lg);
 }
-.okg-meeting__links {
+.okg-trip-meeting__links {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
   margin-top: 6px;
 }
-.okg-meeting__links--stacked {
+.okg-trip-meeting__links--stacked {
   grid-template-columns: 1fr;
 }
-.okg-meeting__apple {
+.okg-trip-meeting__apple {
   justify-self: center;
   min-height: var(--control-min-target);
   display: inline-flex;
   align-items: center;
 }
-.okg-meeting__pickup {
+.okg-trip-meeting__pickup {
   font-size: var(--text-sm);
 }
 

@@ -26,6 +26,8 @@
  * never gives an operator one of them.
  */
 import { STYLE_NAMES } from '@okapigo/shared/tokens';
+import { frameAncestors } from '@okapigo/shared/schemas/website';
+import { embedScript } from '../lib/embed-script.js';
 import { Router } from 'express';
 import { formatNaira } from '@okapigo/shared/money';
 import {
@@ -178,6 +180,24 @@ ${assets ? webAssetTags(assets) : ''}
 </head><body><div id="root"><p style="font-family: system-ui, sans-serif; padding: 1rem">Loading…</p></div></body></html>`;
 }
 
+/**
+ * A booking widget frame (stage 12h): the app with its data embedded (no extra request, no
+ * jump), the operator's look, never indexed. Shown inside another website's <iframe>.
+ * @param {unknown} data
+ * @param {{ style: string, mode: string }} look
+ * @param {import('../lib/web-assets.js').WebAssets | null} assets
+ */
+function embedPage(data, look, assets) {
+  return `<!doctype html><html lang="en"${lookAttributes(look)} data-embed=""><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Book a tour</title>
+${assets ? webAssetTags(assets) : ''}
+</head><body>
+<script id="okg-data" type="application/json">${jsonForScript(data)}</script>
+<div id="root"></div></body></html>`;
+}
+
 /** A 404 page that search engines are told not to index. */
 function notFoundPage() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -278,6 +298,68 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
 
   // --- Preview cards (registered first: "card.png" isn't a slug, so the routes below would
   //     pass on it anyway, but being explicit is clearer) -------------------------------------
+  // --- The booking widget (BKG-01, stage 12h) ---------------------------------------------
+  //   /embed.js                          the script operators paste into their website
+  //   /embed/:operator(/:tour(/book…))   the frames it shows: all tours, one tour, checkout
+  // Frames may appear ONLY inside the operator's approved websites: the browser enforces it
+  // from the Content-Security-Policy's frame-ancestors (helmet's default says 'self').
+  router.get('/embed.js', (_req, res) => {
+    res
+      // helmet says "same-origin" for every response; this one file is FOR other websites.
+      .set('Cross-Origin-Resource-Policy', 'cross-origin')
+      .set('Cache-Control', 'public, max-age=300')
+      .type('application/javascript')
+      .send(embedScript(base));
+  });
+
+  router.get(
+    [
+      '/embed/:operatorSlug',
+      '/embed/:operatorSlug/:tourSlug',
+      '/embed/:operatorSlug/:tourSlug/book',
+      '/embed/:operatorSlug/:tourSlug/book/:step',
+    ],
+    async (req, res, next) => {
+      const { operatorSlug, tourSlug, step } = req.params;
+      if (!isOperator(operatorSlug) || (tourSlug && !isTour(tourSlug))) return next();
+      if (step && !CHECKOUT_STEPS.has(step)) return next();
+      const operator = await prisma.operator.findUnique({ where: { slug: operatorSlug } });
+      if (!operator) return sendNotFound(res);
+
+      let data;
+      if (tourSlug) {
+        const view = await loadTourView(prisma, operatorSlug, tourSlug);
+        if (!view) return sendNotFound(res);
+        data = { kind: 'tour', operatorSlug, tourSlug, view: withoutInternals(view) };
+      } else {
+        data = {
+          kind: 'catalogue',
+          operatorSlug,
+          view: await loadCatalogueView(prisma, operatorSlug),
+        };
+      }
+
+      // Keep helmet's whole policy; replace only who may frame this page.
+      const csp = String(res.getHeader('Content-Security-Policy') ?? '');
+      const allowed = frameAncestors(operator.embedDomains);
+      res.set(
+        'Content-Security-Policy',
+        /frame-ancestors [^;]*/.test(csp)
+          ? csp.replace(/frame-ancestors [^;]*/, allowed)
+          : [csp, allowed].filter(Boolean).join(';'),
+      );
+      // X-Frame-Options can only say "same site" or "nobody": frame-ancestors decides instead.
+      res.removeHeader('X-Frame-Options');
+      res
+        // The approved list can change at any time: always ask again.
+        .set('Cache-Control', 'no-cache')
+        .type('html')
+        .send(
+          embedPage(data, { style: operator.websiteStyle, mode: operator.websiteMode }, webAssets),
+        );
+    },
+  );
+
   router.get('/:operatorSlug/card.png', async (req, res, next) => {
     if (!isOperator(req.params.operatorSlug)) return next();
     const view = await loadCatalogueView(prisma, req.params.operatorSlug);

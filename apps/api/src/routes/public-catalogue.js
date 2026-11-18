@@ -20,6 +20,7 @@
  *     never cached.
  * Holds, bookings and payments for guests are added in stages 11b and 11c.
  */
+import { originApproved } from '@okapigo/shared/schemas/website';
 import { Router } from 'express';
 import { z } from 'zod';
 import { listAvailability } from '@okapigo/db';
@@ -85,6 +86,28 @@ export function publicCatalogueRouter({ prisma }) {
     if (!tour) throw new HttpError(404, 'NOT_FOUND', 'Tour not found.');
     return tour;
   }
+
+  // --- May this website show the booking widget? (stage 12h) --------------------------------
+  // embed.js asks from the HOST page, so the browser sends that page's Origin, which page
+  // scripts can't fake. The answer is only yes or no (the list itself stays private), and
+  // any site may ask (CORS *). The real guard is the frame's own Content-Security-Policy.
+  router.get(
+    '/public/:operatorSlug/embed-check',
+    validate({ params: OperatorParams }),
+    async (req, res) => {
+      const operator = await prisma.operator.findUnique({
+        where: { slug: req.params.operatorSlug },
+        select: { embedDomains: true },
+      });
+      res
+        .set('Access-Control-Allow-Origin', '*')
+        .set('Vary', 'Origin')
+        .set('Cache-Control', 'no-store')
+        .json({
+          approved: operator ? originApproved(operator.embedDomains, req.get('Origin')) : false,
+        });
+    },
+  );
 
   // --- The operator and its tour cards (catalogue page, website "Tours" section) ----------
 

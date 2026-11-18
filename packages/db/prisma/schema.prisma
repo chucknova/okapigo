@@ -60,6 +60,9 @@ model Operator {
   // whyUs, faqs, email, address, socials. Validated by SiteSchema
   // (packages/shared/src/schemas/website.js); read as a whole, so one JSON value.
   site         Json     @default("{}")
+  // Websites allowed to show the booking widget (BKG-01, stage 12h): host names, with a
+  // port only for local testing ("irinlagostours.com", "localhost:4200"). Empty = nowhere.
+  embedDomains String[] @default([]) @map("embed_domains")
   pricing      Json     @default("{\"tax\": {\"name\": \"VAT\", \"basisPoints\": 750, \"inclusive\": true}, \"fees\": []}")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

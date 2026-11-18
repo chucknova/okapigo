@@ -9,6 +9,7 @@ import { memoryLocation } from 'wouter/memory-location';
 import { Details } from '../src/screens/checkout/Details.jsx';
 import { Review } from '../src/screens/checkout/Review.jsx';
 import { resetEmbedded } from '../src/lib/data.js';
+import { EmbedFrame } from '../src/screens/embed/Embed.jsx';
 
 const operator = { slug: 'irin', name: 'Ìrìn Lagos Tours', timeZone: 'Africa/Lagos' };
 const tour = {
@@ -334,6 +335,75 @@ describe('step 4: review and pay', () => {
       });
       const memory = renderAt('/irin/badagry/book/review');
       await waitFor(() => expect(memory.history.at(-1)).toBe(`/trip/${'T'.repeat(44)}/confirm`));
+    });
+  });
+
+  describe('inside the booking widget (stage 12h)', () => {
+    const renderEmbedded = (path) => {
+      const memory = memoryLocation({ path, record: true });
+      render(
+        <Router hook={memory.hook}>
+          <EmbedFrame>
+            <Route path="/:operator/:tour/book/review" component={Review} />
+          </EmbedFrame>
+        </Router>,
+      );
+    };
+
+    it('says Paystack opens in a new tab, opens it AT THE TAP, then sends it to Paystack', async () => {
+      withBooking();
+      const tab = { opener: /** @type {any} */ ({}), location: { href: '' }, close: vi.fn() };
+      const open = vi.fn(() => tab);
+      vi.stubGlobal('open', open);
+      let answer;
+      fakeApi({
+        '/public/bookings/TTTT': (path) =>
+          path.endsWith('/pay')
+            ? new Promise(
+                (r) =>
+                  (answer = () =>
+                    r([201, { payment: { authorizationUrl: 'https://checkout.example/w' } }])),
+              )
+            : [200, { booking: heldBooking() }],
+      });
+      renderEmbedded('/irin/badagry/book/review');
+
+      expect(
+        await screen.findByText(
+          'You’ll be taken to Paystack in a new tab to pay securely, then to your confirmation.',
+        ),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Pay ₦65,000' }));
+      // Opened during the tap, before the server answered (browsers block it later).
+      expect(open).toHaveBeenCalledWith('', '_blank');
+      answer();
+
+      expect(await screen.findByText('Paystack is open in a new tab')).toBeTruthy();
+      expect(tab.location.href).toBe('https://checkout.example/w');
+      expect(tab.opener).toBeNull(); // Paystack's page gets no handle on the frame
+      expect(window.location.assign).not.toHaveBeenCalled(); // the frame stays put
+      expect(screen.getByRole('link', { name: 'Open Paystack again' }).getAttribute('href')).toBe(
+        'https://checkout.example/w',
+      );
+    });
+
+    it('if paying can’t start, the empty tab is closed again', async () => {
+      withBooking();
+      const tab = { opener: {}, location: { href: '' }, close: vi.fn() };
+      vi.stubGlobal(
+        'open',
+        vi.fn(() => tab),
+      );
+      fakeApi({
+        '/public/bookings/TTTT': (path) =>
+          path.endsWith('/pay')
+            ? [502, { error: { code: 'PROVIDER_ERROR', message: 'down' } }]
+            : [200, { booking: heldBooking() }],
+      });
+      renderEmbedded('/irin/badagry/book/review');
+      fireEvent.click(await screen.findByRole('button', { name: 'Pay ₦65,000' }));
+      expect(await screen.findByText('Payment is temporarily unavailable')).toBeTruthy();
+      expect(tab.close).toHaveBeenCalled();
     });
   });
 

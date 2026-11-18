@@ -465,39 +465,46 @@ function MeetingPoint({ b, prominent = false }) {
     .join(' ');
 
   return (
-    <section className="okg-card okg-trip__card okg-meeting" aria-labelledby="okg-meeting-title">
+    <section
+      className="okg-card okg-trip__card okg-trip-meeting"
+      aria-labelledby="okg-trip-meeting-title"
+    >
       {hasPin && !prominent && <SmallMap lat={mp.lat} lng={mp.lng} />}
-      <div className="okg-meeting__text">
+      <div className="okg-trip-meeting__text">
         {!prominent && (
-          <h2 className="okg-trip__h2" id="okg-meeting-title">
+          <h2 className="okg-trip__h2" id="okg-trip-meeting-title">
             Meeting point
           </h2>
         )}
         <p
-          className={prominent ? 'okg-meeting__name okg-meeting__name--big' : 'okg-meeting__name'}
-          id={prominent ? 'okg-meeting-title' : undefined}
+          className={
+            prominent
+              ? 'okg-trip-meeting__name okg-trip-meeting__name--big'
+              : 'okg-trip-meeting__name'
+          }
+          id={prominent ? 'okg-trip-meeting-title' : undefined}
         >
           {mp.name}
         </p>
         <p className={prominent ? '' : 'okg-muted okg-small'}>{details}</p>
         {b.pickupPoint && (
-          <p className="okg-meeting__pickup">
+          <p className="okg-trip-meeting__pickup">
             <span className="okg-strong">Your pickup:</span> {b.pickupPoint.name}
             {b.pickupPoint.time ? ` · ${b.pickupPoint.time}` : ''}
           </p>
         )}
         {hasPin &&
           (prominent ? (
-            <div className="okg-meeting__links okg-meeting__links--stacked">
+            <div className="okg-trip-meeting__links okg-trip-meeting__links--stacked">
               <a className="okg-btn okg-btn--primary" href={googleMapsUrl(mp)}>
                 Directions in Google Maps
               </a>
-              <a className="okg-link okg-meeting__apple" href={appleMapsUrl(mp)}>
+              <a className="okg-link okg-trip-meeting__apple" href={appleMapsUrl(mp)}>
                 Apple Maps
               </a>
             </div>
           ) : (
-            <div className="okg-meeting__links">
+            <div className="okg-trip-meeting__links">
               <a className="okg-btn okg-btn--secondary" href={googleMapsUrl(mp)}>
                 Google Maps
               </a>
