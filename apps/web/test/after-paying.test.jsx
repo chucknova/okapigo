@@ -269,6 +269,35 @@ describe('E: payment link page', () => {
       [`/public/payment-links/${L}`]: () => [200, { link: l }],
     });
 
+  it('back from Paystack, no webhook: from 8 s it asks Paystack itself, then shows paid', async () => {
+    const start = Date.now();
+    let waited = 0;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => start + waited);
+    let paid = false;
+    const paidLink = () => link('paid', { paidOn: '2026-11-18' });
+    const calls = fakeApi({
+      [`/public/payment-links/${L}/check`]: () => {
+        paid = true; // the provider said yes
+        return [200, { link: paidLink() }];
+      },
+      [`/public/payment-links/${L}`]: () => [200, { link: paid ? paidLink() : link('open') }],
+    });
+    renderAt(`/pay/${L}/done`);
+
+    expect(await screen.findByText('Confirming your payment…')).toBeTruthy();
+    // One 2-second round goes by with only a look at the link (the webhook's turn first).
+    await waitFor(() => expect(calls.filter((c) => c.method === 'GET').length).toBeGreaterThan(1), {
+      timeout: 4_000,
+    });
+    expect(calls.some((c) => c.path.endsWith('/check'))).toBe(false); // the webhook's turn first
+    waited = 9_000;
+    expect(
+      await screen.findByText('This link has been paid. Thank you!', {}, { timeout: 5_000 }),
+    ).toBeTruthy();
+    expect(calls.filter((c) => c.path.endsWith('/check'))).toHaveLength(1);
+    clock.mockRestore();
+  });
+
   it('open: the amount and facts, no personal details, and Pay', async () => {
     linkApi(link('open'));
     renderAt(`/pay/${L}`);

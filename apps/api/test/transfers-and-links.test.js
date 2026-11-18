@@ -280,6 +280,36 @@ describe('payment links (PAY-05)', () => {
     expect((await linkData(token)).body.link).toMatchObject({ state: 'paid' }); // "already paid"
   });
 
+  it('no webhook ever comes: the page asks, and the provider settles the link', async () => {
+    // What a laptop with real Paystack test mode sees (no public address for webhooks), and
+    // what a declined card looks like anywhere: the guest's page has to ask.
+    const { manager, booking } = await setup();
+    const { url } = (
+      await manager
+        .post(`/api/bookings/${booking.id}/payment-links`)
+        .send({ amountKobo: 1_500_000 })
+    ).body;
+    const token = url.split('/').pop();
+    const reference = (await payLink(token)).body.payment.authorizationUrl.split('/').pop();
+
+    const before = await request(ctx.app).post(`/public/payment-links/${token}/check`);
+    expect(before.status).toBe(200);
+    expect(before.body.link.state).toBe('open'); // not paid yet: nothing changes
+
+    await ctx.provider.complete(reference); // paid at the provider; no webhook sent
+    const after = await request(ctx.app).post(`/public/payment-links/${token}/check`);
+    expect(after.body.link).toMatchObject({ state: 'paid' });
+    expect(JSON.stringify(after.body)).not.toContain('Amara'); // still no personal details
+    expect(await bookingRow(booking.id)).toMatchObject({ amountPaidKobo: 1_500_000 });
+
+    // Asking again changes nothing (the money is counted once).
+    await request(ctx.app).post(`/public/payment-links/${token}/check`);
+    expect((await bookingRow(booking.id)).amountPaidKobo).toBe(1_500_000);
+    expect(
+      (await request(ctx.app).post('/public/payment-links/' + 'x'.repeat(32) + '/check')).status,
+    ).toBe(404);
+  });
+
   it('the URL is shown once; only a hash of the token is stored', async () => {
     const { manager, booking } = await setup();
     const { url, link } = (await manager.post(`/api/bookings/${booking.id}/payment-links`).send({}))

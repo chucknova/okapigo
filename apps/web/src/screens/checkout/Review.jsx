@@ -16,7 +16,7 @@ import { formatPhoneForDisplay } from '@okapigo/shared/contact';
 import { formatDuration, formatLocalDay } from '@okapigo/shared/preview';
 import { freeCancellationUntil, policyDeadlines } from '@okapigo/shared/tour-facts';
 import { useApi } from '../../lib/data.js';
-import { ApiError } from '../../lib/api.js';
+import { ApiError, api } from '../../lib/api.js';
 import { formatCountdown, lineLabel, travellerSlots } from '../../lib/checkout.js';
 import { holdAndBook, startPayment } from '../../lib/checkout-actions.js';
 import { useCheckout } from '../../lib/checkout-state.js';
@@ -24,6 +24,9 @@ import { Notice } from '../../components/Feedback.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
 import { CheckoutFrame, useTourForCheckout } from './CheckoutFrame.jsx';
+
+// Booked already (paid in full or a deposit): the guest belongs on the confirmation page.
+const BOOKED = ['confirmed', 'part_paid', 'paid', 'amended', 'completed'];
 
 /** A tick every second while mounted (for the hold countdown). */
 function useNow() {
@@ -45,6 +48,7 @@ export function Review({ params }) {
   const bookingApi = useApi(token ? `/public/bookings/${token}` : null);
   const now = useNow();
   const [paying, setPaying] = useState(/** @type {'idle' | 'starting' | 'unavailable'} */ ('idle'));
+  const [checkedPayment, setCheckedPayment] = useState(/** @type {string | null} */ (null));
   const [reholding, setReholding] = useState(false);
   const [reholdProblem, setReholdProblem] = useState(/** @type {string | null} */ (null));
 
@@ -53,7 +57,39 @@ export function Review({ params }) {
     if (!token) navigate(`/${opSlug}/${tourSlug}/book/details`, { replace: true });
   }, [token, opSlug, tourSlug, navigate]);
 
-  const booking = bookingApi.data?.booking;
+  // BACK FROM PAYSTACK WITHOUT ITS REDIRECT (the back button, a closed tab, or a bank
+  // transfer page that never sent the guest on): a payment may already have gone through.
+  // Ask the provider once before offering Pay again, so nobody waits on the wrong page or
+  // pays twice. (Found testing with real Paystack test mode: money taken, booking still held.)
+  const loaded = bookingApi.data?.booking;
+  const alreadyBooked = loaded ? BOOKED.includes(loaded.status) : false;
+  const openPayment = loaded?.payments.find((p) => p.status === 'initiated')?.reference ?? null;
+  useEffect(() => {
+    if (!token) return;
+    if (alreadyBooked) {
+      navigate(`/trip/${token}/confirm`, { replace: true });
+      return;
+    }
+    if (!openPayment) return;
+    let gone = false;
+    api(`/public/bookings/${token}/payments/${openPayment}/check`, { method: 'POST' })
+      .then((result) => {
+        if (!gone && result.status === 'succeeded') {
+          navigate(`/trip/${token}/confirm?reference=${openPayment}`, { replace: true });
+        }
+      })
+      .catch(() => {}) // can't tell: Pay stays available (it reuses the same payment)
+      .finally(() => {
+        if (!gone) setCheckedPayment(openPayment);
+      });
+    return () => {
+      gone = true;
+    };
+  }, [token, alreadyBooked, openPayment, navigate]);
+  // "Checking your payment…" until that answer is in (worked out, not stored).
+  const checking = Boolean(openPayment) && checkedPayment !== openPayment;
+
+  const booking = loaded;
   if (!booking || !tourView) {
     return (
       <div className="okg-page">
@@ -86,7 +122,7 @@ export function Review({ params }) {
     .join(' and ');
 
   const pay = async () => {
-    if (!option || paying === 'starting') return; // a second tap does nothing
+    if (!option || paying === 'starting' || checking) return; // a second tap does nothing
     setPaying('starting');
     // "This payment is being set up" (a double tap reached the server): ask again shortly.
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -320,16 +356,18 @@ export function Review({ params }) {
           type="button"
           className="okg-btn okg-btn--primary okg-btn--pay"
           onClick={pay}
-          disabled={expired || !option || paying === 'starting'}
-          aria-busy={paying === 'starting'}
+          disabled={expired || !option || paying === 'starting' || checking}
+          aria-busy={paying === 'starting' || checking}
         >
-          {paying === 'starting'
-            ? 'Setting up your payment…'
-            : paying === 'unavailable'
-              ? `Try again · Pay ${option ? formatNaira(option.amountKobo) : ''}`
-              : option?.type === 'deposit'
-                ? `Pay deposit ${formatNaira(option.amountKobo)}`
-                : `Pay ${option ? formatNaira(option.amountKobo) : ''}`}
+          {checking
+            ? 'Checking your payment…'
+            : paying === 'starting'
+              ? 'Setting up your payment…'
+              : paying === 'unavailable'
+                ? `Try again · Pay ${option ? formatNaira(option.amountKobo) : ''}`
+                : option?.type === 'deposit'
+                  ? `Pay deposit ${formatNaira(option.amountKobo)}`
+                  : `Pay ${option ? formatNaira(option.amountKobo) : ''}`}
         </button>
       </div>
     </CheckoutFrame>

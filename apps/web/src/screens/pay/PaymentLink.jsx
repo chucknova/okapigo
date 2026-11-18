@@ -27,6 +27,9 @@ const TITLE = {
   custom: 'Payment request',
 };
 
+/** When the link page starts asking Paystack itself, if the webhook hasn't landed. */
+const CHECK_AFTER_MS = 8_000;
+
 /** @param {{ params: { token: string }, done?: boolean }} props */
 export function PaymentLink({ params, done = false }) {
   const { token } = params;
@@ -35,14 +38,25 @@ export function PaymentLink({ params, done = false }) {
   const [gaveUp, setGaveUp] = useState(false);
   const link = res.data?.link;
 
-  // Back from Paystack: the link turns "paid" once the webhook lands (a few seconds). Check
-  // every 2 s for a minute, then stop (the confirmation also goes out by message).
+  // Back from Paystack: the link turns "paid" once the webhook lands (a few seconds). Look
+  // every 2 s for a minute, then stop (the confirmation also goes out by message). From 8 s,
+  // also ask Paystack directly: the webhook may never come (like the confirm page, 12e).
+  const [startedAt] = useState(() => Date.now());
   useEffect(() => {
     if (!done) return;
     const timer = setTimeout(() => setGaveUp(true), 60_000);
     return () => clearTimeout(timer);
   }, [done]);
-  usePolling(() => res.retry(), 2_000, done && link?.state === 'open' && !gaveUp);
+  usePolling(
+    async () => {
+      if (Date.now() - startedAt > CHECK_AFTER_MS) {
+        await api(`/public/payment-links/${token}/check`, { method: 'POST' }).catch(() => {});
+      }
+      res.retry();
+    },
+    2_000,
+    done && link?.state === 'open' && !gaveUp,
+  );
 
   if (!link) {
     if (res.error instanceof ApiError && res.error.status === 404) {

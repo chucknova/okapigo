@@ -24,6 +24,7 @@ import {
   payWithLink,
   cancelPaymentLink,
   allocateReceipt,
+  checkPayment,
   BookingError,
   PAYABLE_STATUSES,
 } from '@okapigo/db';
@@ -222,6 +223,31 @@ export function paymentLinksRouters({
     const link = await findPaymentLink(prisma, req.params.token);
     if (!link) throw new HttpError(404, 'NOT_FOUND', 'This payment link doesn’t exist.');
     res.set('Cache-Control', 'private, no-store').json({ link: await linkView(link, new Date()) });
+  });
+
+  /**
+   * "Has my payment gone through?" asked by the page Paystack sends the guest back to. Like
+   * the booking check (public-checkout.js), it asks the PROVIDER about the link's unfinished
+   * payment, because the webhook may never come (a declined card sends none; a computer
+   * without a public address gets none). checkPayment settles it through the same webhook path
+   * as everything else. Answers with the link's page data, so the page just redraws.
+   */
+  publicRouter.post('/public/payment-links/:token/check', async (req, res) => {
+    const link = await findPaymentLink(prisma, req.params.token);
+    if (!link) throw new HttpError(404, 'NOT_FOUND', 'This payment link doesn’t exist.');
+    const open = await prisma.payment.findFirst({
+      where: { paymentLinkId: link.id, status: 'initiated' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (open) {
+      await checkPayment(prisma, provider, open).catch((err) => {
+        req.log.warn({ err, reference: open.reference }, 'payment check failed');
+      });
+    }
+    const fresh = await findPaymentLink(prisma, req.params.token);
+    res
+      .set('Cache-Control', 'private, no-store')
+      .json({ link: await linkView(/** @type {NonNullable<typeof fresh>} */ (fresh), new Date()) });
   });
 
   publicRouter.post('/public/payment-links/:token/pay', async (req, res) => {

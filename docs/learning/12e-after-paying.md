@@ -95,6 +95,25 @@ server instead, add to `.env`:
 WEB_PUBLIC_URL=http://localhost:5173
 ```
 
+### Found later, testing with real Paystack (test mode)
+
+You paid by bank transfer on Paystack's real page. Paystack took the money, but the
+browser came back to **step 4**, not to the confirmation page, and nothing else asked
+Paystack: the worker wasn't running, and Paystack can't send webhooks to `localhost`.
+Result: money taken, booking still "held", and Pay offered again.
+
+- **Step 4 now checks first.** If the booking already has a payment in progress, it asks
+  Paystack before offering Pay ("Checking your payment…"). If the payment went through, the
+  guest is taken to "Booking confirmed". If the booking is already paid, same.
+- **The payment link page now asks too** (`POST /public/payment-links/:token/check`), from
+  8 seconds, like the confirmation page. Before, it only waited for the webhook.
+- **The browser tests ignore `.env`'s provider.** The API and the worker they start are
+  pinned to the simulator. The worker was reading `PAYMENT_PROVIDER=paystack` and could
+  never confirm the simulator's payments.
+
+Lesson: the simulator always redirects. Real providers don't always send the guest back, so
+every page a guest can land on after paying has to be able to ask.
+
 ## 4. Why we chose what we chose
 
 | Choice                                  | Alternative               | Why                                                           |

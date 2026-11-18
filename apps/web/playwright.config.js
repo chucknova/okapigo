@@ -41,6 +41,10 @@ export default defineConfig({
       API_PORT: String(E2E_PORT),
       API_PUBLIC_URL: base,
       WEB_PUBLIC_URL: base,
+      // Always the simulator, whatever .env says: the journeys press the simulator's own Pay
+      // button, and must not depend on Paystack's servers or this connection. (Real values
+      // here win over the .env file.)
+      PAYMENT_PROVIDER: 'simulator',
       LOG_LEVEL: 'warn',
     },
     reuseExistingServer: false,

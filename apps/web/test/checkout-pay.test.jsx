@@ -81,6 +81,7 @@ const heldBooking = (overrides = {}) => ({
     },
   ],
   cancellationPolicy: tour.cancellationPolicy,
+  payments: [],
   ...overrides,
 });
 
@@ -284,6 +285,56 @@ describe('step 4: review and pay', () => {
 
     await waitFor(() => expect(window.location.assign).toHaveBeenCalledTimes(1));
     expect(calls.filter((c) => c.path.endsWith('/pay'))).toHaveLength(1);
+  });
+
+  describe('back from Paystack without its redirect (back button, closed tab)', () => {
+    const open = { reference: 'OKG-ABCDEFGH12', status: 'initiated', purpose: 'full' };
+
+    it('the payment went through: asks Paystack, then shows the confirmation', async () => {
+      withBooking();
+      const calls = fakeApi({
+        '/public/bookings/TTTT': (path) =>
+          path.endsWith('/check')
+            ? [200, { status: 'succeeded' }]
+            : [200, { booking: heldBooking({ payments: [open] }) }],
+      });
+      const memory = renderAt('/irin/badagry/book/review');
+
+      await waitFor(() =>
+        expect(memory.history.at(-1)).toBe(
+          `/trip/${'T'.repeat(44)}/confirm?reference=OKG-ABCDEFGH12`,
+        ),
+      );
+      expect(calls.filter((c) => c.path.endsWith('/OKG-ABCDEFGH12/check'))).toHaveLength(1);
+      expect(calls.some((c) => c.path.endsWith('/pay'))).toBe(false); // never paid twice
+    });
+
+    it('not paid (they came back to change something): Pay is offered again', async () => {
+      withBooking();
+      let answer;
+      fakeApi({
+        '/public/bookings/TTTT': (path) =>
+          path.endsWith('/check')
+            ? new Promise((r) => (answer = () => r([200, { status: 'initiated' }])))
+            : [200, { booking: heldBooking({ payments: [open] }) }],
+      });
+      const memory = renderAt('/irin/badagry/book/review');
+
+      const busy = await screen.findByRole('button', { name: 'Checking your payment…' });
+      expect(busy.disabled).toBe(true);
+      answer();
+      expect(await screen.findByRole('button', { name: 'Pay ₦65,000' })).toBeTruthy();
+      expect(memory.history.at(-1)).toBe('/irin/badagry/book/review');
+    });
+
+    it('already booked (the webhook got there first): straight to the confirmation', async () => {
+      withBooking();
+      fakeApi({
+        '/public/bookings/TTTT': () => [200, { booking: heldBooking({ status: 'paid' }) }],
+      });
+      const memory = renderAt('/irin/badagry/book/review');
+      await waitFor(() => expect(memory.history.at(-1)).toBe(`/trip/${'T'.repeat(44)}/confirm`));
+    });
   });
 
   it('payment service down: says so, seats still held, Try again', async () => {
