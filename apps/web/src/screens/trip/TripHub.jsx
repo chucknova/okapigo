@@ -14,8 +14,8 @@
  * cancelling now would give back) comes from tripSituation() in @okapigo/shared/trip-hub, run
  * again every minute against the phone's clock. This file only turns it into words.
  *
- * Still to come: "Change or cancel" and "Ask Ìrìn" (stage 12f-2), the AI companion (session
- * 17), "Today's guide" (guide assignment, session 15).
+ * "Change or cancel" opens TripChange.jsx (stage 12f-2). Still to come: the AI companion
+ * (session 17), "Today's guide" (guide assignment, session 15).
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
@@ -124,6 +124,7 @@ export function TripHub({ params }) {
         {s.phase === 'today' && s.balance && (
           <BalanceBanner b={b} balance={s.balance} token={token} op={op} offline={offline} />
         )}
+        {onTrip && b.openRequests?.length > 0 && <RequestBanner b={b} op={op} />}
 
         <div className={`okg-trip__body${ended ? ' okg-trip__body--ended' : ''}`}>
           {s.phase !== 'today' && <TripHeading b={b} s={s} />}
@@ -163,7 +164,9 @@ export function TripHub({ params }) {
           <Payment b={b} s={s} token={token} offline={offline} />
           {onTrip && <AskPlaceholder op={op} />}
           {s.phase !== 'today' && <Contact b={b} title={`Contact ${op}`} />}
-          {s.phase === 'upcoming' && <ChangeOrCancel b={b} s={s} op={op} />}
+          {s.phase === 'upcoming' && (
+            <ChangeOrCancel b={b} s={s} op={op} token={token} offline={offline} />
+          )}
         </div>
 
         <p className="okg-trip__saved" role="status">
@@ -242,6 +245,8 @@ function BalanceBanner({ b, balance, token, op, offline }) {
 function SituationBanner({ b, s, token, op, offline }) {
   const day = formatLocalDay(b.departure.localDate);
   if (s.phase === 'upcoming') {
+    // An open request has its own banner ("Your request was sent…"), shown instead.
+    if (!s.balance && b.openRequests?.length > 0) return null;
     return s.balance ? (
       <BalanceBanner b={b} balance={s.balance} token={token} op={op} offline={offline} />
     ) : (
@@ -329,6 +334,20 @@ function SituationBanner({ b, s, token, op, offline }) {
       {c.refundKobo > 0
         ? 'Refunds can take 5–10 working days to appear.'
         : 'No refund was due under the cancellation policy.'}
+    </Banner>
+  );
+}
+
+/**
+ * "Your request was sent on Tue 1 Dec" (stage 12f-2): the newest open "Ask Ìrìn" request.
+ * @param {{ b: any, op: string }} props
+ */
+function RequestBanner({ b, op }) {
+  const r = b.openRequests[0];
+  const on = formatLocalDay(localDate(new Date(r.createdAt), b.operator.timeZone));
+  return (
+    <Banner tone="good" title={`Your request was sent on ${on}`}>
+      “{r.message}” {op} will reply by WhatsApp or email. Your booking stays as it is until then.
     </Banner>
   );
 }
@@ -700,8 +719,8 @@ function Contact({ b, title, today = false }) {
   );
 }
 
-/** @param {{ b: any, s: ReturnType<typeof tripSituation>, op: string }} props */
-function ChangeOrCancel({ b, s, op }) {
+/** @param {{ b: any, s: ReturnType<typeof tripSituation>, op: string, token: string, offline: boolean }} props */
+function ChangeOrCancel({ b, s, op, token, offline }) {
   const tz = b.operator.timeZone;
   const c = s.cancelNow;
   const policy = b.cancellationPolicy ? describePolicy(b.cancellationPolicy, op) : null;
@@ -732,7 +751,15 @@ function ChangeOrCancel({ b, s, op }) {
             ` The ${formatNaira(c.keptDepositKobo)} deposit isn’t refundable.`}
         </p>
       )}
-      <p className="okg-muted okg-small">To change the date or cancel, message {op}.</p>
+      {offline ? (
+        <button type="button" className="okg-btn okg-btn--secondary" disabled>
+          Change or cancel · Needs a connection
+        </button>
+      ) : (
+        <Link className="okg-btn okg-btn--secondary" href={`/trip/${token}/change`}>
+          Change or cancel this booking
+        </Link>
+      )}
       {policy && (
         <details className="okg-trip__policy">
           <summary>Cancellation policy</summary>

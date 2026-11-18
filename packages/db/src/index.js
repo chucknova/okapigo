@@ -24,6 +24,7 @@ export { createPolicy, addPolicyVersion, currentPolicyVersion } from './policies
 export {
   previewCancellation,
   cancelBooking,
+  guestCancelBooking,
   markNoShow,
   cancelDeparture,
 } from './cancellations.js';
@@ -75,3 +76,9 @@ export {
   dismissStaffAlert,
   OWING_STATUSES,
 } from './notifications.js';
+export {
+  createGuestRequest,
+  listGuestRequests,
+  answerGuestRequest,
+  MAX_OPEN_REQUESTS,
+} from './guest-requests.js';

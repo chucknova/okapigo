@@ -106,7 +106,10 @@ describe('C → D: confirming, then confirmed', () => {
     expect(decodeURIComponent(share)).toContain('/irin/badagry');
     expect(share).not.toContain(T);
     // This phone now knows the trip (for the payment link page).
-    expect(JSON.parse(localStorage.getItem('okg-trips'))).toEqual({ 'ILT-3MZ8RB': T });
+    // (Saved in an effect just after the page draws: wait for it, don't race it.)
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem('okg-trips'))).toEqual({ 'ILT-3MZ8RB': T }),
+    );
   });
 
   it('a deposit: the balance and its due date, with Pay balance now', async () => {

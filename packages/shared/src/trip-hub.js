@@ -103,12 +103,56 @@ function cancelNow(b, startsAt, now) {
     refund.rule && refund.rule.hoursBefore > 0
       ? startsAt.getTime() - refund.rule.hoursBefore * HOUR_MS
       : null;
+  // For "Why ₦31,250?": the tier above this one (its lower bound is this tier's upper bound)
+  // and the one that applies after `until`.
+  const tiers = [...b.cancellationPolicy.rules].sort((x, y) => y.hoursBefore - x.hoursBefore);
+  const i = refund.rule ? tiers.indexOf(refund.rule) : -1;
   return {
     refundKobo: refund.refundKobo,
     basisPoints: refund.refundBasisPoints,
     keptDepositKobo: refund.keptDepositKobo,
     until: tierEndsMs === null ? null : new Date(tierEndsMs).toISOString(),
+    hoursToGo: Math.floor((startsAt.getTime() - now.getTime()) / HOUR_MS),
+    tier: refund.rule
+      ? {
+          fromHours: refund.rule.hoursBefore,
+          toHours: i > 0 ? tiers[i - 1].hoursBefore : null, // null: the most generous tier
+          nextBasisPoints: tiers[i + 1]?.refundBasisPoints ?? 0,
+        }
+      : null,
   };
+}
+
+/** "5 days" / "30 hours" / "1 hour". @param {number} hours */
+const howLong = (hours) =>
+  hours >= 72 ? `${Math.round(hours / 24)} days` : hours === 1 ? '1 hour' : `${hours} hours`;
+
+/** "gives everything back" / "gives 50% back" / "gives nothing". @param {number} bp */
+const gives = (bp) =>
+  bp >= 10_000 ? 'gives everything back' : bp <= 0 ? 'gives nothing' : `gives ${bp / 100}% back`;
+
+/**
+ * "Why ₦31,250?" in words (designs: file 05, "1 · Change or cancel"):
+ *   "Your trip is 30 hours away. Between 24 and 48 hours before, the policy gives 50% back.
+ *    After Fri 4 Dec, 09:00 it gives nothing."
+ * @param {NonNullable<ReturnType<typeof cancelNow>>} c
+ * @param {string} untilWords  `until`, formatted for people ("Fri 4 Dec, 09:00")
+ */
+export function refundReason(c, untilWords) {
+  const parts = [`Your trip is ${howLong(c.hoursToGo)} away.`];
+  const t = c.tier;
+  if (t) {
+    const when =
+      t.toHours === null
+        ? `${t.fromHours} hours or more before`
+        : t.fromHours === 0
+          ? `Less than ${t.toHours} hours before`
+          : `Between ${t.fromHours} and ${t.toHours} hours before`;
+    parts.push(`${when}, the policy ${gives(c.basisPoints)}.`);
+    if (c.until) parts.push(`After ${untilWords} it ${gives(t.nextBasisPoints)}.`);
+  }
+  if (c.keptDepositKobo > 0) parts.push('The deposit isn’t refundable.');
+  return parts.join(' ');
 }
 
 /**

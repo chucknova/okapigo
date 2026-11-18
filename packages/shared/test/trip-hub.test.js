@@ -3,7 +3,7 @@
  * Times are Lagos (UTC+1). The Heritage Walk: Sat 5 Dec 2026, 09:00–12:00 local.
  */
 import { describe, it, expect } from 'vitest';
-import { tripSituation } from '../src/trip-hub.js';
+import { tripSituation, refundReason } from '../src/trip-hub.js';
 
 const POLICY = {
   rules: [
@@ -43,6 +43,8 @@ describe('the phase follows the clock in the operator’s time zone', () => {
       basisPoints: 10_000,
       keptDepositKobo: 0,
       until: '2026-12-03T08:00:00.000Z', // Thu 3 Dec, 09:00 Lagos
+      hoursToGo: 431,
+      tier: { fromHours: 48, toHours: null, nextBasisPoints: 5_000 },
     });
   });
 
@@ -194,5 +196,32 @@ describe('cancelled and refunded', () => {
       on: '2026-11-26',
       percent: 50,
     });
+  });
+});
+
+describe('"Why ₦31,250?" in words', () => {
+  const why = (local, over = {}) => {
+    const c = tripSituation(booking(over), at(local)).cancelNow;
+    return refundReason(/** @type {any} */ (c), 'UNTIL');
+  };
+  it('in the full-refund tier, days away', () => {
+    expect(why('2026-11-17 10:00')).toBe(
+      'Your trip is 18 days away. 48 hours or more before, the policy gives everything back. After UNTIL it gives 50% back.',
+    );
+  });
+  it('30 hours before: the design’s sentence', () => {
+    expect(why('2026-12-04 03:00')).toBe(
+      'Your trip is 30 hours away. Between 24 and 48 hours before, the policy gives 50% back. After UNTIL it gives nothing.',
+    );
+  });
+  it('under 24 hours: nothing, and no "after"', () => {
+    expect(why('2026-12-04 20:00')).toBe(
+      'Your trip is 13 hours away. Less than 24 hours before, the policy gives nothing.',
+    );
+  });
+  it('mentions a kept deposit', () => {
+    expect(why('2026-11-17 10:00', { depositPaidKobo: 1_000_000 })).toContain(
+      'The deposit isn’t refundable.',
+    );
   });
 });

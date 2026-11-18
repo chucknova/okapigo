@@ -11,7 +11,10 @@
  *   /:operator/:tour/book/review    checkout 4 · review and pay   stage 12d
  *   /trip/:token/confirm            C/D · confirming → confirmed  stage 12e
  *   /trip/:token/pay                F · pay your balance           stage 12e
- *   /trip/:token                    the trip hub                   stage 12f (placeholder now)
+ *   /trip/:token/change             change or cancel: two choices  stage 12f-2
+ *   /trip/:token/cancel             cancel yourself                stage 12f-2
+ *   /trip/:token/ask                ask the operator               stage 12f-2
+ *   /trip/:token                    the trip hub                   stage 12f-1
  *   /pay/:token(/done)              E · a payment link             stage 12e
  *
  * The same paths are served by the API with link previews and the page's data embedded
@@ -29,6 +32,7 @@ import { NotFound } from './screens/NotFound.jsx';
 import { Confirm } from './screens/trip/Confirm.jsx';
 import { PayBalance } from './screens/trip/PayBalance.jsx';
 import { TripHub } from './screens/trip/TripHub.jsx';
+import { ChangeOrCancel, CancelBooking, AskOperator } from './screens/trip/TripChange.jsx';
 import { PaymentLink, PaymentLinkDone } from './screens/pay/PaymentLink.jsx';
 
 // The gallery is for development, so it's split into its own file that only downloads when
@@ -46,6 +50,9 @@ export function App() {
       {/* Private pages first: "trip" and "pay" are reserved words, never operators. */}
       <Route path="/trip/:token/confirm" component={Confirm} />
       <Route path="/trip/:token/pay" component={PayBalance} />
+      <Route path="/trip/:token/change" component={ChangeOrCancel} />
+      <Route path="/trip/:token/cancel" component={CancelBooking} />
+      <Route path="/trip/:token/ask" component={AskOperator} />
       <Route path="/trip/:token" component={TripHub} />
       <Route path="/pay/:token/done" component={PaymentLinkDone} />
       <Route path="/pay/:token" component={PaymentLink} />

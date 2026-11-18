@@ -17,6 +17,7 @@
  * the tour ran, and the seat went empty.
  */
 import { computeRefund } from '@okapigo/shared/cancellation';
+import { localDate } from '@okapigo/shared/time';
 import { BookingError, transitionBookingInTx } from './booking-lifecycle.js';
 import { releaseHoldInTx } from './holds.js';
 import { findOwnBooking } from './bookings.js';
@@ -282,5 +283,55 @@ export function cancelDeparture(
     await tx.departure.update({ where: { id: departureId }, data: { status: 'cancelled' } });
     // Telling every guest (WhatsApp/email) arrives with automated messages (OPS-11, session 14).
     return { bookingsCancelled: bookings.length, holdsReleased: looseHolds.length, refundsDueKobo };
+  }, TX_OPTIONS);
+}
+
+/**
+ * A GUEST cancels from the trip hub (journey 4, stage 12f-2). The same cancellation as staff
+ * use, with the guest's rules on top:
+ *   - not on the day of the trip or after it: then they contact the operator (designs: "Cancel
+ *     is hidden on the day"). Decided in the OPERATOR's time zone, like the page.
+ *   - the refund must still be what the guest was SHOWN (`expectRefundKobo`). The policy tier
+ *     can change between reading the screen and tapping (48 h passes at 09:00): then nothing
+ *     is cancelled and the guest sees the new amount first (REFUND_CHANGED).
+ * Paying the refund out is the caller's next step (requestBookingRefund, outside this
+ * transaction, because it calls the provider).
+ *
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ bookingId: string, expectRefundKobo: number, now?: Date }} input
+ */
+export function guestCancelBooking(prisma, { bookingId, expectRefundKobo, now = new Date() }) {
+  return prisma.$transaction(async (tx) => {
+    // Lock the booking: two taps (or two tabs) can't both cancel it.
+    /** @type {Array<{ id: string }>} */
+    const locked =
+      await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId}::uuid FOR UPDATE`;
+    if (locked.length === 0) throw new BookingError('NOT_FOUND', 'Booking not found.');
+    const booking = await tx.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      include: { departure: true, product: { include: { operator: true } } },
+    });
+    if (!CANCELLABLE_SOLD.includes(booking.status)) {
+      throw new BookingError('NOT_CANCELLABLE', 'This booking can’t be cancelled any more.');
+    }
+    const tz = booking.product.operator.timeZone;
+    if (localDate(now, tz) >= localDate(booking.departure.startsAt, tz)) {
+      throw new BookingError(
+        'TOO_LATE_TO_CANCEL',
+        `On the day of the trip, please contact ${booking.product.operator.name}.`,
+      );
+    }
+    const preview = await refundFor(tx, booking, { kind: 'cancel', initiatedBy: 'guest', now });
+    if (preview.refundKobo !== expectRefundKobo) {
+      throw new BookingError('REFUND_CHANGED', 'The refund has changed. Please check it again.', {
+        refundKobo: preview.refundKobo,
+      });
+    }
+    return cancelBookingInTx(tx, booking, {
+      initiatedBy: 'guest',
+      reason: 'Cancelled by the guest on the trip page',
+      actor: { type: 'guest' },
+      now,
+    });
   }, TX_OPTIONS);
 }

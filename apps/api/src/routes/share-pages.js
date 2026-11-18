@@ -48,7 +48,8 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Checkout's later steps (the guest web's routes; stages 12c–12d). */
 const CHECKOUT_STEPS = new Set(['who', 'details', 'review']);
 /** The trip pages under /trip/:token (stages 12e–12f). */
-const TRIP_STEPS = new Set(['confirm', 'pay']);
+// The trip hub's own pages: change or cancel, cancel, ask the operator (stage 12f-2).
+const TRIP_STEPS = new Set(['confirm', 'pay', 'change', 'cancel', 'ask']);
 /** Previews may be cached by crawlers and browsers for 5 minutes. */
 const CACHE = 'public, max-age=300';
 

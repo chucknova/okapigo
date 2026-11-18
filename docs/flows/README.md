@@ -37,12 +37,12 @@ These are **operator** screens. They'll be designed with the rest of the operato
 flow briefs, before sessions 15–16), so they share its look and navigation. **Don't design them
 now.**
 
-| Screen                                                | From brief | Why it's deferred                  |
-| ----------------------------------------------------- | ---------- | ---------------------------------- |
-| Embed page (snippet, live preview, approved websites) | 03         | Your decision, 2026-11-17          |
-| Website style picker (live previews, light/dark)      | 04         | Same reason: an operator screen    |
-| Business details form (tagline, about, contacts)      | 04         | Same reason: an operator screen    |
-| Answering a guest's "ask the operator" request        | 05         | Staff side of the trip hub request |
+| Screen                                                | From brief | Why it's deferred                                                                                      |
+| ----------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ |
+| Embed page (snippet, live preview, approved websites) | 03         | Your decision, 2026-11-17                                                                              |
+| Website style picker (live previews, light/dark)      | 04         | Same reason: an operator screen                                                                        |
+| Business details form (tagline, about, contacts)      | 04         | Same reason: an operator screen                                                                        |
+| Answering a guest's "ask the operator" request        | 05         | Staff side of the trip hub request (API ready since 12f-2: `GET /api/guest-requests`, `POST …/answer`) |
 
 ---
 

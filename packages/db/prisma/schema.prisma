@@ -68,6 +68,7 @@ model Operator {
   paymentLinks         PaymentLink[]
   refunds              Refund[]
   notifications        Notification[]
+  guestRequests        GuestRequest[]
 
   @@map("operators")
 }
@@ -550,6 +551,7 @@ model Booking {
   paymentLinks  PaymentLink[]
   refunds       Refund[]
   notifications Notification[]
+  guestRequests GuestRequest[]
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -969,3 +971,36 @@ model Notification {
   @@map("notifications")
 }
 
+
+// ---------------------------------------------------------------------------
+// GuestRequest: "Ask Ìrìn" from the trip hub (stage 12f-2, decided 2026-11-17)
+// ---------------------------------------------------------------------------
+// A guest asks the operator to change the date, to cancel (e.g. for more back than the
+// policy gives), or something else. Nothing about the booking changes until staff act:
+// they answer by WhatsApp or email, then mark the request answered. Staff can already
+// cancel with a different refund (bookings: edit + payments: edit).
+//
+//   status: open → answered
+model GuestRequest {
+  id           String    @id @default(uuid()) @db.Uuid
+  operatorId   String    @map("operator_id") @db.Uuid
+  bookingId    String    @map("booking_id") @db.Uuid
+  // change_date · cancel · other
+  kind         String
+  message      String
+  status       String    @default("open")
+  // Staff's own note when they mark it answered ("Moved to Sun 6 Dec").
+  staffNote    String?   @map("staff_note")
+  answeredAt   DateTime? @map("answered_at") @db.Timestamptz(3)
+  answeredById String?   @map("answered_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  // The staff list: "open requests, oldest first".
+  @@index([operatorId, status, createdAt])
+  @@index([bookingId])
+  @@map("guest_requests")
+}

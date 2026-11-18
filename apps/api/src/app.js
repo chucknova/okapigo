@@ -30,6 +30,7 @@ import { webhooksRouter } from './routes/webhooks.js';
 import { paymentLinksRouters } from './routes/payment-links.js';
 import { refundsRouter } from './routes/refunds.js';
 import { alertsRouter } from './routes/alerts.js';
+import { guestRequestsRouter } from './routes/guest-requests.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
 import { publicCheckoutRouter } from './routes/public-checkout.js';
@@ -163,6 +164,7 @@ export function createApp({
   api.use(paymentLinks.apiRouter);
   api.use(refundsRouter({ prisma, provider }));
   api.use(alertsRouter({ prisma }));
+  api.use(guestRequestsRouter({ prisma })); // "Ask Ìrìn" from the trip hub (12f-2)
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

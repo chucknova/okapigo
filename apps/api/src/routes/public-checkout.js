@@ -33,6 +33,9 @@ import {
   guestToken,
   bookingIdFromGuestToken,
   ticketCode,
+  guestCancelBooking,
+  requestBookingRefund,
+  createGuestRequest,
   PAYABLE_STATUSES,
   checkPayment,
 } from '@okapigo/db';
@@ -53,6 +56,14 @@ const Slug = z
   .max(80)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const TokenParams = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{44}$/) });
+// Cancel yourself (stage 12f-2): the refund the guest was SHOWN, so it can't change unseen.
+const GuestCancelSchema = z.object({ expectRefundKobo: z.number().int().min(0) });
+// Ask the operator (stage 12f-2).
+const GuestRequestSchema = z.object({
+  kind: z.enum(['change_date', 'cancel', 'other']),
+  message: z.string().trim().min(1, 'Write a short message.').max(1000),
+});
+
 const PayBodySchema = z.object({
   option: z.enum(['full', 'deposit', 'balance']),
   // "any": the guest chooses card or bank transfer on Paystack's page.
@@ -213,6 +224,13 @@ function guestView(b, { secret, now = new Date() }) {
           refundKobo: b.refundDueKobo,
         }
       : null,
+    // "Your request was sent on Tue 1 Dec" (stage 12f-2): the guest's open requests, newest
+    // first. Staff's notes stay on the staff side.
+    openRequests: (b.guestRequests ?? []).map((/** @type {any} */ r) => ({
+      kind: r.kind,
+      message: r.message,
+      createdAt: r.createdAt,
+    })),
     // Money confirmed back with the guest ("Refunded ₦62,500 on Thu 26 Nov").
     refunds: (b.refunds ?? [])
       .filter((/** @type {any} */ r) => r.status === 'processed' && r.processedAt)
@@ -250,6 +268,10 @@ const GUEST_INCLUDE = {
     take: 1,
   },
   refunds: true,
+  guestRequests: {
+    where: { status: 'open' },
+    orderBy: { createdAt: /** @type {const} */ ('desc') },
+  },
 };
 
 /**
@@ -490,6 +512,70 @@ export function publicCheckoutRouter({
       });
       if (!released) throw new HttpError(409, 'NOT_HELD', 'These seats were already released.');
       res.status(204).end();
+    },
+  );
+
+  // --- Cancel yourself (trip hub, journey 4, stage 12f-2) ----------------------------------
+
+  router.post(
+    '/public/bookings/:token/cancel',
+    limiter('guest'),
+    validate({ params: TokenParams, body: GuestCancelSchema }),
+    async (req, res) => {
+      const booking = await findGuestBooking(req.params.token);
+      let refund;
+      try {
+        refund = await guestCancelBooking(prisma, {
+          bookingId: booking.id,
+          expectRefundKobo: req.body.expectRefundKobo,
+        });
+      } catch (err) {
+        throw toHttp(err);
+      }
+      // "Your refund is on its way": ask the provider now. If it refuses (or is down), the
+      // refund stays OWED on the booking, where staff see it and can send it again (10e).
+      let refundStarted = false;
+      if (refund.refundKobo > 0) {
+        try {
+          await requestBookingRefund(prisma, provider, {
+            operatorId: booking.operatorId,
+            bookingId: booking.id,
+            reason: 'Guest cancelled on the trip page',
+            actor: { type: 'guest' },
+          });
+          refundStarted = true;
+        } catch (err) {
+          req.log.error({ err, bookingId: booking.id }, 'guest refund could not be started');
+        }
+      }
+      const fresh = await findGuestBooking(req.params.token);
+      res.json({
+        refundKobo: refund.refundKobo,
+        refundStarted,
+        booking: guestView(fresh, { secret: authSecret }),
+      });
+    },
+  );
+
+  // --- Ask the operator (trip hub, stage 12f-2) ---------------------------------------------
+
+  router.post(
+    '/public/bookings/:token/requests',
+    limiter('guest'),
+    validate({ params: TokenParams, body: GuestRequestSchema }),
+    async (req, res) => {
+      const booking = await findGuestBooking(req.params.token);
+      try {
+        await createGuestRequest(prisma, {
+          bookingId: booking.id,
+          kind: req.body.kind,
+          message: req.body.message,
+        });
+      } catch (err) {
+        throw toHttp(err);
+      }
+      const fresh = await findGuestBooking(req.params.token);
+      res.status(201).json({ booking: guestView(fresh, { secret: authSecret }) });
     },
   );
 
