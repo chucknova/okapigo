@@ -32,6 +32,8 @@ const EnvSchema = z
     // No defaults here on purpose: the app must be told where its data lives.
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+    // Redis key prefix for job queues; the e2e tests set a private one (see workers/index.js).
+    JOBS_PREFIX: optional(z.string().regex(/^[a-z0-9-]{1,40}$/)),
 
     // Server-side secret mixed into one-time-code hashes (see lib/secrets.js). Long and random;
     // generate one with:  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"

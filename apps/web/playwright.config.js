@@ -45,6 +45,9 @@ export default defineConfig({
       // button, and must not depend on Paystack's servers or this connection. (Real values
       // here win over the .env file.)
       PAYMENT_PROVIDER: 'simulator',
+      // Private job queues (the worker in e2e/global-setup.js uses the same), so a `pnpm dev`
+      // worker running alongside can't take these jobs.
+      JOBS_PREFIX: 'okg-e2e',
       LOG_LEVEL: 'warn',
     },
     reuseExistingServer: false,

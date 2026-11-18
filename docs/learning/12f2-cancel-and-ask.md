@@ -78,6 +78,40 @@ bookings that are still on, and a guide (bookings: view) can read the list but n
   Each of those files passes alone. One full run passed completely; others had 1–3 timeouts.
   Running fewer packages at once didn't help while the load stayed that high.
 
+### Tested with real Paystack (test mode)
+
+You asked whether the refund actually works, so we cancelled your Paystack-paid Street Food
+booking (ILT-70SF90, ₦35,000 by bank transfer, 29 hours before: 50% back) through the
+same endpoint the page uses:
+
+| Time (Lagos) | What happened                                                          |
+| ------------ | ---------------------------------------------------------------------- |
+| 13:39        | cancelled; Paystack accepted the ₦17,500 refund (id 19215775): pending |
+| 13:40        | Paystack: processing                                                   |
+| 13:45        | Paystack: **processed**                                                |
+| 13:46        | our reconcile asked Paystack → booking **refunded**, ledger balanced   |
+
+The trip page then read "Refunded ₦17,500 (50%) on Wed 18 Nov". On your computer, Paystack's
+own `refund.processed` webhook can't reach `localhost`, so the confirmation comes from the
+worker's **reconcile** job. It only asks about refunds pending for over an hour, so locally
+"Refunded" appears about an hour after cancelling, and only while the worker runs (`pnpm dev`
+starts it; the app's preview setup doesn't). Online, the webhook does it in minutes.
+
+Three things this turned up:
+
+- **The e2e only half-proved refunds.** It accepted "on its way" or "Refunded". It now waits
+  for the booking to be `refunded`, with the refund recorded, and the page to say so.
+- **Paystack's "needs-attention" refunds looked pending forever.** Paystack uses it when it
+  needs something from the customer (often bank details, for a transfer payment). It now
+  has its own name and reconcile raises ONE staff alert (`refund_needs_attention`), tested.
+  Ours wasn't one of them: the transfer refund went straight through in test mode.
+- **A `pnpm dev` worker took the e2e tests' jobs.** Tests share Redis with dev; the worker
+  (on Paystack) picked up the simulator's refund webhook and failed it. The e2e API and
+  worker now use private queues (`JOBS_PREFIX=okg-e2e`); with a dev worker running alongside,
+  all three journeys pass. One thing remains shared: the **database**. A dev worker's hold
+  sweep releases due holds of test businesses too, which can fail one worker test. So stop
+  `pnpm dev`'s worker while running `pnpm test`.
+
 ## 4. Why we chose what we chose
 
 | Choice                                 | Alternative               | Why                                                       |

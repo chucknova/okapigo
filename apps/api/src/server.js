@@ -32,7 +32,7 @@ const redis = createRedis(config.REDIS_URL);
 // Development only: sign-in codes appear in this terminal. Real senders arrive in session 13.
 const otpSender = createLogOtpSender(logger, { nodeEnv: config.NODE_ENV });
 // Enqueues background jobs (e.g. hold expiry) for the workers app to run.
-const jobs = createJobClient(config.REDIS_URL);
+const jobs = createJobClient(config.REDIS_URL, { prefix: config.JOBS_PREFIX });
 // The payment provider: the simulator, or Paystack TEST mode (a live key never gets this far:
 // loadConfig() above refuses it, and so does the Paystack adapter itself).
 const provider = createPaymentProvider({

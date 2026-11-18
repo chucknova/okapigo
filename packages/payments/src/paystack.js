@@ -30,8 +30,17 @@ const STATUS_MAP = {
   reversed: 'failed',
 };
 
-/** Paystack's refund statuses → ours. Anything not finished yet is "pending". */
-const REFUND_STATUS_MAP = { processed: 'processed', failed: 'failed' };
+/**
+ * Paystack's refund statuses → ours. Anything not finished yet is "pending", except
+ * "needs-attention": Paystack can't finish it without something from the customer (often bank
+ * details, for a payment made by transfer). It won't move on by itself, so it gets its own
+ * name and reconciliation raises a staff alert (found testing a real test-mode refund, 12f-2).
+ */
+const REFUND_STATUS_MAP = {
+  processed: 'processed',
+  failed: 'failed',
+  'needs-attention': 'needs_attention',
+};
 
 /** @param {any} data */
 function toRefundResult(data) {

@@ -25,6 +25,10 @@ import { createPaymentProvider, redisStore } from '@okapigo/payments';
 import { createProcessors } from './processors.js';
 
 const { DATABASE_URL, REDIS_URL, NODE_ENV = 'development', LOG_LEVEL = 'info' } = process.env;
+// Redis key prefix for the queues (BullMQ's default is "bull"). The e2e tests give their API
+// and worker a private one, so a `pnpm dev` worker running alongside never takes their jobs
+// (it did, in stage 12f-2, and processed a simulator refund with Paystack).
+const JOBS_PREFIX = process.env.JOBS_PREFIX || undefined;
 if (!DATABASE_URL || !REDIS_URL) throw new Error('DATABASE_URL and REDIS_URL must be set');
 
 const logger = pino({
@@ -55,7 +59,7 @@ const processors = createProcessors({ prisma, logger, provider });
 
 // --- 1. Timetabled jobs -----------------------------------------------------------------
 // upsertJobScheduler = "create, or update if it already exists". Safe on every start.
-const maintenance = new Queue(QUEUES.maintenance, { connection });
+const maintenance = new Queue(QUEUES.maintenance, { connection, prefix: JOBS_PREFIX });
 await maintenance.upsertJobScheduler(
   JOBS.sweepHolds,
   { every: 60_000 },
@@ -99,7 +103,7 @@ async function run(job) {
 }
 
 const workers = [QUEUES.holds, QUEUES.maintenance, QUEUES.webhooks].map((queue) => {
-  const worker = new Worker(queue, run, { connection, concurrency: 5 });
+  const worker = new Worker(queue, run, { connection, concurrency: 5, prefix: JOBS_PREFIX });
   worker.on('failed', (job, err) =>
     logger.error(
       { queue, job: job?.name, jobId: job?.id, attempt: job?.attemptsMade, err: err.message },

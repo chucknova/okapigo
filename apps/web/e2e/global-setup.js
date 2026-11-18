@@ -30,7 +30,12 @@ export default async function globalSetup() {
       stdio: 'ignore',
       // The simulator, like the API in playwright.config.js: .env may say paystack, and a worker
       // checking simulator payments with Paystack would never confirm them.
-      env: { ...process.env, PAYMENT_PROVIDER: 'simulator', LOG_LEVEL: 'warn' },
+      env: {
+        ...process.env,
+        PAYMENT_PROVIDER: 'simulator',
+        JOBS_PREFIX: 'okg-e2e', // the same private queues as the API in playwright.config.js
+        LOG_LEVEL: 'warn',
+      },
     },
   );
 

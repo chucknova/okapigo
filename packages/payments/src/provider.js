@@ -59,7 +59,7 @@
  *
  * @typedef {{
  *   providerRefundId: string,
- *   status: 'pending' | 'processed' | 'failed',
+ *   status: 'pending' | 'processed' | 'failed' | 'needs_attention',  // needs_attention: stuck until a person helps
  *   amountKobo: number,
  *   transaction: string | null,
  * }} RefundResult

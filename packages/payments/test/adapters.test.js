@@ -357,7 +357,7 @@ describe('refunds (stage 10e)', () => {
     ['failed', 'failed'],
     ['pending', 'pending'],
     ['processing', 'pending'],
-    ['needs-attention', 'pending'],
+    ['needs-attention', 'needs_attention'], // stuck until staff help: an alert (12f-2)
   ])('Paystack refund status "%s" → "%s"', async (theirs, ours) => {
     const fetch = fakeFetch(() => ({
       json: { status: true, data: { id: 1, status: theirs, amount: 100, transaction: 5 } },

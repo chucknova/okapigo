@@ -45,15 +45,23 @@ test('a guest cancels from the trip page and gets the policy’s refund', async 
   await expect(page.getByRole('heading', { name: 'Cancelled' })).toBeVisible();
   await expect(page.getByText('Your ₦25,000 refund is on its way.')).toBeVisible();
 
-  // Back on the trip page: cancelled (or already refunded: the simulator completes refunds
-  // by itself after a moment), and no ticket any more.
-  await page.getByRole('link', { name: 'Back to your trip page' }).click();
-  await expect(
-    page.getByText(/Cancelled · ₦25,000 refund on its way|Refunded ₦25,000 on/),
-  ).toBeVisible();
-  await expect(page.getByRole('img', { name: /QR ticket/ })).toHaveCount(0);
-
+  // The refund really completes: the provider (the simulator, which finishes refunds by
+  // itself after a moment) sends refund.processed, the worker settles it, and the booking
+  // becomes "refunded" with the money recorded as gone. Not just "asked for".
+  await expect
+    .poll(
+      async () => (await (await request.get(`/public/bookings/${token}`)).json()).booking.status,
+      {
+        timeout: 30_000,
+      },
+    )
+    .toBe('refunded');
   const final = (await (await request.get(`/public/bookings/${token}`)).json()).booking;
-  expect(['cancelled', 'refunded']).toContain(final.status);
   expect(final.cancellation).toMatchObject({ by: 'guest', refundKobo: 2_500_000 });
+  expect(final.refunds).toEqual([{ amountKobo: 2_500_000, processedAt: expect.any(String) }]);
+
+  // And the trip page says so, with no ticket.
+  await page.getByRole('link', { name: 'Back to your trip page' }).click();
+  await expect(page.getByText(/^Refunded ₦25,000 on /)).toBeVisible();
+  await expect(page.getByRole('img', { name: /QR ticket/ })).toHaveCount(0);
 });

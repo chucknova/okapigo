@@ -315,4 +315,40 @@ describe('reconciliation: catching what webhooks missed', () => {
     await reconcile(ctx.prisma, ctx.provider);
     expect((await bookingRow(booking.id)).status).toBe('refunded');
   });
+
+  it('a refund the provider can’t finish ("needs attention") stays pending and alerts staff once', async () => {
+    const { manager, booking } = await setup();
+    await pay(manager, booking.id);
+    await manager
+      .post(`/api/bookings/${booking.id}/cancel`)
+      .send({ initiatedBy: 'guest', reason: 'x y z' });
+    const [refund] = (
+      await manager.post(`/api/bookings/${booking.id}/refunds`).send({ reason: 'Cancelled' })
+    ).body.refunds;
+    await ctx.prisma
+      .$executeRaw`UPDATE refunds SET updated_at = now() - interval '2 hours' WHERE id = ${refund.id}::uuid`;
+    // Paystack: "needs-attention" (e.g. it needs the guest's bank details for a transfer).
+    const stuck = {
+      ...ctx.provider,
+      fetchRefund: async (/** @type {string} */ id) => ({
+        providerRefundId: id,
+        status: 'needs_attention',
+        amountKobo: refund.amountKobo,
+        transaction: null,
+      }),
+    };
+
+    const first = await reconcile(ctx.prisma, stuck);
+    await reconcile(ctx.prisma, stuck); // the next run, 10 minutes later
+
+    expect(first.refundsNeedingAttention).toBe(1);
+    expect((await ctx.prisma.refund.findUnique({ where: { id: refund.id } })).status).toBe(
+      'pending',
+    );
+    const alerts = (await manager.get('/api/alerts')).body.alerts.filter(
+      (/** @type {any} */ a) => a.kind === 'refund_needs_attention',
+    );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].booking.id).toBe(booking.id);
+  });
 });

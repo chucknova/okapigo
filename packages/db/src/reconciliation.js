@@ -13,6 +13,7 @@
  *
  *   refunds "pending" for over 1 hour           → fetchRefund
  *       processed / failed → handled exactly like a refund webhook
+ *       needs_attention    → stays pending; ONE staff alert ("refund_needs_attention")
  *
  * "Exactly like a webhook" is the key design choice: reconciliation doesn't settle anything
  * itself. It RECORDS a webhook event with the same dedup key Paystack's own event would
@@ -48,6 +49,7 @@ export async function reconcile(
     abandoned: 0,
     refundsChecked: 0,
     refundsResolved: 0,
+    refundsNeedingAttention: 0,
     errors: 0,
   };
 
@@ -88,6 +90,27 @@ export async function reconcile(
     summary.refundsChecked += 1;
     try {
       const confirmed = await provider.fetchRefund(/** @type {string} */ (refund.providerRefundId));
+      if (confirmed.status === 'needs_attention') {
+        // The provider needs something from the guest before it can pay (e.g. bank details).
+        // The refund stays pending; staff get ONE alert for it (the key makes repeats a no-op).
+        if (refund.bookingId) {
+          const { count } = await prisma.notification.createMany({
+            data: [
+              {
+                operatorId: refund.operatorId,
+                bookingId: refund.bookingId,
+                audience: 'staff',
+                kind: 'refund_needs_attention',
+                key: `refund_needs_attention:${refund.id}`,
+                data: { refundId: refund.id, amountKobo: refund.amountKobo },
+              },
+            ],
+            skipDuplicates: true,
+          });
+          summary.refundsNeedingAttention += count;
+        }
+        continue;
+      }
       if (confirmed.status === 'pending') continue;
       const eventType = confirmed.status === 'processed' ? 'refund.processed' : 'refund.failed';
       const { id, duplicate } = await recordWebhookEvent(prisma, {
