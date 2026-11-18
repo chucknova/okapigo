@@ -78,7 +78,7 @@ export function createApp({
   const authenticate = requireAuth(sessions);
   const quotes = createQuoteService({ prisma });
   const payments = paymentsRouters({ prisma, provider, apiPublicUrl });
-  const paymentLinks = paymentLinksRouters({ prisma, provider, apiPublicUrl });
+  const paymentLinks = paymentLinksRouters({ prisma, provider, apiPublicUrl, webPublicUrl });
 
   const app = express();
 
@@ -132,6 +132,7 @@ export function createApp({
       limits: publicLimits,
       provider,
       apiPublicUrl,
+      webPublicUrl,
     }),
   );
 

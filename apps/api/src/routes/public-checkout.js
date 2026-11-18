@@ -33,6 +33,7 @@ import {
   guestToken,
   bookingIdFromGuestToken,
   PAYABLE_STATUSES,
+  checkPayment,
 } from '@okapigo/db';
 import { findCategoryForAge } from '@okapigo/shared/catalogue';
 import { localDate, localTime } from '@okapigo/shared/time';
@@ -124,10 +125,15 @@ function guestView(b, now = new Date()) {
   return {
     reference: b.reference,
     status: b.status,
-    operator: { slug: b.product.operator.slug, name: b.product.operator.name },
+    operator: {
+      slug: b.product.operator.slug,
+      name: b.product.operator.name,
+      timeZone: b.product.operator.timeZone,
+    },
     tour: {
       slug: b.product.slug,
       title: b.product.title,
+      durationMinutes: b.product.durationMinutes,
       meetingPoint: b.product.meetingPoint,
       whatToBring: b.product.whatToBring,
     },
@@ -162,6 +168,15 @@ function guestView(b, now = new Date()) {
     paymentOptions: paymentOptions(b, now),
     // The countdown on the review screen. Only meaningful while the booking is "held".
     holdExpiresAt: b.status === 'held' ? b.hold.expiresAt : null,
+    // The payment attempts, so "Confirming your payment…" can follow one (stage 12e). Only
+    // what the guest needs: no provider ids, no fees, no failure details from the bank.
+    payments: (b.payments ?? []).map((p) => ({
+      reference: p.reference,
+      status: p.status,
+      purpose: p.purpose,
+      amountKobo: p.amountKobo,
+      paidAt: p.paidAt,
+    })),
     cancellationPolicy: b.policyVersion
       ? {
           rules: b.policyVersion.rules,
@@ -179,6 +194,10 @@ const GUEST_INCLUDE = {
   addOns: { include: { addOn: true } },
   hold: true,
   policyVersion: true,
+  // Newest first: the confirmation page follows the latest attempt (stage 12e).
+  payments: {
+    orderBy: [{ createdAt: /** @type {const} */ ('desc') }, { id: /** @type {const} */ ('desc') }],
+  },
 };
 
 /**
@@ -191,6 +210,7 @@ const GUEST_INCLUDE = {
  *   limits?: typeof DEFAULT_PUBLIC_LIMITS,
  *   provider: import('@okapigo/payments').PaymentProvider,
  *   apiPublicUrl: string,
+ *   webPublicUrl: string,   // where guests come back to after paying (the guest web)
  * }} deps
  */
 export function publicCheckoutRouter({
@@ -202,6 +222,7 @@ export function publicCheckoutRouter({
   limits = DEFAULT_PUBLIC_LIMITS,
   provider,
   apiPublicUrl,
+  webPublicUrl = apiPublicUrl,
 }) {
   const router = Router();
   const limiter = (/** @type {keyof typeof DEFAULT_PUBLIC_LIMITS} */ name) =>
@@ -443,7 +464,9 @@ export function publicCheckoutRouter({
         bookingId: booking.id,
         method: req.body.method,
         amountKobo: option.amountKobo,
-        callbackUrl: `${apiPublicUrl}/payments/callback`,
+        // Back to the guest web's "Confirming your payment…" page for THIS booking (12e).
+        // Paystack adds ?reference=…&trxref=… to it.
+        callbackUrl: `${webPublicUrl}/trip/${req.params.token}/confirm`,
         actor: { type: 'guest' },
       });
 
@@ -461,7 +484,86 @@ export function publicCheckoutRouter({
     },
   );
 
+  // --- "Is my payment through yet?" (the confirming page, stage 12e) ----------------------
+
+  router.post(
+    '/public/bookings/:token/payments/:reference/check',
+    limiter('guest'),
+    validate({
+      params: TokenParams.extend({ reference: z.string().regex(/^OKG-[A-Z0-9]{8,40}$/) }),
+    }),
+    async (req, res) => {
+      const booking = await findGuestBooking(req.params.token);
+      const payment = await prisma.payment.findFirst({
+        where: { bookingId: booking.id, reference: req.params.reference },
+      });
+      if (!payment) throw new HttpError(404, 'NOT_FOUND', 'Payment not found.');
+      // Ask the provider only while it's still unfinished; otherwise the answer is known.
+      if (payment.status === 'initiated') {
+        await checkPayment(prisma, provider, payment).catch((err) => {
+          // The provider being slow isn't the guest's problem: the page keeps waiting.
+          req.log.warn({ err, reference: payment.reference }, 'payment check failed');
+        });
+      }
+      const fresh = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+      res.set('Cache-Control', 'no-store').json({ status: fresh.status });
+    },
+  );
+
+  // --- Add to calendar ---------------------------------------------------------------------
+
+  router.get(
+    '/public/bookings/:token/calendar.ics',
+    limiter('guest'),
+    validate({ params: TokenParams }),
+    async (req, res) => {
+      const booking = await findGuestBooking(req.params.token);
+      res
+        .set('Cache-Control', 'private, no-store')
+        .set('Content-Disposition', `attachment; filename="${booking.reference}.ics"`)
+        .type('text/calendar')
+        .send(bookingCalendar(booking, `${webPublicUrl}/trip/${req.params.token}`));
+    },
+  );
+
   return router;
+}
+
+/**
+ * The booking as a calendar event (an .ics file, which phones' calendars open). Lines are
+ * CRLF-separated and text is escaped, as the iCalendar format (RFC 5545) requires.
+ * @param {any} b  a booking with product, departure and product.operator
+ * @param {string} tripUrl
+ */
+export function bookingCalendar(b, tripUrl) {
+  /** @param {Date} d  → 20261205T080000Z */
+  const stamp = (d) =>
+    d
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}/, '');
+  /** @param {string} t */
+  const esc = (t) => t.replace(/[\\;,]/g, (c) => `\\${c}`).replace(/\n/g, '\\n');
+  const place = /** @type {{ name: string, address: string }} */ (
+    b.pickupPoint ?? b.product.meetingPoint
+  );
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//OkapiGo//Bookings//EN',
+    'BEGIN:VEVENT',
+    `UID:${b.id}@okapigo`,
+    `DTSTAMP:${stamp(new Date())}`,
+    `DTSTART:${stamp(b.departure.startsAt)}`,
+    `DTEND:${stamp(b.departure.endsAt)}`,
+    `SUMMARY:${esc(`${b.product.title} (${b.product.operator.name})`)}`,
+    `LOCATION:${esc(`${place.name}, ${place.address}`)}`,
+    `DESCRIPTION:${esc(`Booking ${b.reference}. Your ticket and map: ${tripUrl}`)}`,
+    `URL:${tripUrl}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+    '',
+  ].join('\r\n');
 }
 
 /** "Child (3–12)" → "Child": the name without its age range. @param {{ name: string }} c */

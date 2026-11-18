@@ -98,6 +98,19 @@ export async function startPaymentForHttp(prisma, provider, input) {
  * @returns {{ publicRouter: import('express').Router, apiRouter: import('express').Router }}
  */
 export function paymentsRouters({ prisma, provider, apiPublicUrl }) {
+  /**
+   * Where the simulator sends the guest after paying or declining: the callback address the
+   * payment was started with (as Paystack does), plus ?reference=…&trxref=…, Paystack's own
+   * query. Payments started without one return to the plain callback page below.
+   * @param {string} reference
+   */
+  async function returnAddress(reference) {
+    const tx = await /** @type {any} */ (provider).store?.get(reference);
+    const base = tx?.callbackUrl ?? `${apiPublicUrl}/payments/callback`;
+    const ref = encodeURIComponent(reference);
+    return `${base}${base.includes('?') ? '&' : '?'}reference=${ref}&trxref=${ref}`;
+  }
+
   // --- Staff API -------------------------------------------------------------------------
   const apiRouter = Router();
   // @ts-ignore: req.auth is set by requireAuth
@@ -205,7 +218,7 @@ email or WhatsApp in a moment. You can close this page.</p>
         'simulator: payment approved, webhook sent',
       );
       // 303 See Other: "now GET this page", the standard answer to a submitted form.
-      res.redirect(303, `/payments/callback?reference=${encodeURIComponent(reference)}`);
+      res.redirect(303, await returnAddress(reference));
     });
 
     // Transfers (stage 10d): the right amount, or ₦100 short, as a guest's typo might be.
@@ -225,7 +238,7 @@ email or WhatsApp in a moment. You can close this page.</p>
           paidAmountKobo: tx.amountKobo - short,
         });
         await sim.sendWebhook(reference, webhookUrl);
-        res.redirect(303, `/payments/callback?reference=${encodeURIComponent(reference)}`);
+        res.redirect(303, await returnAddress(reference));
       });
     }
 
@@ -237,7 +250,7 @@ email or WhatsApp in a moment. You can close this page.</p>
         return;
       }
       await sim.fail(reference, 'Declined by the simulator');
-      res.redirect(303, `/payments/callback?reference=${encodeURIComponent(reference)}`);
+      res.redirect(303, await returnAddress(reference));
     });
   }
 

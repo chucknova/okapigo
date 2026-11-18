@@ -1,0 +1,182 @@
+/*
+ * after.css — the pages after paying (designs: file 02): confirming, confirmed, payment
+ * links, paying a balance. Through tokens, like everything else.
+ */
+
+/* --- Status pages: round icon, title, sentence, context, actions ------------------------- */
+
+.okg-status {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 40px var(--space-2);
+}
+.okg-status__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-pill);
+  font-size: 26px;
+  font-weight: 800;
+}
+.okg-status__icon--success {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.okg-status__icon--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.okg-status__icon--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+/* Waiting: a calm, slow ring (no spinner when the phone asks for reduced motion). */
+.okg-status__icon--pending {
+  border: 4px solid var(--color-primary-soft);
+  border-top-color: var(--color-primary-ink);
+  animation: okg-spin 1.1s linear infinite;
+}
+@keyframes okg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.okg-status__title {
+  font-size: var(--text-xl);
+  line-height: 28px;
+  font-weight: var(--weight-bold);
+}
+.okg-status__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+.okg-status__context {
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  line-height: 21px;
+  color: var(--color-text-muted);
+}
+.okg-status__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* --- D · Booking confirmed: the dark band ----------------------------------------------- */
+
+.okg-confirmed-band {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  padding: 28px var(--space-4) var(--space-5);
+  background: var(--color-band-bg);
+  color: var(--color-band-text);
+}
+.okg-confirmed-band__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.okg-confirmed-band__title h1 {
+  font-size: 24px;
+  line-height: 36px;
+}
+.okg-confirmed-band__check {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 800;
+}
+.okg-confirmed-band__ref {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-band-surface);
+}
+.okg-confirmed-band__label {
+  font-size: 13px;
+  line-height: 19.5px;
+  color: var(--color-band-muted);
+}
+.okg-confirmed-band__code {
+  font-size: 26px;
+  line-height: 39px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.okg-confirmed-band__copy {
+  min-height: var(--control-min-target);
+  padding: 0 14px;
+  border: var(--border-width) solid var(--color-band-line);
+  border-radius: 10px;
+  background: none;
+  color: var(--color-band-text);
+  font-size: 15px;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.okg-confirmed-band__sent {
+  font-size: var(--text-sm);
+  line-height: 21px;
+  color: var(--color-band-soft);
+}
+
+.okg-two-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.okg-two-buttons .okg-btn {
+  padding: 0 var(--space-2);
+  font-size: 15px;
+}
+
+.okg-chip--start {
+  align-self: flex-start;
+}
+
+/* --- E · Payment link -------------------------------------------------------------------- */
+
+.okg-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.okg-link-card__amount {
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 800;
+}
+.okg-facts {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: 15px;
+  line-height: 22.5px;
+}
+.okg-facts dt {
+  color: var(--color-text-muted);
+}
+.okg-facts dd {
+  margin: 0;
+  font-weight: var(--weight-semibold);
+}
+.okg-facts .okg-facts__plain {
+  font-weight: var(--weight-regular);
+}

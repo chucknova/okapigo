@@ -50,6 +50,9 @@ async function webhookFor(reference) {
 }
 
 const bookingRow = (id) => ctx.prisma.booking.findUniqueOrThrow({ where: { id } });
+/** The guest web's link page asks for these (stage 12e). */
+const linkData = (token) => request(ctx.app).get(`/public/payment-links/${token}`);
+const payLink = (token) => request(ctx.app).post(`/public/payment-links/${token}/pay`);
 const balances = async (client) =>
   Object.fromEntries(
     (await client.get('/api/ledger/accounts')).body.accounts.map((a) => [a.key, a.balanceKobo]),
@@ -246,21 +249,25 @@ describe('payment links (PAY-05)', () => {
       status: 'active',
     });
     expect(created.body.url).toMatch(/^http:\/\/localhost:4000\/pay\/[A-Za-z0-9_-]{32}$/);
-    const path = new URL(created.body.url).pathname;
+    const token = created.body.url.split('/').pop();
 
-    // The public page: tour, amount, reference, and NO personal details.
-    const page = await request(ctx.app).get(path);
+    // The link page's data (stage 12e): tour, amount, reference, and NO personal details.
+    const page = await linkData(token);
     expect(page.status).toBe(200);
-    expect(page.text).toContain('₦15,000');
-    expect(page.text).toContain(booking.reference);
-    expect(page.text).not.toContain('Amara');
-    expect(page.text).not.toContain('amara@guest.example');
+    expect(page.body.link).toMatchObject({
+      state: 'open',
+      amountKobo: 1_500_000,
+      purpose: 'deposit',
+      reference: booking.reference,
+    });
+    expect(JSON.stringify(page.body)).not.toContain('Amara');
+    expect(JSON.stringify(page.body)).not.toContain('amara@guest.example');
 
-    // Pay → redirected to the provider's checkout.
-    const pay = await request(ctx.app).post(path);
-    expect(pay.status).toBe(303);
-    expect(pay.headers.location).toMatch(/\/simulator\/checkout\/OKG-/);
-    const reference = pay.headers.location.split('/').pop();
+    // Pay → the provider's checkout address.
+    const pay = await payLink(token);
+    expect(pay.status).toBe(201);
+    expect(pay.body.payment.authorizationUrl).toMatch(/\/simulator\/checkout\/OKG-/);
+    const reference = pay.body.payment.authorizationUrl.split('/').pop();
     await ctx.provider.complete(reference);
     expect((await webhookFor(reference)).outcome).toBe('SETTLED');
 
@@ -270,7 +277,7 @@ describe('payment links (PAY-05)', () => {
     });
     const [link] = (await manager.get(`/api/bookings/${booking.id}/payment-links`)).body.links;
     expect(link.status).toBe('paid');
-    expect((await request(ctx.app).get(path)).status).toBe(410); // "already paid"
+    expect((await linkData(token)).body.link).toMatchObject({ state: 'paid' }); // "already paid"
   });
 
   it('the URL is shown once; only a hash of the token is stored', async () => {
@@ -302,9 +309,13 @@ describe('payment links (PAY-05)', () => {
     await ctx.provider.complete(deposit.reference);
     await webhookFor(deposit.reference);
 
-    const use = await request(ctx.app).post(new URL(url).pathname);
+    const token = url.split('/').pop();
+    // The page says so before the guest even taps Pay…
+    expect((await linkData(token)).body.link.state).toBe('out_of_date');
+    // …and paying is refused anyway.
+    const use = await payLink(token);
     expect(use.status).toBe(409);
-    expect(use.text).toContain('is owed');
+    expect(use.body.error.message).toContain('is owed');
   });
 
   it('cancelled, expired and made-up links say so', async () => {
@@ -317,12 +328,13 @@ describe('payment links (PAY-05)', () => {
       data: { expiresAt: new Date(Date.now() - 1000) },
     });
 
-    expect((await request(ctx.app).get(new URL(a.url).pathname)).status).toBe(410);
-    expect((await request(ctx.app).post(new URL(b.url).pathname)).status).toBe(409);
+    expect((await linkData(a.url.split('/').pop())).body.link.state).toBe('cancelled');
+    expect((await linkData(b.url.split('/').pop())).body.link.state).toBe('expired');
+    expect((await payLink(b.url.split('/').pop())).status).toBe(409);
     expect((await ctx.prisma.paymentLink.findUnique({ where: { id: b.link.id } })).status).toBe(
       'expired',
     );
-    expect((await request(ctx.app).get('/pay/thisisnotarealtokenatall00000000')).status).toBe(404);
+    expect((await linkData('thisisnotarealtokenatall00000000')).status).toBe(404);
   });
 
   it("cannot make links on another operator's booking", async () => {

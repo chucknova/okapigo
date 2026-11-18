@@ -64,36 +64,10 @@ export async function reconcile(
   for (const payment of stuck) {
     summary.paymentsChecked += 1;
     try {
-      const verified = await provider.verifyTransaction(payment.reference);
-      if (verified.status === 'succeeded') {
-        const { id, duplicate } = await recordWebhookEvent(prisma, {
-          provider: provider.name,
-          eventType: 'charge.success',
-          dedupKey: `charge.success:${verified.providerTransactionId}`,
-          payload: {
-            event: 'charge.success',
-            data: {
-              id: verified.providerTransactionId,
-              reference: payment.reference,
-              source: 'reconciliation',
-            },
-          },
-        });
-        if (!duplicate) await processWebhookEvent(prisma, provider, id, { now });
-        summary.settled += 1;
-      } else if (verified.status === 'failed' && canTransitionPayment(payment.status, 'failed')) {
-        await prisma.payment.updateMany({
-          where: { id: payment.id, status: 'initiated' },
-          data: { status: 'failed', failureReason: verified.message ?? 'Failed at the provider' },
-        });
-        summary.failed += 1;
-      } else if (now.getTime() - payment.createdAt.getTime() > abandonAfterMs) {
-        await prisma.payment.updateMany({
-          where: { id: payment.id, status: 'initiated' },
-          data: { status: 'abandoned' },
-        });
-        summary.abandoned += 1;
-      }
+      const result = await checkPayment(prisma, provider, payment, { now, abandonAfterMs });
+      if (result === 'settled') summary.settled += 1;
+      else if (result === 'failed') summary.failed += 1;
+      else if (result === 'abandoned') summary.abandoned += 1;
     } catch {
       summary.errors += 1; // e.g. Paystack briefly unavailable: next run tries again
     }
@@ -142,4 +116,66 @@ export async function reconcile(
     },
   });
   return { ...summary, refundsNeverSent: neverSent };
+}
+
+/**
+ * Asks the provider about ONE payment still "initiated", and acts on the answer exactly as
+ * the 10-minute reconciliation does. Used by reconcile() above, and by the guest's
+ * "Confirming your payment…" page (stage 12e) so a declined card is known in seconds.
+ *
+ *   succeeded → recorded as the webhook Paystack would send, processed the normal way
+ *               (if Paystack's own webhook comes later, it's a duplicate). One path for money.
+ *   failed    → the payment is marked failed
+ *   too old   → abandoned (the checkout is dead)
+ *
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {any} provider
+ * @param {{ id: string, reference: string, status: string, createdAt: Date }} payment
+ * @param {{ now?: Date, abandonAfterMs?: number }} [options]
+ * @returns {Promise<'settled' | 'failed' | 'abandoned' | 'pending'>}
+ */
+export async function checkPayment(
+  prisma,
+  provider,
+  payment,
+  { now = new Date(), abandonAfterMs = 24 * 60 * MINUTE } = {},
+) {
+  const verified = await provider.verifyTransaction(payment.reference);
+  if (verified.status === 'succeeded') {
+    const { id, duplicate } = await recordWebhookEvent(prisma, {
+      provider: provider.name,
+      eventType: 'charge.success',
+      dedupKey: `charge.success:${verified.providerTransactionId}`,
+      payload: {
+        event: 'charge.success',
+        data: {
+          id: verified.providerTransactionId,
+          reference: payment.reference,
+          source: 'reconciliation',
+        },
+      },
+    });
+    // Process it even if it's a DUPLICATE: Paystack's own webhook may have been RECORDED but
+    // not yet processed (the worker is down or behind). Found in stage 12e: the guest waited
+    // on "Confirming…" while the event sat in the queue. Processing is safe to repeat:
+    // a handled event is skipped, and concurrent processing settles once (see the RACE test).
+    void duplicate;
+    await processWebhookEvent(prisma, provider, id, { now });
+    return 'settled';
+  }
+  if (verified.status === 'failed' && canTransitionPayment(payment.status, 'failed')) {
+    await prisma.payment.updateMany({
+      where: { id: payment.id, status: 'initiated' },
+      data: { status: 'failed', failureReason: verified.message ?? 'Failed at the provider' },
+    });
+    return 'failed';
+  }
+  if (now.getTime() - payment.createdAt.getTime() > abandonAfterMs) {
+    await prisma.payment.updateMany({
+      where: { id: payment.id, status: 'initiated' },
+      data: { status: 'abandoned' },
+    });
+    return 'abandoned';
+  }
+  return 'pending';
 }

@@ -322,7 +322,11 @@ describe('the simulator checkout, end to end', () => {
 
     const click = await request(app).post(`/simulator/checkout/${payment.reference}/pay`);
     expect(click.status).toBe(303);
-    expect(click.headers.location).toBe(`/payments/callback?reference=${payment.reference}`);
+    // Back to where the payment was started from (a staff payment: the plain callback page),
+    // with Paystack's own query (stage 12e).
+    expect(click.headers.location).toBe(
+      `http://localhost:4000/payments/callback?reference=${payment.reference}&trxref=${payment.reference}`,
+    );
 
     // The webhook arrived through the real route and was queued; the workers would now run:
     expect(await processWebhookEvent(ctx.prisma, sim, ctx.jobs.webhooks.at(-1))).toMatchObject({

@@ -47,6 +47,8 @@ import {
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Checkout's later steps (the guest web's routes; stages 12c–12d). */
 const CHECKOUT_STEPS = new Set(['who', 'details', 'review']);
+/** The trip pages under /trip/:token (stages 12e–12f). */
+const TRIP_STEPS = new Set(['confirm', 'pay']);
 /** Previews may be cached by crawlers and browsers for 5 minutes. */
 const CACHE = 'public, max-age=300';
 
@@ -143,6 +145,20 @@ ${data}<div id="root">${p.body}</div>
 </html>`;
 }
 
+/**
+ * The page for a guest's private addresses: just the app, nothing about the booking (the app
+ * asks the API with the token). Readable on its own if the app isn't built.
+ * @param {import('../lib/web-assets.js').WebAssets | null} assets
+ */
+function privatePage(assets) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<title>Your booking</title>
+${assets ? webAssetTags(assets) : ''}
+</head><body><div id="root"><p style="font-family: system-ui, sans-serif; padding: 1rem">Loading…</p></div></body></html>`;
+}
+
 /** A 404 page that search engines are told not to index. */
 function notFoundPage() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -219,6 +235,27 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
   /** Is this request ours? (Not a reserved word, and shaped like slugs.) */
   const isOperator = (/** @type {string} */ s) => SLUG.test(s) && !RESERVED_OPERATOR_SLUGS.has(s);
   const isTour = (/** @type {string} */ s) => SLUG.test(s) && !RESERVED_TOUR_SLUGS.has(s);
+
+  // --- Private pages: a guest's own trip and payment links (stage 12e) ---------------------
+  //   /trip/:token/confirm   "Confirming your payment…" → "Booking confirmed"
+  //   /trip/:token/pay       pay your balance
+  //   /trip/:token           the trip hub (stage 12f)
+  //   /pay/:token(/done)     a payment link a member of staff sent
+  // The token in the address IS the key, so these pages are private: no preview tags, no
+  // content in the HTML (the app fetches it), never indexed, never cached by others, and
+  // the browser is told not to pass the address on to other sites (Referrer-Policy).
+  router.get(
+    ['/trip/:token', '/trip/:token/:step', '/pay/:token', '/pay/:token/done'],
+    (req, res, next) => {
+      if (!/^[A-Za-z0-9_-]{32,44}$/.test(req.params.token)) return next();
+      if (req.params.step && !TRIP_STEPS.has(req.params.step)) return next();
+      res
+        .set('Cache-Control', 'private, no-store')
+        .set('Referrer-Policy', 'no-referrer')
+        .type('html')
+        .send(privatePage(webAssets));
+    },
+  );
 
   // --- Preview cards (registered first: "card.png" isn't a slug, so the routes below would
   //     pass on it anyway, but being explicit is clearer) -------------------------------------

@@ -1,8 +1,8 @@
 // @ts-check
 /**
  * PRD journey 1, "Guest books on the website": picks the Heritage Walk and a date, adds
- * travellers, seats are held, pays by (test) card, the payment webhook confirms the booking.
- * (The QR ticket and trip hub link arrive with stages 12e–12f.)
+ * travellers, seats are held, pays by (test) card, the payment webhook confirms the booking,
+ * and the guest sees the confirmation. (The QR ticket arrives with the trip hub, stage 12f.)
  *
  * Every step is done the way a guest does it: by visible labels and buttons on a phone.
  */
@@ -59,15 +59,15 @@ test('a guest books the Heritage Walk for an adult and a child, and pays', async
   // The payment page (the simulator, standing in for Paystack in test mode).
   await expect(page.getByText('Simulated checkout')).toBeVisible();
   await page.getByRole('button', { name: 'Pay ₦37,500' }).click();
-  await expect(page).toHaveURL(/\/payments\/callback\?reference=OKG-/);
+  // Back to "Confirming your payment...", which becomes the confirmation once the webhook
+  // (processed by the worker) confirms the money (stage 12e).
+  await expect(page).toHaveURL(new RegExp(`/trip/${token}/confirm\\?reference=OKG-`));
+  await expect(page.getByRole('heading', { name: 'Booking confirmed' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByText('Paid in full')).toBeVisible();
+  await expect(page.getByText('Kamsi Okafor')).toBeVisible();
 
-  // The webhook, processed by the worker, confirms the booking: paid in full.
-  await expect
-    .poll(
-      async () => (await (await request.get(`/public/bookings/${token}`)).json()).booking.status,
-      {
-        timeout: 30_000,
-      },
-    )
-    .toBe('paid');
+  const final = await (await request.get(`/public/bookings/${token}`)).json();
+  expect(final.booking.status).toBe('paid');
 });

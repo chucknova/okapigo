@@ -54,6 +54,13 @@ export const LAGOON = {
       // The tour photo band's stand-in: thin diagonal lines on a pale green (tour page, 12b).
       'pattern-bg': '#E6EDE2',
       'pattern-line': '#DCE7D6',
+      // The dark band at the top of "Booking confirmed" (designs: file 02, screen D).
+      'band-bg': '#111511',
+      'band-surface': '#212821',
+      'band-text': '#EEF2EC',
+      'band-muted': '#A9B3A8',
+      'band-soft': '#C9D1C8',
+      'band-line': '#6E786D',
     },
     dark: {
       bg: '#0E120E',
@@ -81,6 +88,12 @@ export const LAGOON = {
       'strip-text': '#EEF2EC',
       'pattern-bg': '#1C231C',
       'pattern-line': '#252E25',
+      'band-bg': '#000000',
+      'band-surface': '#1B211B',
+      'band-text': '#EEF2EC',
+      'band-muted': '#A9B3A8',
+      'band-soft': '#C9D1C8',
+      'band-line': '#6E786D',
     },
   }),
   font: {

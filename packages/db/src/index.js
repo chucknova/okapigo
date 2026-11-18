@@ -61,7 +61,7 @@ export {
   markRefundProcessed,
   markRefundFailed,
 } from './refunds.js';
-export { reconcile } from './reconciliation.js';
+export { reconcile, checkPayment } from './reconciliation.js';
 export { guestToken, bookingIdFromGuestToken } from './guest-links.js';
 export {
   queueBalanceNotices,

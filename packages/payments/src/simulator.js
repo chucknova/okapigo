@@ -125,7 +125,7 @@ export function createSimulatorProvider({
     name: /** @type {const} */ ('simulator'),
     store,
 
-    async initializeTransaction({ reference, amountKobo, email, metadata }) {
+    async initializeTransaction({ reference, amountKobo, email, metadata, callbackUrl }) {
       if (await store.get(reference)) {
         // Paystack refuses a reused reference ("Duplicate Transaction Reference"); so do we.
         throw new ProviderError('PROVIDER_REJECTED', 'Duplicate Transaction Reference');
@@ -138,6 +138,8 @@ export function createSimulatorProvider({
         amountKobo,
         email,
         metadata,
+        // Where to send the guest afterwards, like Paystack's callback_url (stage 12e).
+        callbackUrl: callbackUrl ?? null,
         status: 'pending',
         // Paystack transaction ids are numbers; random keeps them unique across processes.
         id: 900_000_000 + Math.floor(Math.random() * 99_999_999),

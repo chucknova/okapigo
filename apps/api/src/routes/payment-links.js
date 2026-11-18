@@ -10,8 +10,9 @@
  *   POST /api/payments/:id/allocate        payments: edit    "this receipt is for booking X"
  *
  * Public (the guest's browser):
- *   GET  /pay/:token    amount, tour, date, booking reference, and a Pay button
- *   POST /pay/:token    start the payment → redirect to the provider's checkout
+ *   GET  /public/payment-links/:token        the link page's data (the page is the guest web's
+ *                                            /pay/:token, stage 12e)
+ *   POST /public/payment-links/:token/pay    start the payment → the provider's checkout URL
  *
  * Sending a link by WhatsApp or email arrives with automated messages (session 14).
  */
@@ -24,15 +25,14 @@ import {
   cancelPaymentLink,
   allocateReceipt,
   BookingError,
+  PAYABLE_STATUSES,
 } from '@okapigo/db';
 import { ProviderError } from '@okapigo/payments';
-import { formatNaira } from '@okapigo/shared/money';
 import { localDate, localTime } from '@okapigo/shared/time';
 import { requirePermission } from '../middleware/auth.js';
 import { validate, IdParamsSchema } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { serializePayment, serializePaymentLink } from './serializers.js';
-import { escapeHtml, page } from './payments.js';
 
 const CreateLinkSchema = z.object({
   amountKobo: z.number().int().positive().max(2_000_000_000).optional(),
@@ -55,9 +55,15 @@ function toHttp(err) {
  *   prisma: import('@prisma/client').PrismaClient,
  *   provider: import('@okapigo/payments').PaymentProvider,
  *   apiPublicUrl: string,
+ *   webPublicUrl?: string,   // where guests open links (the guest web); default apiPublicUrl
  * }} deps
  */
-export function paymentLinksRouters({ prisma, provider, apiPublicUrl }) {
+export function paymentLinksRouters({
+  prisma,
+  provider,
+  apiPublicUrl,
+  webPublicUrl = apiPublicUrl,
+}) {
   const apiRouter = Router();
   // @ts-ignore: req.auth is set by requireAuth
   const authOf = (req) => req.auth;
@@ -80,7 +86,7 @@ export function paymentLinksRouters({ prisma, provider, apiPublicUrl }) {
         // The ONLY time the full URL is revealed: the token isn't stored, only its hash.
         res
           .status(201)
-          .json({ link: serializePaymentLink(link), url: `${apiPublicUrl}/pay/${token}` });
+          .json({ link: serializePaymentLink(link), url: `${webPublicUrl}/pay/${token}` });
       } catch (err) {
         throw toHttp(err);
       }
@@ -167,63 +173,85 @@ export function paymentLinksRouters({ prisma, provider, apiPublicUrl }) {
     },
   );
 
-  // --- The public link page -----------------------------------------------------------------
+  // --- The public link page (the guest web draws it; these are its data, stage 12e) ---------
   const publicRouter = Router();
 
-  /** A friendly page for a link that can't be used. */
-  const unusable = (res, status, message) =>
-    res
-      .status(status)
-      .type('html')
-      .send(page('Payment link', `<h1>Payment link</h1><p>${escapeHtml(message)}</p>`));
-
-  publicRouter.get('/pay/:token', async (req, res) => {
-    const link = await findPaymentLink(prisma, req.params.token);
-    if (!link)
-      return unusable(res, 404, 'This payment link doesn’t exist. Check you copied all of it.');
-    if (link.status !== 'active' || link.expiresAt <= new Date()) {
-      const why =
-        link.status === 'paid'
-          ? 'has already been paid. Thank you!'
-          : link.status === 'active'
-            ? 'has expired. Ask the operator for a new one.'
-            : `is ${link.status}.`;
-      return unusable(res, 410, `This payment link ${why}`);
-    }
-    // Deliberately NO personal details (no names, emails, phones): anyone with the link can see this page.
+  /**
+   * What the link page shows. Deliberately NO personal details (names, emails, phones):
+   * anyone with the link can open it. One `state` the page can show directly:
+   *   open · paid · expired · cancelled · out_of_date (the booking now owes less than the
+   *   link asks, e.g. someone already paid part: "We never charge more than the booking owes")
+   * @param {NonNullable<Awaited<ReturnType<typeof findPaymentLink>>>} link
+   * @param {Date} now
+   */
+  async function linkView(link, now) {
     const { booking, operator } = link;
     const tz = operator.timeZone;
-    res.type('html').send(
-      page(
-        `Pay ${operator.name}`,
-        `<p style="color:#555">${escapeHtml(operator.name)}</p>
-<h1>${escapeHtml(booking.product.title)}</h1>
-<p>${escapeHtml(localDate(booking.departure.startsAt, tz))} at ${escapeHtml(localTime(booking.departure.startsAt, tz))} · Booking <code>${escapeHtml(booking.reference)}</code></p>
-<p style="font-size:1.5rem">Amount: <strong>${escapeHtml(formatNaira(link.amountKobo))}</strong> (${escapeHtml(link.purpose)})</p>
-<form method="post"><button style="padding:.6rem 1.2rem;font-size:1rem">Pay ${escapeHtml(formatNaira(link.amountKobo))}</button></form>
-<p style="color:#555">You'll choose card or bank transfer on the next page.</p>`,
-      ),
-    );
+    const owed = booking.totalKobo - booking.amountPaidKobo;
+    const paid = await prisma.payment.findFirst({
+      where: { paymentLinkId: link.id, status: 'succeeded' },
+      orderBy: { paidAt: 'desc' },
+    });
+    const state =
+      link.status === 'paid' || paid
+        ? 'paid'
+        : link.status === 'cancelled'
+          ? 'cancelled'
+          : link.status === 'expired' || link.expiresAt <= now
+            ? 'expired'
+            : owed < link.amountKobo || !PAYABLE_STATUSES.includes(booking.status)
+              ? 'out_of_date'
+              : 'open';
+    return {
+      state,
+      amountKobo: link.amountKobo,
+      purpose: link.purpose, // deposit · balance · custom
+      operator: { slug: operator.slug, name: operator.name },
+      tour: { title: booking.product.title },
+      departure: {
+        localDate: localDate(booking.departure.startsAt, tz),
+        localTime: localTime(booking.departure.startsAt, tz),
+      },
+      reference: booking.reference,
+      expiresOn: localDate(link.expiresAt, tz),
+      paidOn: paid?.paidAt ? localDate(paid.paidAt, tz) : null,
+    };
+  }
+
+  publicRouter.get('/public/payment-links/:token', async (req, res) => {
+    const link = await findPaymentLink(prisma, req.params.token);
+    if (!link) throw new HttpError(404, 'NOT_FOUND', 'This payment link doesn’t exist.');
+    res.set('Cache-Control', 'private, no-store').json({ link: await linkView(link, new Date()) });
   });
 
-  publicRouter.post('/pay/:token', async (req, res) => {
+  publicRouter.post('/public/payment-links/:token/pay', async (req, res) => {
     try {
       const { payment } = await payWithLink(prisma, provider, {
         token: req.params.token,
         method: 'any',
-        callbackUrl: `${apiPublicUrl}/payments/callback`,
+        // Back to the link page, which then says "This link has been paid".
+        callbackUrl: `${webPublicUrl}/pay/${req.params.token}/done`,
       });
       if (!payment.authorizationUrl) {
-        // A double click: the first click's checkout is still being set up.
-        return unusable(res, 409, 'Your payment is being set up. Please try again in a moment.');
+        // A double tap: the first tap's checkout is still being set up.
+        throw new HttpError(
+          409,
+          'PAYMENT_STARTING',
+          'Your payment is being set up. Try again in a moment.',
+        );
       }
-      res.redirect(303, payment.authorizationUrl);
+      res.status(201).json({ payment: { authorizationUrl: payment.authorizationUrl } });
     } catch (err) {
       if (err instanceof BookingError) {
-        return unusable(res, err.code === 'NOT_FOUND' ? 404 : 409, err.message);
+        throw new HttpError(err.code === 'NOT_FOUND' ? 404 : 409, err.code, err.message);
       }
-      if (err instanceof ProviderError)
-        return unusable(res, 502, 'The payment service is busy. Please try again in a moment.');
+      if (err instanceof ProviderError) {
+        throw new HttpError(
+          502,
+          err.code,
+          'The payment service is busy. Please try again in a moment.',
+        );
+      }
       throw err;
     }
   });
