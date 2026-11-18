@@ -130,12 +130,20 @@
 .okg-stepper__controls {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1);
+}
+.okg-stepper__note {
+  font-size: 13px;
+  line-height: 19.5px;
+  font-weight: var(--weight-bold);
+  color: var(--color-warning);
 }
 
 .okg-stepper__button {
-  width: var(--control-height);
-  height: var(--control-height);
+  /* 44 px: the minimum tap target, as the checkout design draws them. */
+  width: var(--control-min-target);
+  height: var(--control-min-target);
+  flex: none;
   border-radius: var(--radius-pill);
   border: var(--border-width) solid var(--color-border-strong);
   background: var(--color-surface);
@@ -152,7 +160,7 @@
 }
 
 .okg-stepper__count {
-  min-width: 2ch;
+  min-width: 32px;
   text-align: center;
   font-size: var(--text-lg);
   font-weight: var(--weight-bold);

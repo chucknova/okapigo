@@ -178,9 +178,10 @@ export const TOURS = [
       lng: 3.5354,
     },
     pickupPoints: [
-      { name: 'Victoria Island', address: 'Hotels on Adeola Odeku and Ahmadu Bello Way' },
-      { name: 'Ikoyi', address: 'Hotels on Awolowo Road and Kingsway Road' },
-      { name: 'Lekki Phase 1', address: 'Admiralty Way and Admiralty Road' },
+      // Landmarks and times from the checkout design (stage 12c).
+      { name: 'Victoria Island', address: 'Eko Hotel main gate', time: '07:15' },
+      { name: 'Ikoyi', address: 'Falomo roundabout', time: '07:30' },
+      { name: 'Lekki Phase 1', address: 'Admiralty Way gate', time: '07:45' },
     ],
     stops: [
       { name: 'Lekki Conservation Centre', description: 'Canopy walkway and nature trails.' },

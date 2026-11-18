@@ -45,6 +45,8 @@ import {
 } from '../lib/public-views.js';
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** Checkout's later steps (the guest web's routes; stages 12c–12d). */
+const CHECKOUT_STEPS = new Set(['who', 'details', 'review']);
 /** Previews may be cached by crawlers and browsers for 5 minutes. */
 const CACHE = 'public, max-age=300';
 
@@ -357,16 +359,20 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
       .send(tourPage(found, `/${found.view.operator.slug}/${found.view.tour.slug}`));
   });
 
-  // --- Checkout: …/badagry-heritage-day-trip/book (screens in 12c) --------------------------
-  router.get('/:operatorSlug/:tourSlug/book', async (req, res, next) => {
-    const found = await tourFor(req, res, next);
-    if (!found) return;
-    // Previews of a checkout link should still describe the TOUR, so og:url is the tour.
-    res
-      .set('Cache-Control', CACHE)
-      .type('html')
-      .send(tourPage(found, `/${found.view.operator.slug}/${found.view.tour.slug}`));
-  });
+  // --- Checkout: …/badagry-heritage-day-trip/book, and its later steps (/book/who…) -----------
+  router.get(
+    ['/:operatorSlug/:tourSlug/book', '/:operatorSlug/:tourSlug/book/:step'],
+    async (req, res, next) => {
+      if (req.params.step && !CHECKOUT_STEPS.has(req.params.step)) return next();
+      const found = await tourFor(req, res, next);
+      if (!found) return;
+      // Previews of a checkout link should still describe the TOUR, so og:url is the tour.
+      res
+        .set('Cache-Control', CACHE)
+        .type('html')
+        .send(tourPage(found, `/${found.view.operator.slug}/${found.view.tour.slug}`));
+    },
+  );
 
   return router;
 }

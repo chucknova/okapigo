@@ -256,6 +256,19 @@ describe('stage 12b: the app and its data inside share pages', () => {
     expect(embedded(text)).toMatchObject({ kind: 'catalogue', operatorSlug: operator.slug });
   });
 
+  it("serves checkout's later steps, but not made-up ones", async () => {
+    const { operator } = await ctx.seedOperator();
+    const a = app();
+
+    const who = await request(a).get(`/${operator.slug}/lagos-street-food-crawl/book/who`);
+    const nonsense = await request(a).get(`/${operator.slug}/lagos-street-food-crawl/book/nope`);
+
+    expect(who.status).toBe(200);
+    expect(embedded(who.text).tourSlug).toBe('lagos-street-food-crawl');
+    expect(nonsense.status).toBe(404);
+    expect(nonsense.headers['content-type']).toMatch(/json/);
+  });
+
   it('serves the checkout path too, previewing the tour', async () => {
     const { operator } = await ctx.seedOperator();
 

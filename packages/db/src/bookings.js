@@ -282,10 +282,12 @@ export function updateTraveller(prisma, { operatorId, bookingId, travellerId, ch
  *
  * @param {import('@prisma/client').Product} product
  * @param {string | null} name  as chosen by the guest (matched exactly)
- * @returns {{ name: string, address: string } | null}
+ * @returns {{ name: string, address: string, time?: string } | null}
  */
 function choosePickupPoint(product, name) {
-  const points = /** @type {Array<{ name: string, address: string }>} */ (product.pickupPoints);
+  const points = /** @type {Array<{ name: string, address: string, time?: string }>} */ (
+    product.pickupPoints
+  );
   if (points.length === 0) {
     if (name) {
       throw new BookingError('UNKNOWN_PICKUP_POINT', "This tour doesn't offer pickup.");
@@ -307,5 +309,6 @@ function choosePickupPoint(product, name) {
       },
     );
   }
-  return { name: point.name, address: point.address };
+  // A copy, time included: the van's time is part of what the guest was promised.
+  return { name: point.name, address: point.address, ...(point.time ? { time: point.time } : {}) };
 }

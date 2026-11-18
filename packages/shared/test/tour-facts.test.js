@@ -4,6 +4,7 @@ import {
   scheduleSummary,
   describePolicy,
   priceNote,
+  freeCancellationUntil,
 } from '../src/tour-facts.js';
 
 describe('formatDurationShort', () => {
@@ -104,5 +105,39 @@ describe('priceNote', () => {
       { key: 'infant', name: 'Infant (0–2)', minAge: 0, maxAge: 2, amountKobo: 0 },
     ];
     expect(priceNote(cats)).toEqual({ per: 'per adult', others: ['child ₦12,500', 'infant free'] });
+  });
+});
+
+describe('freeCancellationUntil', () => {
+  const standard = {
+    rules: [
+      { hoursBefore: 48, refundBasisPoints: 10_000 },
+      { hoursBefore: 24, refundBasisPoints: 5_000 },
+      { hoursBefore: 0, refundBasisPoints: 0 },
+    ],
+  };
+
+  it('is 48 hours before the start, in Lagos time', () => {
+    // Sat 5 Dec 2026, 09:00 Lagos = 08:00 UTC
+    expect(freeCancellationUntil(standard, '2026-12-05T08:00:00Z', 'Africa/Lagos')).toBe(
+      'Thu 3 Dec, 09:00',
+    );
+  });
+
+  it('is null when nothing is free, or free until the start', () => {
+    expect(
+      freeCancellationUntil(
+        { rules: [{ hoursBefore: 0, refundBasisPoints: 5_000 }] },
+        '2026-12-05T08:00:00Z',
+        'Africa/Lagos',
+      ),
+    ).toBeNull();
+    expect(
+      freeCancellationUntil(
+        { rules: [{ hoursBefore: 0, refundBasisPoints: 10_000 }] },
+        '2026-12-05T08:00:00Z',
+        'Africa/Lagos',
+      ),
+    ).toBeNull();
   });
 });

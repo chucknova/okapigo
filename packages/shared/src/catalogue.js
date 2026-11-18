@@ -106,6 +106,7 @@ export function accompanimentProblem(categories, chargedKeys) {
   const youngest = Math.min(...adults.map((c) => c.minAge));
   return {
     code: 'ADULT_REQUIRED',
-    message: `Children must travel with an adult (aged ${youngest} or over).`,
+    // The checkout design's wording (stage 12c): the screen shows this message as it is.
+    message: `Children must travel with an adult. Add at least one adult (${youngest} or over).`,
   };
 }

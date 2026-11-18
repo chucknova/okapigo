@@ -142,3 +142,34 @@ export function priceNote(categories) {
       .map((c) => `${plain(c)} ${c.amountKobo === 0 ? 'free' : formatNaira(c.amountKobo)}`),
   };
 }
+
+/**
+ * When free cancellation ends for one departure, for people: "Thu 3 Dec, 09:00" (the
+ * departure's start minus the policy's full-refund hours, in the operator's time zone).
+ * Null when nothing is ever free, or when it's free right up to the start.
+ *
+ * @param {{ rules: Array<{ hoursBefore: number, refundBasisPoints: number }> }} policy
+ * @param {Date | string} startsAt
+ * @param {string} timeZone
+ */
+export function freeCancellationUntil(policy, startsAt, timeZone) {
+  const free = policy.rules
+    .filter((r) => r.refundBasisPoints >= 10_000)
+    .sort((a, b) => a.hoursBefore - b.hoursBefore)[0];
+  if (!free || free.hoursBefore === 0) return null;
+  const deadline = new Date(new Date(startsAt).getTime() - free.hoursBefore * 3_600_000);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      timeZone,
+    })
+      .formatToParts(deadline)
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.weekday} ${parts.day} ${parts.month}, ${parts.hour}:${parts.minute}`;
+}

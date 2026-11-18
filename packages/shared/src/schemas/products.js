@@ -39,7 +39,16 @@ export const PhotoSchema = z.object({
   alt: text(200),
 });
 
-export const PickupPointSchema = z.object({ name: text(120), address: text(300) });
+export const PickupPointSchema = z.object({
+  name: text(120),
+  // Where exactly: a landmark people know ("Eko Hotel main gate").
+  address: text(300),
+  // When the van comes, local time "HH:MM" (stage 12c: "Eko Hotel main gate · 07:15").
+  time: z
+    .string()
+    .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, 'Use a time like 07:15')
+    .optional(),
+});
 
 export const FaqSchema = z.object({ question: text(300), answer: text(2000) });
 

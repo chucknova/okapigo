@@ -166,7 +166,7 @@ describe('accompanimentProblem (no children without an adult)', () => {
   it('refuses children or infants on their own, naming the adult age', () => {
     expect(accompanimentProblem(irin, ['child', 'infant'])).toEqual({
       code: 'ADULT_REQUIRED',
-      message: 'Children must travel with an adult (aged 13 or over).',
+      message: 'Children must travel with an adult. Add at least one adult (13 or over).',
     });
     expect(accompanimentProblem(irin, ['infant'])?.code).toBe('ADULT_REQUIRED');
   });

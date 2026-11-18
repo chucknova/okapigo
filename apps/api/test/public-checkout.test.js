@@ -71,7 +71,7 @@ describe('POST /public/:operatorSlug/tours/:tourSlug/quote', () => {
     expect(res.body.quote.totalKobo).toBe(1_250_000);
     expect(res.body.blocker).toEqual({
       code: 'ADULT_REQUIRED',
-      message: 'Children must travel with an adult (aged 13 or over).',
+      message: 'Children must travel with an adult. Add at least one adult (13 or over).',
     });
   });
 
@@ -201,7 +201,7 @@ describe('POST /public/:operatorSlug/bookings', () => {
 
     const ok = await book({ departureId, travellers: [adult()], pickupPoint: 'Ikoyi' });
     expect(ok.status).toBe(201);
-    const expected = { name: 'Ikoyi', address: 'Hotels on Awolowo Road and Kingsway Road' };
+    const expected = { name: 'Ikoyi', address: 'Falomo roundabout', time: '07:30' };
     expect(ok.body.booking.pickupPoint).toEqual(expected);
 
     // A copy: renaming the pickup point later doesn't move this guest.

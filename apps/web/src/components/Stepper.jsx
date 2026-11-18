@@ -10,18 +10,20 @@
  * @param {{
  *   label: string,
  *   price?: string,          // already formatted: "₦25,000", "Free"
+ *   note?: string,           // a warning under it: "4 left tonight"
  *   value: number,
  *   onChange: (value: number) => void,
  *   min?: number,
  *   max?: number,
  * }} props
  */
-export function Stepper({ label, price, value, onChange, min = 0, max = Infinity }) {
+export function Stepper({ label, price, note, value, onChange, min = 0, max = Infinity }) {
   return (
     <div className="okg-stepper">
       <div>
         <div className="okg-stepper__label">{label}</div>
         {price && <div className="okg-stepper__price okg-money">{price}</div>}
+        {note && <div className="okg-stepper__note">{note}</div>}
       </div>
       <div className="okg-stepper__controls">
         <button
