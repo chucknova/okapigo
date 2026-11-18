@@ -14,9 +14,12 @@ test('a guest books the Heritage Walk for an adult and a child, and pays', async
   page,
   request,
 }) => {
-  // The catalogue → the tour.
   await page.goto(`/${slug()}`);
-  await expect(page.getByRole('heading', { name: 'Tours in Lagos' })).toBeVisible();
+  // The operator's site (stage 12g-2): the hero, then the tours.
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Walk Lagos with people who love it' }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Our tours' })).toBeVisible();
   await page.getByRole('link', { name: /Lagos Island Heritage Walk/ }).click();
   await expect(
     page.getByRole('heading', { level: 1, name: 'Lagos Island Heritage Walk' }),

@@ -12,6 +12,7 @@ import './styles/screens.css';
 import './styles/checkout.css';
 import './styles/after.css';
 import './styles/trip.css';
+import './styles/site.css';
 import { App } from './App.jsx';
 import { startPreview } from './lib/look.js';
 

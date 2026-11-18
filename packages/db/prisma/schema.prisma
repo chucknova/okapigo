@@ -56,6 +56,10 @@ model Operator {
   // (The rest of the business details, tagline, about, email, socials, come in stage 12g.)
   phone        String?
   whatsapp     String?
+  // The one-page website's business details (stage 12g-2): kind, tagline, intro, about,
+  // whyUs, faqs, email, address, socials. Validated by SiteSchema
+  // (packages/shared/src/schemas/website.js); read as a whole, so one JSON value.
+  site         Json     @default("{}")
   pricing      Json     @default("{\"tax\": {\"name\": \"VAT\", \"basisPoints\": 750, \"inclusive\": true}, \"fees\": []}")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

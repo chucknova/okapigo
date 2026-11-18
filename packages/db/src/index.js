@@ -36,7 +36,7 @@ export {
   updateTraveller,
   MANUAL_STATUSES,
 } from './bookings.js';
-export { seedDemoOperator, DEFAULT_SLUG } from './seed/demo-operator.js';
+export { seedDemoOperator, DEFAULT_SLUG, IRIN_SITE } from './seed/demo-operator.js';
 export {
   createLedgerAccounts,
   postTransaction,

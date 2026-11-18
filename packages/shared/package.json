@@ -16,6 +16,7 @@
     "./time": "./src/time.js",
     "./schedule": "./src/schedule.js",
     "./schemas/schedules": "./src/schemas/schedules.js",
+    "./schemas/website": "./src/schemas/website.js",
     "./pricing": "./src/pricing.js",
     "./schemas/pricing": "./src/schemas/pricing.js",
     "./booking-status": "./src/booking-status.js",

@@ -2,30 +2,40 @@
 /**
  * The operator's website (MKT-08, stage 12g).
  *
- *   GET   /api/website   marketing: view   the style and mode, and the choices
- *   PATCH /api/website   marketing: edit   { style?, mode? }: change the look
+ *   GET   /api/website   marketing: view   the look, the business details, and the choices
+ *   PATCH /api/website   marketing: edit   { style?, mode?, phone?, whatsapp?, site? }
  *
- * Only the LOOK changes: content, tour links and booking links stay the same, so links
- * already shared never break (MKT-09). The business details (tagline, about, contact…) join
- * this route in stage 12g-2. The screen for it is part of the operator app (designed later).
+ * Changing the style or mode changes only the LOOK: content, tour links and booking links
+ * stay the same, so links already shared never break (MKT-09). `site` holds the one-page
+ * website's words (stage 12g-2, SiteSchema): what's sent is MERGED over what's stored, so a
+ * form can save one section at a time; send null (or '') to clear a field. The screen for
+ * this is part of the operator app (designed later).
  */
 import { Router } from 'express';
 import { z } from 'zod';
 import { STYLE_NAMES, MODES } from '@okapigo/shared/tokens';
+import { SiteSchema, SitePhoneSchema, readSite } from '@okapigo/shared/schemas/website';
 import { requirePermission } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
-const LookSchema = z
+const WebsiteSchema = z
   .object({
     style: z.enum(/** @type {[string, ...string[]]} */ (STYLE_NAMES)).optional(),
     mode: z.enum(/** @type {[string, ...string[]]} */ ([...MODES])).optional(),
+    phone: SitePhoneSchema.optional(),
+    whatsapp: SitePhoneSchema.optional(),
+    site: SiteSchema.optional(),
   })
-  .refine((v) => v.style !== undefined || v.mode !== undefined, 'Send a style, a mode, or both.');
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, 'Send something to change.');
 
-/** @param {{ id: string, websiteStyle: string, websiteMode: string }} o */
+/** @param {import('@prisma/client').Operator} o */
 const view = (o) => ({
   style: o.websiteStyle,
   mode: o.websiteMode,
+  phone: o.phone,
+  whatsapp: o.whatsapp,
+  site: readSite(o.site),
   styles: STYLE_NAMES,
   modes: MODES,
 });
@@ -47,14 +57,32 @@ export function websiteRouter({ prisma }) {
   router.patch(
     '/website',
     requirePermission('marketing', 'edit'),
-    validate({ body: LookSchema }),
+    validate({ body: WebsiteSchema }),
     async (req, res) => {
-      const operator = await prisma.operator.update({
-        where: { id: authOf(req).operatorId },
-        data: {
-          ...(req.body.style !== undefined && { websiteStyle: req.body.style }),
-          ...(req.body.mode !== undefined && { websiteMode: req.body.mode }),
-        },
+      const { operatorId } = authOf(req);
+      const b = req.body;
+      // Merge the site's fields over what's stored (null clears one). In a transaction with a
+      // row lock, so two people saving different sections at once don't undo each other.
+      const operator = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM operators WHERE id = ${operatorId}::uuid FOR UPDATE`;
+        const current = await tx.operator.findUniqueOrThrow({ where: { id: operatorId } });
+        const site = b.site
+          ? Object.fromEntries(
+              Object.entries({ ...readSite(current.site), ...b.site }).filter(
+                ([, v]) => v !== null,
+              ),
+            )
+          : undefined;
+        return tx.operator.update({
+          where: { id: operatorId },
+          data: {
+            ...(b.style !== undefined && { websiteStyle: b.style }),
+            ...(b.mode !== undefined && { websiteMode: b.mode }),
+            ...(b.phone !== undefined && { phone: b.phone }),
+            ...(b.whatsapp !== undefined && { whatsapp: b.whatsapp }),
+            ...(site && { site }),
+          },
+        });
       });
       res.json({ website: view(operator) });
     },

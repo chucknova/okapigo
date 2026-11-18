@@ -8,6 +8,7 @@ import { describe, it, expect, afterAll, afterEach } from 'vitest';
 import request from 'supertest';
 import { createTestContext } from './helpers.js';
 import { lookAttributes } from '../src/routes/share-pages.js';
+import { IRIN_SITE } from '@okapigo/db';
 
 const ctx = createTestContext();
 afterEach(() => ctx.cleanup());
@@ -28,7 +29,7 @@ describe('choosing the look', () => {
     const { owner } = await ctx.seedOperator();
     const staff = as(await ctx.tokenFor(owner.id));
 
-    expect((await staff.get('/api/website')).body.website).toEqual({
+    expect((await staff.get('/api/website')).body.website).toMatchObject({
       style: 'lagoon',
       mode: 'auto',
       styles: ['lagoon', 'classic', 'earth'],
@@ -94,5 +95,59 @@ describe('the pages draw in it', () => {
     expect(lookAttributes({ style: 'lagoon', mode: 'light' })).toBe(' data-mode="light"');
     expect(lookAttributes({ style: '"><script>', mode: 'x' })).toBe('');
     expect(lookAttributes(undefined)).toBe('');
+  });
+});
+
+describe('the business details (stage 12g-2)', () => {
+  it('reads the seeded words, merges a change over them, and null clears one field', async () => {
+    const { owner, operator } = await ctx.seedOperator();
+    const staff = as(await ctx.tokenFor(owner.id));
+    expect((await staff.get('/api/website')).body.website.site).toEqual(IRIN_SITE);
+
+    const res = await staff.patch('/api/website').send({
+      site: { tagline: 'Lagos, at walking pace', about: null },
+      whatsapp: '0803 123 4567',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.website).toMatchObject({ whatsapp: '+2348031234567' });
+    expect(res.body.website.site.tagline).toBe('Lagos, at walking pace');
+    expect(res.body.website.site.about).toBeUndefined(); // cleared
+    expect(res.body.website.site.faqs).toEqual(IRIN_SITE.faqs); // untouched
+
+    // The public site shows the change; the cleared About is null (that section hides).
+    const pub = (await request(ctx.app).get(`/public/${operator.slug}`)).body.site;
+    expect(pub).toMatchObject({
+      tagline: 'Lagos, at walking pace',
+      about: null,
+      contact: { whatsapp: '+2348031234567', email: IRIN_SITE.email },
+    });
+  });
+
+  it('refuses what a public page shouldn’t show: bad emails, http links, too much, unknown fields', async () => {
+    const { owner } = await ctx.seedOperator();
+    const staff = as(await ctx.tokenFor(owner.id));
+    const bad = [
+      { site: { email: 'not an email' } },
+      { site: { socials: [{ network: 'instagram', url: 'http://instagram.example/irin' }] } },
+      { site: { socials: [{ network: 'myspace', url: 'https://myspace.example/irin' }] } },
+      { site: { tagline: 'x'.repeat(81) } },
+      { site: { whyUs: [1, 2, 3, 4].map((i) => ({ title: `T${i}`, text: 'x' })) } },
+      { phone: '12345' },
+      { colour: 'pink' },
+    ];
+    for (const body of bad) {
+      expect((await staff.patch('/api/website').send(body)).status, JSON.stringify(body)).toBe(400);
+    }
+    // Nothing above was saved.
+    expect((await staff.get('/api/website')).body.website.site).toEqual(IRIN_SITE);
+  });
+
+  it('a page title like "><script> is text, never HTML, on the site’s own page', async () => {
+    const { owner, operator } = await ctx.seedOperator();
+    await as(await ctx.tokenFor(owner.id))
+      .patch('/api/website')
+      .send({ site: { tagline: '"><script>alert(1)</script>' } });
+    const html = (await request(ctx.app).get(`/${operator.slug}`)).text;
+    expect(html).not.toContain('<script>alert(1)</script>');
   });
 });

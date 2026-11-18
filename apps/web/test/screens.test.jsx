@@ -1,5 +1,5 @@
 /**
- * The catalogue and tour page, rendered in a fake browser (jsdom) with a fake API.
+ * The operator site (the old catalogue) and tour page, rendered in a fake browser (jsdom) with a fake API.
  * They check what a guest would see, including the embedded-data shortcut and the states.
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
@@ -101,56 +101,134 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('A · Catalogue', () => {
-  it('draws from embedded data at once, with no request', async () => {
+describe('The operator site (stage 12g-2)', () => {
+  const site = (over = {}) => ({
+    kind: 'City and food tours',
+    tagline: 'Walk Lagos with people who love it',
+    intro: 'Small groups, local guides, free cancellation up to 48 hours before.',
+    about: 'Ìrìn means “walk” in Yoruba.',
+    whyUs: [
+      { title: 'Free cancellation up to 48 hours', text: 'Plans change.' },
+      { title: 'Small groups', text: 'Never more than 15.' },
+      { title: 'Guides from the neighbourhood', text: 'Not a script.' },
+    ],
+    faqs: [{ question: 'How do I pay?', answer: 'By card or bank transfer, through Paystack.' }],
+    contact: {
+      phone: '+2348090000123',
+      whatsapp: '+2348090000123',
+      email: 'hello@irin.example',
+      address: 'Yaba, Lagos',
+      socials: [{ network: 'instagram', url: 'https://instagram.example/irin' }],
+    },
+    ...over,
+  });
+  /** @param {any} view */
+  const show = (view) => {
+    embed({ kind: 'catalogue', operatorSlug: 'irin-lagos-tours', view });
+    fakeApi({});
+    render(<Catalogue params={{ operator: 'irin-lagos-tours' }} />);
+  };
+  const noContact = { phone: null, whatsapp: null, email: null, address: null, socials: [] };
+
+  it('draws from embedded data at once: hero, tours, about, why, questions, contact', () => {
     embed({
       kind: 'catalogue',
       operatorSlug: 'irin-lagos-tours',
-      view: { operator, tours: [card('walk', 'Heritage Walk')] },
+      view: { operator, site: site(), tours: [card('walk', 'Heritage Walk')] },
     });
     const asked = fakeApi({});
-
     render(<Catalogue params={{ operator: 'irin-lagos-tours' }} />);
 
-    expect(screen.getByRole('heading', { name: 'Tours in Lagos' })).toBeTruthy();
+    expect(screen.getByText('City and food tours · Lagos')).toBeTruthy();
     expect(
-      screen.getByText('1 tour · prices include VAT · free cancellation up to 48 hours before'),
+      screen.getByRole('heading', { level: 1, name: 'Walk Lagos with people who love it' }),
     ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'See tours and dates' }).getAttribute('href')).toBe(
+      '#tours',
+    );
     const link = screen.getByRole('link', { name: /Heritage Walk/ });
     expect(link.getAttribute('href')).toBe('/irin-lagos-tours/walk');
+    expect(link.textContent).toContain('3 h · walking · daily 09:00');
     expect(link.textContent).toContain('₦25,000');
-    expect(link.textContent).toContain('Wed 18 Nov');
+    expect(link.textContent).toContain('Book · Wed 18 Nov');
+    expect(screen.getByRole('heading', { name: 'About Ìrìn' })).toBeTruthy();
+    expect(screen.getByText('Guides from the neighbourhood')).toBeTruthy();
+    expect(screen.getByText('How do I pay?')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Chat on WhatsApp' }).getAttribute('href')).toBe(
+      'https://wa.me/2348090000123',
+    );
+    expect(screen.getByRole('link', { name: '0809 000 0123' }).getAttribute('href')).toBe(
+      'tel:+2348090000123',
+    );
+    expect(screen.getByRole('link', { name: 'hello@irin.example' }).getAttribute('href')).toBe(
+      'mailto:hello@irin.example',
+    );
+    const insta = screen.getByRole('link', { name: 'Instagram' });
+    expect(insta.getAttribute('rel')).toBe('noopener noreferrer');
     expect(asked).toEqual([]);
   });
 
-  it('fetches when there is no embedded data, and leaves out a cancellation line tours disagree on', async () => {
-    fakeApi({
-      '/public/irin-lagos-tours': [
-        200,
-        {
-          operator,
-          tours: [card('a', 'Tour A'), card('b', 'Tour B', { cancellationHeadline: null })],
-        },
-      ],
-    });
-
-    render(<Catalogue params={{ operator: 'irin-lagos-tours' }} />);
-
-    expect(await screen.findByText('2 tours · prices include VAT')).toBeTruthy();
+  it('no tagline: the business name is the title, with "Tours in Lagos" under it', () => {
+    show({ operator, site: site({ tagline: null, kind: null }), tours: [card('walk', 'Walk')] });
+    expect(screen.getByRole('heading', { level: 1, name: 'Ìrìn Lagos Tours' })).toBeTruthy();
+    expect(screen.getByText('Tours in Lagos')).toBeTruthy();
   });
 
-  it('shows "no tours" and "not found"', async () => {
-    fakeApi({ '/public/irin-lagos-tours': [200, { operator, tours: [] }] });
+  it('no about, no points, no questions: those sections hide', () => {
+    show({
+      operator,
+      site: site({ about: null, whyUs: [], faqs: [] }),
+      tours: [card('w', 'Walk')],
+    });
+    expect(screen.queryByRole('heading', { name: 'About Ìrìn' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Why book with us' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Questions' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'About' })).toBeNull(); // nor in the menu
+  });
+
+  it('no WhatsApp: phone and email only; no contact at all: the section hides', () => {
+    show({
+      operator,
+      site: site({
+        contact: { ...noContact, phone: '+2348090000123', email: 'hello@irin.example' },
+      }),
+      tours: [card('w', 'Walk')],
+    });
+    expect(screen.getByRole('heading', { name: 'Get in touch' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Chat on WhatsApp' })).toBeNull();
+    cleanup();
+    resetEmbedded();
+    document.getElementById('okg-data')?.remove();
+
+    show({ operator, site: site({ contact: noContact }), tours: [card('w', 'Walk')] });
+    expect(screen.queryByRole('heading', { name: 'Get in touch' })).toBeNull();
+  });
+
+  it('no tours: "New tours coming soon", and nothing offers to book', () => {
+    show({ operator, site: site(), tours: [] });
+    expect(screen.getByText('New tours coming soon')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Message us on WhatsApp' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Book/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'See tours and dates' })).toBeNull();
+  });
+
+  it('older data with no site at all still makes a finished page', () => {
+    show({ operator, tours: [card('w', 'Walk')] });
+    expect(screen.getByRole('heading', { level: 1, name: 'Ìrìn Lagos Tours' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Our tours' })).toBeTruthy();
+  });
+
+  it('fetches without embedded data; "not found"; offline with Try again', async () => {
+    fakeApi({ '/public/irin-lagos-tours': [200, { operator, site: site(), tours: [] }] });
     render(<Catalogue params={{ operator: 'irin-lagos-tours' }} />);
-    expect(await screen.findByText('No tours available right now')).toBeTruthy();
+    expect(await screen.findByText('New tours coming soon')).toBeTruthy();
     cleanup();
 
     fakeApi({});
     render(<Catalogue params={{ operator: 'nobody' }} />);
     expect(await screen.findByText("We couldn't find that page")).toBeTruthy();
-  });
+    cleanup();
 
-  it("says you're offline, with Try again", async () => {
     vi.stubGlobal('fetch', async () => {
       throw new TypeError('Failed to fetch');
     });

@@ -37,6 +37,43 @@ const STAFF = [
 ];
 
 /**
+ * Ìrìn's website words, from the designs (file 04). Fictional, like everything here. No
+ * social links: made-up handles could belong to real accounts.
+ */
+export const IRIN_SITE = {
+  kind: 'City and food tours',
+  tagline: 'Walk Lagos with people who love it',
+  intro: 'Small groups, local guides, free cancellation up to 48 hours before.',
+  about:
+    'Ìrìn means “walk” in Yoruba. We’re a small team from Yaba who grew up on these streets. We show visitors and Lagosians alike the city’s history, food and people, at walking pace.',
+  whyUs: [
+    {
+      title: 'Free cancellation up to 48 hours',
+      text: 'Plans change. Cancel online, refund straight back.',
+    },
+    { title: 'Small groups', text: 'Never more than 15 on a walk, so you can hear and ask.' },
+    { title: 'Guides from the neighbourhood', text: 'People who live here, not a script.' },
+  ],
+  faqs: [
+    {
+      question: 'How do I pay?',
+      answer: 'By card or bank transfer when you book, through Paystack.',
+    },
+    {
+      question: 'Can I book a private tour?',
+      answer: 'Yes. Message us on WhatsApp with your dates and group size.',
+    },
+    {
+      question: 'What if I need to cancel?',
+      answer: 'Free up to 48 hours before; 50% back from 24 to 48 hours.',
+    },
+  ],
+  email: 'hello@irinlagostours.example',
+  address: 'Yaba, Lagos',
+  socials: [],
+};
+
+/**
  * Creates the operator, its preset roles and its staff, all-or-nothing.
  *
  * @param {import('@prisma/client').PrismaClient} prisma
@@ -57,7 +94,12 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
       const operator = await tx.operator.update({
         where: { id: created.operator.id },
         // Call and WhatsApp on the trip hub (stage 12f). Fictional numbers.
-        data: { city: 'Lagos', phone: '+2348090000123', whatsapp: '+2348090000123' },
+        data: {
+          city: 'Lagos',
+          phone: '+2348090000123',
+          whatsapp: '+2348090000123',
+          site: IRIN_SITE, // the one-page website's words (stage 12g-2)
+        },
       });
 
       // Phone numbers are unique platform-wide too, but we only have six fictional ones.

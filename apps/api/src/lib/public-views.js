@@ -16,6 +16,7 @@ import { fromPriceKobo } from '@okapigo/shared/catalogue';
 import { describePolicy, scheduleSummary } from '@okapigo/shared/tour-facts';
 import { localDate, localTime } from '@okapigo/shared/time';
 import { OperatorPricingSchema } from '@okapigo/shared/schemas/pricing';
+import { readSite } from '@okapigo/shared/schemas/website';
 
 /**
  * @param {import('@prisma/client').Operator} o
@@ -35,6 +36,31 @@ export function publicOperator(o) {
     websiteMode: o.websiteMode,
     // "Prices include VAT": the tax's name when catalogue prices already include it.
     pricesInclude: tax?.inclusive ? tax.name : null,
+  };
+}
+
+/**
+ * The one-page website's words and contact details (stage 12g-2). Only on the catalogue
+ * (the site's home), not on every tour page. Anything missing is null or [], and the site
+ * hides that section.
+ * @param {import('@prisma/client').Operator} o
+ */
+export function publicSite(o) {
+  const site = readSite(o.site);
+  return {
+    kind: site.kind ?? null,
+    tagline: site.tagline ?? null,
+    intro: site.intro ?? null,
+    about: site.about ?? null,
+    whyUs: site.whyUs ?? [],
+    faqs: site.faqs ?? [],
+    contact: {
+      phone: o.phone,
+      whatsapp: o.whatsapp,
+      email: site.email ?? null,
+      address: site.address ?? null,
+      socials: site.socials ?? [],
+    },
   };
 }
 
@@ -107,6 +133,7 @@ export async function loadCatalogueView(prisma, operatorSlug) {
 
   return {
     operator: publicOperator(operator),
+    site: publicSite(operator),
     tours: tours.map((t) => {
       const n = next.get(t.id);
       return {
