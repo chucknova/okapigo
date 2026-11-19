@@ -82,6 +82,7 @@ model Operator {
   notifications        Notification[]
   messageTemplates     MessageTemplate[]
   resources            Resource[]
+  syncChanges          SyncChange[]
   guestRequests        GuestRequest[]
   conversations        Conversation[]
 
@@ -154,6 +155,8 @@ model User {
   sessions Session[]
   // The departures this person guides (stage 15a).
   guiding  Departure[]
+  // Changes this person's phone sent from its offline outbox (stage 15b).
+  syncChanges SyncChange[]
 
   // Lets departures reference (user id + operator id) together: a guide from another
   // business can't be assigned (tenant safety, like roles).
@@ -1173,4 +1176,40 @@ model Resource {
   @@unique([operatorId, name])
   @@unique([id, operatorId])
   @@map("resources")
+}
+
+// One change a staff phone made, possibly offline, and sent from its outbox (stage 15b,
+// OPS-09): "Adaeze Okafor: present, 08:52". Kept so that sending it AGAIN (the phone lost
+// signal before hearing the answer) gets the same answer and changes nothing twice, and so
+// a conflict waits here until someone has looked at it.
+model SyncChange {
+  id            String    @id @default(uuid()) @db.Uuid
+  operatorId    String    @map("operator_id") @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  // The phone's own id for the change (a UUID it made when the guide tapped).
+  clientId      String    @map("client_id") @db.Uuid
+  // check_in · no_show · name
+  kind          String
+  departureId   String?   @map("departure_id") @db.Uuid
+  payload       Json
+  // When the guide did it (the phone's clock, never later than when it arrived).
+  happenedAt    DateTime  @map("happened_at") @db.Timestamptz(3)
+  receivedAt    DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  // applied · conflict (it can't be applied any more: the server's version stands)
+  //         · rejected (it was never valid: not our ticket, an unknown traveller)
+  outcome       String
+  code          String?
+  // In plain words, for screen O5: "You marked Tunde present at 09:05, but…"
+  message       String?
+  data          Json?
+  // Someone looked at the conflict ("OK" on O5).
+  dismissedAt   DateTime? @map("dismissed_at") @db.Timestamptz(3)
+  dismissedById String?   @map("dismissed_by_id") @db.Uuid
+
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@index([operatorId, outcome, dismissedAt])
+  @@map("sync_changes")
 }

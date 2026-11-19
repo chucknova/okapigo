@@ -16,7 +16,7 @@ import { localDate, localTime } from '@okapigo/shared/time';
 import { formatAt } from '@okapigo/shared/tour-facts';
 import { BookingError } from './booking-lifecycle.js';
 import { bookingIdFromTicketCode } from './guest-links.js';
-import { markNoShow } from './cancellations.js';
+import { markNoShowInTx } from './cancellations.js';
 
 const TX = { maxWait: 15_000, timeout: 15_000 };
 /** Bookings that belong on a manifest: sold, and the ones cancelled or no-show (struck through). */
@@ -280,8 +280,13 @@ export async function manifest(prisma, { operatorId, departureId }) {
  *   operatorId: string, departureId: string, secret: string,
  *   code?: string, bookingId?: string, travellerIds?: string[],
  *   status: 'present' | 'late' | 'pending', confirmOwed?: boolean,
+ *   seen?: Record<string, string>,
  *   userId: string, now?: Date,
  * }} c
+ *
+ * `seen` (the offline outbox, 15b): each traveller's state as the PHONE saw it when the guide
+ * tapped. If someone else has changed a traveller since (to anything but this change), the
+ * change isn't applied: CHANGED_FIRST, and theirs stands. Without `seen`, the last tap wins.
  */
 export async function checkIn(
   prisma,
@@ -294,6 +299,7 @@ export async function checkIn(
     travellerIds,
     status,
     confirmOwed = false,
+    seen,
     userId,
     now = new Date(),
   },
@@ -356,6 +362,22 @@ export async function checkIn(
     if (travellerIds?.length && chosen.length !== travellerIds.length) {
       throw new BookingError('NOT_FOUND', 'One of those travellers isn’t on this booking.');
     }
+    const changedFirst = seen
+      ? chosen.find(
+          (t) =>
+            seen[t.id] !== undefined &&
+            t.checkInStatus !== seen[t.id] &&
+            t.checkInStatus !== status,
+        )
+      : undefined;
+    if (changedFirst) {
+      throw new BookingError('CHANGED_FIRST', 'Someone else changed this traveller first.', {
+        travellerId: changedFirst.id,
+        status: changedFirst.checkInStatus,
+        at: changedFirst.checkedInAt,
+        byId: changedFirst.checkedInById,
+      });
+    }
     const already = chosen.filter((t) => t.checkInStatus === status);
     for (const t of chosen) {
       if (t.checkInStatus === status) continue; // the same again: nothing to change
@@ -407,8 +429,13 @@ export async function checkIn(
 
 /**
  * A booking that didn't come (decided 2026-11-19: the guide may mark it, offline too). Only
- * once the departure has started. The policy's no-show rule applies (session 9: markNoShow);
- * its travellers are marked no-show on the manifest. Marking it twice changes nothing.
+ * once the departure has started (`now`: for the outbox, when the guide tapped). The policy's
+ * no-show rule applies (session 9); its travellers are marked no-show on the manifest.
+ * Marking it twice changes nothing. Refused if any of them was checked in (15b: a second
+ * guide may have, while this phone was offline), or the booking was cancelled.
+ *
+ * One transaction, holding the booking's row lock like check-in, so a check-in and a no-show
+ * of the same booking can't both happen.
  * @param {import('@prisma/client').PrismaClient} prisma
  * @param {{ operatorId: string, departureId: string, bookingId: string, userId: string, now?: Date }} n
  */
@@ -416,37 +443,62 @@ export async function noShow(
   prisma,
   { operatorId, departureId, bookingId, userId, now = new Date() },
 ) {
-  const b = await prisma.booking.findFirst({
-    where: { id: bookingId, operatorId, departureId },
-    include: { departure: true },
-  });
-  if (!b) throw new BookingError('NOT_FOUND', 'That booking isn’t on this departure.');
-  if (b.status === 'no_show') return { already: true };
-  if (b.departure.startsAt > now) {
-    throw new BookingError(
-      'NOT_STARTED',
-      'A no-show can only be marked once the tour has started.',
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM bookings WHERE id = ${bookingId}::uuid FOR UPDATE`;
+    const b = await tx.booking.findFirst({
+      where: { id: bookingId, operatorId, departureId },
+      include: { departure: true, travellers: { orderBy: { position: 'asc' } } },
+    });
+    if (!b) throw new BookingError('NOT_FOUND', 'That booking isn’t on this departure.');
+    if (b.status === 'no_show') return { already: true };
+    if (b.status === 'cancelled' || b.status === 'refunded') {
+      throw new BookingError('BOOKING_CANCELLED', 'This booking was cancelled.');
+    }
+    if (b.departure.startsAt > now) {
+      throw new BookingError(
+        'NOT_STARTED',
+        'A no-show can only be marked once the tour has started.',
+      );
+    }
+    const arrived = b.travellers.find(
+      (t) => t.checkInStatus === 'present' || t.checkInStatus === 'late',
     );
-  }
-  await markNoShow(prisma, { operatorId, bookingId, actor: { type: 'user', userId }, now });
-  await prisma.traveller.updateMany({
-    where: { bookingId, checkInStatus: 'pending' },
-    data: { checkInStatus: 'no_show', checkedInAt: now, checkedInById: userId },
-  });
-  return { already: false };
+    if (arrived) {
+      throw new BookingError('CHECKED_IN', 'Someone on this booking was checked in.', {
+        travellerId: arrived.id,
+        status: arrived.checkInStatus,
+        at: arrived.checkedInAt,
+        byId: arrived.checkedInById,
+      });
+    }
+    await markNoShowInTx(tx, { operatorId, bookingId, actor: { type: 'user', userId }, now });
+    await tx.traveller.updateMany({
+      where: { bookingId, checkInStatus: 'pending' },
+      data: { checkInStatus: 'no_show', checkedInAt: now, checkedInById: userId },
+    });
+    return { already: false };
+  }, TX);
 }
 
 /**
  * A name typed at check-in for a traveller booked without one (decided 2026-11-19: optional).
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ operatorId: string, travellerId: string, name: string }} n
+ * `seen` (the outbox, 15b): the name the phone saw. If the office typed a different one
+ * meanwhile, theirs stands (CHANGED_FIRST).
+ * @param {{ operatorId: string, travellerId: string, name: string, seen?: string }} n
  */
-export async function nameTraveller(prisma, { operatorId, travellerId, name }) {
+export async function nameTraveller(prisma, { operatorId, travellerId, name, seen }) {
   const clean = name.trim().replace(/\s+/g, ' ');
   if (clean.length < 2 || clean.length > 80) {
     throw new BookingError('VALIDATION_ERROR', 'A name of 2 to 80 characters, please.');
   }
   const t = await prisma.traveller.findFirst({ where: { id: travellerId, operatorId } });
   if (!t) throw new BookingError('NOT_FOUND', 'Traveller not found.');
+  if (seen !== undefined && t.name !== seen && t.name !== clean) {
+    throw new BookingError('CHANGED_FIRST', 'Someone else named this traveller first.', {
+      travellerId: t.id,
+      name: t.name,
+    });
+  }
   return prisma.traveller.update({ where: { id: travellerId }, data: { name: clean } });
 }

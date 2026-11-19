@@ -38,6 +38,7 @@ import { whatsappWebhookRouter } from './routes/whatsapp-webhook.js';
 import { whatsappSettingsRouter } from './routes/whatsapp-settings.js';
 import { messageTemplatesRouter } from './routes/message-templates.js';
 import { operationsRouter } from './routes/operations.js';
+import { syncRouter } from './routes/sync.js';
 import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
@@ -164,6 +165,9 @@ export function createApp({
   }
 
   // Parse JSON request bodies. The size limit stops someone sending a 1 GB body.
+  // Except a phone's outbox after a long day offline: up to 500 changes (stage 15b), which
+  // need more room. Parsed here first; the general parser then leaves it alone.
+  app.use('/api/sync/changes', express.json({ limit: '1mb' }));
   app.use(express.json({ limit: '100kb' }));
 
   // --- Public routes (no sign-in needed) --------------------------------------
@@ -242,6 +246,7 @@ export function createApp({
   api.use(websiteRouter({ prisma })); // the website's style and mode (12g)
   api.use(messageTemplatesRouter({ prisma })); // the guest messages' wording (14a)
   api.use(operationsRouter({ prisma, authSecret })); // resources, manifests, check-in (15a)
+  api.use(syncRouter({ prisma, authSecret })); // the operator app offline: package, outbox (15b)
   api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).

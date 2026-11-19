@@ -215,27 +215,38 @@ export function cancelBooking(prisma, { operatorId, bookingId, actor, now = new 
  * @param {{ operatorId: string, bookingId: string, actor: Actor, now?: Date }} input
  */
 export function markNoShow(prisma, { operatorId, bookingId, actor, now = new Date() }) {
-  return prisma.$transaction(async (tx) => {
-    const booking = await findOwnBooking(tx, operatorId, bookingId);
-    const refund =
-      booking.status === 'held'
-        ? null // the state machine refuses held → no_show just below
-        : await refundFor(tx, booking, { kind: 'no_show', initiatedBy: 'guest', now });
-    await transitionBookingInTx(tx, {
-      bookingId: booking.id,
-      to: 'no_show',
-      actor,
-      data: { refund },
+  return prisma.$transaction(
+    (tx) => markNoShowInTx(tx, { operatorId, bookingId, actor, now }),
+    TX_OPTIONS,
+  );
+}
+
+/**
+ * The same, inside the caller's transaction (the guide's no-show, stage 15b, checks the
+ * manifest and marks it under one lock).
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ * @param {{ operatorId: string, bookingId: string, actor: Actor, now: Date }} input
+ */
+export async function markNoShowInTx(tx, { operatorId, bookingId, actor, now }) {
+  const booking = await findOwnBooking(tx, operatorId, bookingId);
+  const refund =
+    booking.status === 'held'
+      ? null // the state machine refuses held → no_show just below
+      : await refundFor(tx, booking, { kind: 'no_show', initiatedBy: 'guest', now });
+  await transitionBookingInTx(tx, {
+    bookingId: booking.id,
+    to: 'no_show',
+    actor,
+    data: { refund },
+  });
+  if (refund) {
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: { refundDueKobo: refund.refundKobo },
     });
-    if (refund) {
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: { refundDueKobo: refund.refundKobo },
-      });
-      await postRefundOwed(tx, booking, refund.refundKobo, 'no-show', actor);
-    }
-    return refund;
-  }, TX_OPTIONS);
+    await postRefundOwed(tx, booking, refund.refundKobo, 'no-show', actor);
+  }
+  return refund;
 }
 
 /**

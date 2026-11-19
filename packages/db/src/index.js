@@ -92,3 +92,11 @@ export {
   noShow,
   nameTraveller,
 } from './operations.js';
+export {
+  offlinePackage,
+  applyChanges,
+  listConflicts,
+  dismissConflict,
+  ticketFingerprint,
+  MAX_CHANGES_PER_SYNC,
+} from './sync.js';
