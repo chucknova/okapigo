@@ -1,0 +1,144 @@
+/* The operator app's base: the page, type, and the few rules every screen shares.
+   Every value is a token (tokens.css, from packages/shared/src/operator-tokens.js). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: 1.45;
+}
+button,
+input {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+a {
+  color: var(--color-primary-ink);
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+:focus-visible {
+  outline: 3px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Type (designs: text.2xl 28 headings, lg 20 card titles, md 17 body, sm 15 secondary) */
+.h-display {
+  font-size: 30px;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+.h-2xl {
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+}
+.h-xl {
+  font-size: 26px;
+  line-height: 1.2;
+}
+.h-lg {
+  font-size: 22px;
+  line-height: 1.2;
+}
+.h-sm {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.h-card {
+  font-size: 19px;
+  font-weight: 800;
+}
+.h-card-lg {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.h-time {
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+.h-time-lg {
+  font-size: var(--text-display);
+  font-weight: 800;
+  line-height: 1;
+}
+.h-section {
+  font-size: var(--text-action);
+  color: var(--color-text-muted);
+  margin-top: 12px;
+}
+.eyebrow {
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+.sm {
+  font-size: var(--text-sm);
+}
+.small {
+  font-size: var(--text-xs);
+}
+.tiny {
+  font-size: var(--text-2xs);
+}
+.muted {
+  color: var(--color-text-muted);
+}
+.ink {
+  color: var(--color-text);
+}
+.strong {
+  font-weight: 700;
+}
+.strong-ish {
+  font-weight: 600;
+}
+.warning {
+  color: var(--color-warning);
+}
+.success {
+  color: var(--color-success);
+}
+.primary-ink {
+  color: var(--color-primary-ink);
+}
+.block {
+  display: block;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.center {
+  text-align: center;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.lead-gap {
+  margin-top: 6px;
+}
+.push-bottom {
+  margin-top: auto;
+}

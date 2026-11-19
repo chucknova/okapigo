@@ -248,3 +248,25 @@ The guide's screens (O1–O5) first, if you'd like to start smaller: 15c needs o
   **optional** name the guide can type at check-in (it syncs like check-in).
 - **Question 5, one app** for everyone (assumed, as suggested): what you see depends on your
   role; the guide just sees less.
+
+## Decided with the designs (2026-11-19, session 15)
+
+Your designs (O1–O10 and their states; tokens v1 and the app shell) add three things the
+brief didn't have. Decided:
+
+- **Money on the day: both, as designed.** The guide can show a **payment QR** (the booking's
+  balance link, saved on the phone so it shows without signal; made without messaging the
+  guest) or record **cash**: saved as "cash reported by <guide>", **not a payment** until the
+  office confirms it was handed in (the bookings desk, 16b). If the guest also paid by link,
+  the cash report becomes a conflict: a possible double payment.
+- **Pickup stops: pickup times added now.** Each pickup point gets a time; the manifest of a
+  pickup tour (Lekki) groups travellers by stop, in order, with the next stop highlighted.
+- **15c in four stages:**
+
+| Stage | Builds                                                                                                                                |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 15c-1 | the operator app (PWA at /app/): tokens, sign-in (O1), first run, connection strip, tabs, the saved package and the outbox, Sync (O5) |
+| 15c-2 | Today (O2) and the manifest (O3): search, traveller states, names, no-show                                                            |
+| 15c-3 | Scan (O4) and its problem states                                                                                                      |
+| 15c-4 | money on the day (QR, cash), pickup stops, the A4 printed manifest                                                                    |
+| 15d   | journey 6 end to end with the network off                                                                                             |

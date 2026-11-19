@@ -32,6 +32,13 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@okapigo/simulators", "dev"],
       "port": 5174
+    },
+    {
+      "name": "operator",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@okapigo/operator", "dev"],
+      "port": 5175,
+      "url": "http://localhost:5175/app/"
     }
   ]
 }

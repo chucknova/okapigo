@@ -27,6 +27,7 @@ import { createMailer } from './messages/mailers.js';
 import { createChannels } from './whatsapp/channels.js';
 
 const simulatorDist = new URL('../../simulators/dist', import.meta.url).pathname;
+const operatorDist = new URL('../../operator/dist', import.meta.url).pathname;
 
 const config = loadConfig();
 const logger = createLogger({
@@ -88,6 +89,8 @@ const app = createApp({
   webAssets: loadWebAssets(new URL('../../web/dist', import.meta.url).pathname),
   // The built WhatsApp simulator app (pnpm --filter @okapigo/simulators build), if present.
   simulatorDir: existsSync(simulatorDist) ? simulatorDist : null,
+  // The built operator app (pnpm --filter @okapigo/operator build), if present: /app/.
+  operatorDir: existsSync(operatorDist) ? operatorDist : null,
 });
 
 const server = app.listen(config.API_PORT, () => {

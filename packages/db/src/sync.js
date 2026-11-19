@@ -98,7 +98,8 @@ export async function offlinePackage(prisma, { operatorId, userId, secret, now =
     });
   }
   return {
-    operator: { name: operator.name, timeZone: tz },
+    // "Call the office" (O4, O5): the business's phone, if it has one.
+    operator: { name: operator.name, timeZone: tz, phone: operator.phone },
     days: [today, addDays(today, 1)],
     departures: manifests,
   };
@@ -115,8 +116,13 @@ export async function offlinePackage(prisma, { operatorId, userId, secret, now =
  * )} Change
  *
  * @typedef {{
+ *   title: string, youDid: string, theyLabel: string, theyHad: string, soNow: string,
+ *   canUseMine: boolean,
+ * }} Explanation  a conflict as screen O5 shows it (YOU DID / THE OFFICE HAD / SO NOW)
+ *
+ * @typedef {{
  *   id: string, outcome: 'applied' | 'conflict' | 'rejected', code: string | null,
- *   message: string | null, repeated: boolean, data: unknown,
+ *   message: string | null, explanation: Explanation | null, repeated: boolean, data: unknown,
  * }} ChangeResult
  */
 
@@ -163,6 +169,8 @@ async function applyOne(prisma, who, change, now) {
   /** @type {string | null} */
   let message = null;
   /** @type {any} */
+  let explanation;
+  /** @type {any} */
   let data;
   try {
     data = await perform(prisma, who, change, at);
@@ -170,8 +178,11 @@ async function applyOne(prisma, who, change, now) {
     if (!(err instanceof BookingError)) throw err; // our bug or the database: the phone retries
     outcome = CONFLICT_CODES.has(err.code) ? 'conflict' : 'rejected';
     code = err.code;
-    message =
-      outcome === 'conflict' ? await explain(prisma, who, change, at, now, err) : err.message;
+    if (outcome === 'conflict') {
+      ({ message, explanation } = await explain(prisma, who, change, at, now, err));
+    } else {
+      message = err.message;
+    }
     data = err.details ?? null;
   }
 
@@ -192,6 +203,7 @@ async function applyOne(prisma, who, change, now) {
         outcome,
         code,
         message,
+        explanation,
         data: data ?? undefined,
       },
     ],
@@ -263,6 +275,7 @@ const resultOf = (row, repeated) => ({
   outcome: row.outcome,
   code: row.code,
   message: row.message,
+  explanation: row.explanation ?? null,
   repeated,
   data: row.data,
 });
@@ -324,6 +337,7 @@ async function explain(prisma, { operatorId, userId, secret }, change, at, now, 
 
   // What this phone did.
   let did;
+  let title;
   if (change.kind === 'check_in') {
     const chosen = change.travellerIds?.length
       ? (b?.travellers ?? []).filter((t) => change.travellerIds?.includes(t.id))
@@ -338,16 +352,22 @@ async function explain(prisma, { operatorId, userId, secret }, change, at, now, 
       change.status === 'pending'
         ? `undid the check-in for ${whom}`
         : `marked ${whom} ${change.status}`;
+    title =
+      change.status === 'pending'
+        ? `The check-in for ${whom} wasn’t undone`
+        : `${capital(whom)} ${chosen.length > 1 ? 'weren’t' : 'wasn’t'} ${change.status === 'late' ? 'marked late' : 'checked in'}`;
   } else if (change.kind === 'no_show') {
     did = `marked ${lead}’s booking a no-show`;
+    title = `${lead}’s booking wasn’t marked a no-show`;
   } else {
     // As the phone knew them: unnamed, if it saw no name.
     const t = b?.travellers.find((x) => x.id === change.travellerId);
     const known = change.seen !== undefined ? nameOf(t && { ...t, name: change.seen }) : nameOf(t);
     did = `named ${known} “${change.name.trim()}”`;
+    title = `The name “${change.name.trim()}” wasn’t saved`;
   }
 
-  // What the server had.
+  // What the server had: in the sentence (`why`), and as O5's "THE OFFICE HAD" (`had`).
   const ended = b?.events[0] ? ` at ${stamp(b.events[0].createdAt, at)}` : '';
   /** @type {Record<string, string>} */
   const otherDid = {
@@ -356,28 +376,116 @@ async function explain(prisma, { operatorId, userId, secret }, change, at, now, 
     no_show: `marked ${nameOf(traveller)} a no-show`,
     pending: `undone the check-in for ${nameOf(traveller)}`,
   };
-  const why = {
-    BOOKING_CANCELLED: `the booking was cancelled${ended}`,
-    NO_SHOW_MARKED: `the booking was marked a no-show${ended}`,
-    OTHER_DEPARTURE: `the booking was moved to ${details.startsAt ? formatAt(new Date(details.startsAt).getTime(), tz) : 'another departure'}`,
-    BALANCE_OWED: `they now owe ${formatNaira(details.owedKobo ?? 0)}`,
-    NOT_BOOKED: 'the booking isn’t confirmed any more',
+  const moved = details.startsAt
+    ? formatAt(new Date(details.startsAt).getTime(), tz)
+    : 'another departure';
+  const owed = formatNaira(details.owedKobo ?? 0);
+  const theirs = otherDid[details.status] ?? 'changed them';
+  const office = 'The office had';
+  const byLabel =
+    by === 'you'
+      ? 'You had (on another phone)'
+      : `${by === 'someone else' ? 'Someone else' : by} had`;
+  /** @type {Record<string, { why: string, label: string, had: string, now: string }>} */
+  const parts = {
+    BOOKING_CANCELLED: {
+      why: `the booking was cancelled${ended}`,
+      label: office,
+      had: `Cancelled the booking${ended}.`,
+      now: 'Nothing changed. The booking stays cancelled. If they’re with you, call the office.',
+    },
+    NO_SHOW_MARKED: {
+      why: `the booking was marked a no-show${ended}`,
+      label: office,
+      had: `Marked the booking a no-show${ended}.`,
+      now: 'Nothing changed. It stays a no-show; the office can change it.',
+    },
+    OTHER_DEPARTURE: {
+      why: `the booking was moved to ${moved}`,
+      label: office,
+      had: `Moved the booking to ${moved}.`,
+      now: 'Nothing changed. They’re booked on another trip: call the office.',
+    },
+    BALANCE_OWED: {
+      why: `they now owe ${owed}`,
+      label: office,
+      had: `${owed} still to pay on this booking.`,
+      now: `Nothing changed. Check them in again to confirm they still owe ${owed}.`,
+    },
+    NOT_BOOKED: {
+      why: 'the booking isn’t confirmed any more',
+      label: office,
+      had: 'A booking that isn’t confirmed any more.',
+      now: 'Nothing changed. Call the office.',
+    },
     CHANGED_FIRST:
       change.kind === 'name'
-        ? `someone else had already named them “${details.name}”`
-        : `${by} had already ${otherDid[details.status] ?? 'changed them'}${when}`,
-    CHECKED_IN: `${by} had checked ${nameOf(traveller)} in${when}`,
-    NOT_ASSIGNED: 'you’re no longer the guide on this departure',
-    NOT_STARTED: 'the tour hadn’t started yet (is this phone’s clock right?)',
-    INVALID_TRANSITION: `the booking had changed (it’s now ${b?.status.replace('_', ' ') ?? 'gone'})`,
-  }[err.code];
-  // What happens now: nothing; theirs stands.
+        ? {
+            why: `someone else had already named them “${details.name}”`,
+            label: 'Someone else had',
+            had: `Named them “${details.name}”.`,
+            now: `Theirs stands: “${details.name}”.`,
+          }
+        : {
+            why: `${by} had already ${theirs}${when}`,
+            label: byLabel,
+            had: `${capital(theirs)}${when}.`,
+            now: 'Theirs stands. Use mine sends yours again, after theirs.',
+          },
+    CHECKED_IN: {
+      why: `${by} had checked ${nameOf(traveller)} in${when}`,
+      label: byLabel,
+      had: `Checked ${nameOf(traveller)} in${when}.`,
+      now: 'Nothing changed: they stay checked in.',
+    },
+    NOT_ASSIGNED: {
+      why: 'you’re no longer the guide on this departure',
+      label: office,
+      had: 'Taken you off this departure.',
+      now: 'Nothing changed. Ask the office who’s guiding it now.',
+    },
+    NOT_STARTED: {
+      why: 'the tour hadn’t started yet (is this phone’s clock right?)',
+      label: 'The tour',
+      had: 'Hadn’t started yet. Is this phone’s clock right?',
+      now: 'Nothing changed. Mark it again once the tour has started.',
+    },
+    INVALID_TRANSITION: {
+      why: `the booking had changed (it’s now ${b?.status.replace('_', ' ') ?? 'gone'})`,
+      label: office,
+      had: `Changed the booking (it’s now ${b?.status.replace('_', ' ') ?? 'gone'}).`,
+      now: 'Nothing changed. Call the office.',
+    },
+  };
+  const p = parts[err.code] ?? {
+    why: err.message,
+    label: office,
+    had: err.message,
+    now: 'Nothing changed.',
+  };
+  // The one-sentence form ends with what happens now: nothing, or theirs stands.
   const after =
     err.code === 'CHANGED_FIRST' || err.code === 'CHECKED_IN'
       ? 'Theirs stands.'
       : 'Nothing changed.';
-  return `You ${did} at ${atText}, but ${why ?? err.message}. ${after}`;
+  // "(offline)": done more than a minute before it reached us.
+  const offline = now.getTime() - at.getTime() > 60_000 ? ' (offline)' : '';
+  return {
+    message: `You ${did} at ${atText}, but ${p.why}. ${after}`,
+    explanation: {
+      title,
+      youDid: `${capital(did)} at ${atText}${offline}.`,
+      theyLabel: p.label,
+      theyHad: p.had,
+      soNow: p.now,
+      // "Use mine": only when someone else's check-in state won (send mine again, after theirs).
+      canUseMine: err.code === 'CHANGED_FIRST' && change.kind === 'check_in',
+    },
+  };
 }
+
+/** "marked …" → "Marked …" @param {string} s */
+const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * Conflicts nobody has looked at yet (screen O5): a guide's own; staff who can edit bookings
@@ -403,6 +511,10 @@ export async function listConflicts(prisma, { operatorId, userId, everyone }) {
     departureId: r.departureId,
     code: r.code,
     message: r.message,
+    explanation: r.explanation,
+    // What the phone sent, so "Use mine" can send it again (with what the server has now).
+    payload: r.payload,
+    data: r.data,
     happenedAt: r.happenedAt,
     receivedAt: r.receivedAt,
     by: { id: r.user.id, name: r.user.name },

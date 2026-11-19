@@ -1,0 +1,26 @@
+{
+  "name": "@okapigo/operator",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The OkapiGo operator app: one installable app for staff, working offline on tour (session 15)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "tokens": "node scripts/write-tokens.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@okapigo/shared": "workspace:*",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "wouter": "3.13.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.3",
+    "@vitejs/plugin-react": "6.3.0",
+    "jsdom": "31.0.1",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

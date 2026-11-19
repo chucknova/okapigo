@@ -166,6 +166,11 @@ describe('the offline package (what the phone saves)', () => {
     expect(pkg.departures.map((/** @type {any} */ m) => m.departure.id)).toEqual([walk.id]);
     const [m] = pkg.departures;
     expect(m.guide.name).toBe('Kemi Adeyemi');
+    expect(pkg.operator).toEqual({
+      name: s.operator.name,
+      timeZone: 'Africa/Lagos',
+      phone: s.operator.phone,
+    });
     expect(m.bookings[0].travellers[0].displayName).toBe('Adaeze Okafor');
     // The fingerprint of the QR's code, never the code itself (a lost phone gives no tickets).
     expect(m.bookings[0].ticketFingerprint).toBe(
@@ -350,6 +355,15 @@ describe('conflicts: kept in plain words; the server’s version stands', () => 
     expect(r.message).toMatch(
       /^You marked Adaeze Okafor present at \d\d:\d\d, but the booking was cancelled at \d\d:\d\d\. Nothing changed\.$/,
     );
+    // The same, in the parts screen O5 shows.
+    expect(r.explanation).toEqual({
+      title: 'Adaeze Okafor wasn’t checked in',
+      youDid: expect.stringMatching(/^Marked Adaeze Okafor present at \d\d:\d\d \(offline\)\.$/),
+      theyLabel: 'The office had',
+      theyHad: expect.stringMatching(/^Cancelled the booking at \d\d:\d\d\.$/),
+      soNow: 'Nothing changed. The booking stays cancelled. If they’re with you, call the office.',
+      canUseMine: false,
+    });
     expect((await s.traveller(bookings[0].travellerIds[0])).checkInStatus).toBe('pending');
 
     const mine = (await s.asKemi.get('/api/sync/conflicts')).body.conflicts;
@@ -412,6 +426,16 @@ describe('conflicts: kept in plain words; the server’s version stands', () => 
     expect(t.message).toBe(
       `You marked Tunde Bakare present at ${t.message.match(/at (\d\d:\d\d)/)[1]}, but ${s.managerUser.name} had already marked Tunde Bakare late at ${t.message.match(/late at (\d\d:\d\d)/)[1]}. Theirs stands.`,
     );
+    expect(t.explanation).toMatchObject({
+      title: 'Tunde Bakare wasn’t checked in',
+      theyLabel: `${s.managerUser.name} had`,
+      theyHad: expect.stringMatching(/^Marked Tunde Bakare late at \d\d:\d\d\.$/),
+      canUseMine: true,
+    });
+    // The conflict keeps what the phone sent and what the server had, for "Use mine".
+    const [listed] = (await s.asKemi.get('/api/sync/conflicts')).body.conflicts;
+    expect(listed.payload).toMatchObject({ travellerIds: [tunde], status: 'present' });
+    expect(listed.data).toMatchObject({ travellerId: tunde, status: 'late' });
     expect(a.outcome).toBe('applied');
     expect((await s.traveller(tunde)).checkInStatus).toBe('late');
 

@@ -73,6 +73,7 @@ import { createSessionService } from './auth/session-service.js';
  *   webPublicUrl?: string,   // where guests see booking links; default: apiPublicUrl
  *   webAssets?: import('./lib/web-assets.js').WebAssets | null,  // the built guest web, if any
  *   simulatorDir?: string | null, // the built WhatsApp simulator app (apps/simulators/dist), if any
+ *   operatorDir?: string | null,  // the built operator app (apps/operator/dist), if any
  * }} deps
  */
 export function createApp({
@@ -91,6 +92,7 @@ export function createApp({
   webPublicUrl = apiPublicUrl,
   webAssets = null,
   simulatorDir = null,
+  operatorDir = null,
 }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
@@ -221,6 +223,39 @@ export function createApp({
       '/simulator/whatsapp',
       express.static(simulatorDir, { index: 'index.html', maxAge: 0 }),
     );
+  }
+
+  // The operator app (session 15), built by apps/operator: /app/ on a staff phone.
+  //   /app/assets/*   hashed names: kept for a year
+  //   /app/sw.js      the service worker: never cached, so a new version is picked up
+  //   /app/<any page> the app's index.html: its pages are drawn in the browser
+  if (operatorDir) {
+    app.use(
+      '/app/assets',
+      express.static(join(operatorDir, 'assets'), {
+        immutable: true,
+        maxAge: '365d',
+        index: false,
+      }),
+    );
+    app.use(
+      '/app',
+      express.static(operatorDir, {
+        index: false,
+        maxAge: 0,
+        setHeaders: (res, path) => {
+          if (path.endsWith('.webmanifest'))
+            res.setHeader('Content-Type', 'application/manifest+json');
+          if (path.endsWith('sw.js') || path.endsWith('precache.json')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      }),
+    );
+    app.get(/^\/app(\/.*)?$/, (req, res, next) => {
+      if (req.path.startsWith('/app/assets/')) return next(); // a missing asset is a 404
+      res.set('Cache-Control', 'no-cache').sendFile(join(operatorDir, 'index.html'));
+    });
   }
 
   // --- Staff API: everything under /api requires sign-in ----------------------

@@ -26,7 +26,7 @@ export default [
 
   {
     files: ['**/*.js'],
-    ignores: ['apps/web/src/**', 'apps/simulators/src/**'],
+    ignores: ['apps/web/src/**', 'apps/simulators/src/**', 'apps/operator/src/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module', // we use `import`/`export` everywhere (ES modules)
@@ -42,9 +42,13 @@ export default [
     },
   },
 
-  // The guest web and the WhatsApp simulator (React, run in browsers).
+  // The guest web, the WhatsApp simulator and the operator app (React, run in browsers).
   {
-    files: ['apps/web/**/*.{js,jsx}', 'apps/simulators/**/*.{js,jsx}'],
+    files: [
+      'apps/web/**/*.{js,jsx}',
+      'apps/simulators/**/*.{js,jsx}',
+      'apps/operator/**/*.{js,jsx}',
+    ],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -72,6 +76,8 @@ export default [
       'apps/web/e2e/**/*.js',
       'apps/simulators/vite.config.js',
       'apps/simulators/scripts/**/*.js',
+      'apps/operator/vite.config.js',
+      'apps/operator/scripts/**/*.js',
     ],
     languageOptions: { globals: { ...globals.node } },
   },

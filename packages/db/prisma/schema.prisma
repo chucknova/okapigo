@@ -1201,6 +1201,9 @@ model SyncChange {
   code          String?
   // In plain words, for screen O5: "You marked Tunde present at 09:05, but…"
   message       String?
+  // The same, in the parts screen O5 shows (15c-1): { title, youDid, theyLabel, theyHad,
+  // soNow, canUseMine }: "Tunde Bakare wasn’t checked in" / YOU DID … / THE OFFICE HAD … / SO NOW …
+  explanation   Json?
   data          Json?
   // Someone looked at the conflict ("OK" on O5).
   dismissedAt   DateTime? @map("dismissed_at") @db.Timestamptz(3)
