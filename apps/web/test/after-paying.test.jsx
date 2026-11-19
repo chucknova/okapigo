@@ -193,6 +193,24 @@ describe('C → D: confirming, then confirmed', () => {
     );
   });
 
+  it('caught in between (payment succeeded, booking still "held"): keeps confirming, then confirmed', async () => {
+    // The guest page read the booking and its payments a moment apart while the payment was
+    // being settled (stage 14b's flaky browser test). That's not "paid late": keep looking.
+    let reads = 0;
+    fakeApi({
+      [`/public/bookings/${T}`]: () => {
+        reads += 1;
+        return [200, { booking: booking(reads === 1 ? { status: 'held' } : {}) }];
+      },
+    });
+    renderAt(`/trip/${T}/confirm?reference=${REF}`);
+    expect(await screen.findByText('Confirming your payment…')).toBeTruthy();
+    expect(screen.queryByText('We got your payment after your seats were released')).toBeNull();
+    // The next look (every 2 s) finds it booked.
+    expect(await screen.findByText('Booking confirmed', {}, { timeout: 5_000 })).toBeTruthy();
+    expect(reads).toBeGreaterThan(1);
+  });
+
   it('paid after the seats were released: says what happens next', async () => {
     fakeApi({
       [`/public/bookings/${T}`]: () => [200, { booking: booking({ status: 'cancelled' }) }],

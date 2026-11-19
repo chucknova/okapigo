@@ -48,7 +48,11 @@ export function Confirm({ params }) {
   const b = booking.data?.booking;
   useLook(b?.operator);
   const payment = b && (b.payments.find((p) => p.reference === reference) ?? b.payments[0]);
-  const settled = payment && payment.status !== 'initiated';
+  // A payment that succeeded on a booking still "held" is a moment in between (the booking is
+  // being secured right now), not an outcome: keep looking. (Seen as a flaky browser test:
+  // stopping here left the page on "after your seats were released" for good.)
+  const between = payment?.status === 'succeeded' && b?.status === 'held';
+  const settled = payment && payment.status !== 'initiated' && !between;
   const waited = now - startedAt;
 
   // Keep looking until the payment is settled one way or the other.
@@ -115,7 +119,7 @@ export function Confirm({ params }) {
   if (payment?.status === 'succeeded' && BOOKED.includes(b.status)) {
     return <Confirmed b={b} token={token} contacts={contacts} />;
   }
-  if (payment?.status === 'succeeded') {
+  if (payment?.status === 'succeeded' && !between) {
     // The money arrived after the seats were released (rare): the booking couldn't be kept.
     return (
       <Shell operatorName={operatorName}>

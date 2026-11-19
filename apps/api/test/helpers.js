@@ -190,8 +190,19 @@ export function createTestContext() {
           ],
         },
       });
-      // Deleting an operator cascades to its roles, users and their sessions.
-      await prisma.operator.deleteMany({ where: { slug: { in: slugs } } });
+      // Deleting an operator cascades to its roles, users and their sessions. The cascade
+      // locks many rows, and other processes on this database (the browser tests' API and
+      // worker sweep every business) can lock some of the same ones: Postgres then breaks
+      // the deadlock by cancelling one side (P2034, "please retry"). So: retry, briefly.
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await prisma.operator.deleteMany({ where: { slug: { in: slugs } } });
+          break;
+        } catch (err) {
+          if (/** @type {any} */ (err).code !== 'P2034' || attempt === 5) throw err;
+          await new Promise((r) => setTimeout(r, 200 * attempt));
+        }
+      }
       // Codes aren't tenant data (no cascade); remove the ones sent to test addresses.
       await prisma.otpChallenge.deleteMany({
         where: { OR: slugs.map((slug) => ({ destination: { contains: slug } })) },

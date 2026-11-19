@@ -119,8 +119,13 @@ test('the "Book now" button: checkout in an overlay, paid in a new tab, confirme
   const overlay = page.frameLocator('[data-okapigo-overlay] iframe');
   await expect(overlay.getByText('Choose a date').first()).toBeVisible();
   await expect(overlay.getByRole('button', { name: 'Close' })).toBeVisible();
-  await page.keyboard.press('Escape');
+  // Key down, then key up, as two steps. Escape closes the overlay on key DOWN, and the host
+  // page then removes the frame at once, so a one-call press() sent its key UP to a frame
+  // that no longer existed and waited for it forever (the "flaky" timeout: a real browser just
+  // drops that key-up). After the close, the key-up goes to the host page, as it would.
+  await page.keyboard.down('Escape');
   await expect(page.locator('[data-okapigo-overlay]')).toHaveCount(0);
+  await page.keyboard.up('Escape');
   await expect(button).toBeFocused();
 
   // Open again and book: a date, one adult, details, review.

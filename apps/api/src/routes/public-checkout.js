@@ -278,8 +278,15 @@ export function publicCheckoutRouter({
    */
   async function findGuestBooking(token) {
     const id = bookingIdFromGuestToken(authSecret, token);
+    // ONE snapshot (REPEATABLE READ): Prisma reads the booking and its payments with
+    // separate queries, and a payment settling between them showed a guest "paid" on a
+    // booking still "held" (a flaky browser test, found in stage 14b). Inside one read-only
+    // transaction at this level, every query sees the database as of the same moment.
     const booking = id
-      ? await prisma.booking.findUnique({ where: { id }, include: GUEST_INCLUDE })
+      ? await prisma.$transaction(
+          (tx) => tx.booking.findUnique({ where: { id }, include: GUEST_INCLUDE }),
+          { isolationLevel: 'RepeatableRead' },
+        )
       : null;
     if (!booking) throw new HttpError(404, 'NOT_FOUND', 'Booking not found.');
     return booking;

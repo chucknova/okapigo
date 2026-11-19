@@ -46,7 +46,13 @@ export default async function globalSetup() {
 
   return async () => {
     worker.kill('SIGTERM');
-    await prisma.operator.delete({ where: { id: operator.id } }).catch(() => {});
+    // E2E_KEEP=1 keeps the business and its bookings, to look into a failure afterwards
+    // (the unit tests' clean-up never touches "test-e2e-…" slugs).
+    if (process.env.E2E_KEEP) {
+      process.stdout.write(`\nE2E_KEEP: kept operator ${slug}\n`);
+    } else {
+      await prisma.operator.delete({ where: { id: operator.id } }).catch(() => {});
+    }
     await prisma.$disconnect();
   };
 }
