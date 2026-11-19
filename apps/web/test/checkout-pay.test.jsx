@@ -323,6 +323,9 @@ describe('step 4: review and pay', () => {
 
       const busy = await screen.findByRole('button', { name: 'Checking your payment…' });
       expect(busy.disabled).toBe(true);
+      // The button says "Checking…" a moment BEFORE the check is asked for: wait for the
+      // request itself, or a busy machine calls answer() too early (a flaky failure, 15a).
+      await waitFor(() => expect(answer).toBeTypeOf('function'));
       answer();
       expect(await screen.findByRole('button', { name: 'Pay ₦65,000' })).toBeTruthy();
       expect(memory.history.at(-1)).toBe('/irin/badagry/book/review');
@@ -400,6 +403,7 @@ describe('step 4: review and pay', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Pay ₦65,000' }));
       // Opened during the tap, before the server answered (browsers block it later).
       expect(open).toHaveBeenCalledWith('', '_blank');
+      await waitFor(() => expect(answer).toBeTypeOf('function')); // the request has been made
       answer();
 
       expect(await screen.findByText('Paystack is open in a new tab')).toBeTruthy();

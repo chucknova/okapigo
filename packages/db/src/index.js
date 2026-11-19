@@ -84,3 +84,11 @@ export {
 } from './guest-requests.js';
 
 export { planGuestMessage, planForTransition } from './guest-messages.js';
+export {
+  createResource,
+  assignDeparture,
+  manifest,
+  checkIn,
+  noShow,
+  nameTraveller,
+} from './operations.js';

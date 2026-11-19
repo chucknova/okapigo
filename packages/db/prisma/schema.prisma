@@ -81,6 +81,7 @@ model Operator {
   refunds              Refund[]
   notifications        Notification[]
   messageTemplates     MessageTemplate[]
+  resources            Resource[]
   guestRequests        GuestRequest[]
   conversations        Conversation[]
 
@@ -151,7 +152,12 @@ model User {
   role Role @relation(fields: [roleId, operatorId], references: [id, operatorId], onDelete: NoAction)
 
   sessions Session[]
+  // The departures this person guides (stage 15a).
+  guiding  Departure[]
 
+  // Lets departures reference (user id + operator id) together: a guide from another
+  // business can't be assigned (tenant safety, like roles).
+  @@unique([id, operatorId])
   @@index([operatorId])
   @@map("users")
 }
@@ -410,6 +416,13 @@ model Departure {
   seatsHeld  Int      @default(0) @map("seats_held")
   // "scheduled" = running; "cancelled" = called off (e.g. weather at Tarkwa Bay).
   status     String   @default("scheduled")
+  // Who leads it, and the van or boat (OPS-01, stage 15a). Neither can be on two departures
+  // whose times overlap: an exclusion constraint in the migration refuses it, even when two
+  // managers assign at the same moment.
+  guideId    String?  @map("guide_id") @db.Uuid
+  resourceId String?  @map("resource_id") @db.Uuid
+  // For the guide: "Driver: Sola", "meet at the side gate today".
+  notes      String   @default("")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -418,6 +431,8 @@ model Departure {
   schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   holds    Hold[]
   bookings Booking[]
+  guide    User?     @relation(fields: [guideId, operatorId], references: [id, operatorId], onDelete: NoAction)
+  resource Resource? @relation(fields: [resourceId, operatorId], references: [id, operatorId], onDelete: NoAction)
 
   // A product can't have two departures at the same moment. This also makes generating
   // departures idempotent: running the generator twice can't create duplicates.
@@ -606,6 +621,8 @@ model Traveller {
   // pending → present / late / no_show (check-in, session 15)
   checkInStatus String    @default("pending") @map("check_in_status")
   checkedInAt   DateTime? @map("checked_in_at") @db.Timestamptz(3)
+  // Who marked it (a guide, on tour day: stage 15a).
+  checkedInById String?   @map("checked_in_by_id") @db.Uuid
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -1134,4 +1151,26 @@ model MessageTemplate {
 
   @@unique([operatorId, kind])
   @@map("message_templates")
+}
+
+// Resource: a van or the boat (OPS-01, stage 15a): a name and its seats. No drivers or
+// skippers in the MVP (decided 2026-11-19): a departure's note can say who's driving.
+model Resource {
+  id         String   @id @default(uuid()) @db.Uuid
+  operatorId String   @map("operator_id") @db.Uuid
+  // van · boat
+  kind       String
+  name       String
+  seats      Int
+  // Retired vans stay (old departures point at them) but can't be assigned.
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator   Operator    @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  departures Departure[]
+
+  @@unique([operatorId, name])
+  @@unique([id, operatorId])
+  @@map("resources")
 }

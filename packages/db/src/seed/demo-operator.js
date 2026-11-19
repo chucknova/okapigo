@@ -119,6 +119,16 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
         },
       });
 
+      // Ìrìn's vans and boat (OPS-01, stage 15a): the Lekki and Badagry trips go by van,
+      // Tarkwa Bay by boat. A name and its seats (decided 2026-11-19).
+      await tx.resource.createMany({
+        data: [
+          { operatorId: operator.id, kind: 'van', name: 'Van 1', seats: 14 },
+          { operatorId: operator.id, kind: 'van', name: 'Van 2', seats: 14 },
+          { operatorId: operator.id, kind: 'boat', name: 'Boat', seats: 12 },
+        ],
+      });
+
       // Phone numbers are unique platform-wide too, but we only have six fictional ones.
       // So only the main demo copy gets phones; extra copies (sandboxes) use email only.
       const withPhones = slug === DEFAULT_SLUG;

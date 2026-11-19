@@ -92,6 +92,8 @@ export async function planForTransition(tx, booking, { from, to, data }) {
             }
           : null,
         initiatedBy: data?.initiatedBy ?? null,
+        // Why, when the business called it off ("bad weather at sea"): told to the guest.
+        reason: data?.initiatedBy === 'operator' ? (data?.reason ?? null) : null,
       },
     });
   }

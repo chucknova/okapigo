@@ -43,8 +43,17 @@ const howLong = (hours) =>
  * before). It goes back to the card or account you paid with.…").
  * @param {any} refund  frozen when the booking was cancelled
  * @param {number} amountPaidKobo
+ * @param {{ initiatedBy?: string | null, reason?: string | null }} [who]  the business called it off?
  */
-export function refundLine(refund, amountPaidKobo) {
+export function refundLine(refund, amountPaidKobo, { initiatedBy = null, reason = null } = {}) {
+  // The business called the trip off (a whole departure, stage 15a; or staff for this booking):
+  // always a full refund (the policy's "if the operator cancels" rule), and why, if given.
+  if (initiatedBy === 'operator') {
+    const sorry = `We’re sorry: we had to cancel this trip${reason ? ` (${reason.trim().replace(/[.\s]+$/, '')})` : ''}.`;
+    if (!refund || amountPaidKobo === 0)
+      return `${sorry} Nothing was paid, so there’s nothing to refund.`;
+    return `${sorry} You’ll get a full refund of ${formatNaira(refund.refundKobo)}, back to the card or account you paid with. We’ll message you when it’s sent.`;
+  }
   if (!refund || amountPaidKobo === 0) return 'Nothing was paid, so there’s nothing to refund.';
   const when =
     refund.hoursBefore !== null && refund.hoursBefore !== undefined
@@ -103,7 +112,10 @@ export function messageValues(deps, booking, message) {
     link_for: linkFor ? `${linkFor} ${booking.product.title}, ${date}` : '',
     expiry: data.expiresAt ? formatLocalDay(localDate(new Date(data.expiresAt), tz)) : '',
     link_url: data.url ?? '',
-    refund_line: refundLine(data.refund, booking.amountPaidKobo),
+    refund_line: refundLine(data.refund, booking.amountPaidKobo, {
+      initiatedBy: data.initiatedBy ?? null,
+      reason: data.reason ?? null,
+    }),
     refund: data.refundKobo !== undefined ? formatNaira(data.refundKobo) : '',
   };
 }

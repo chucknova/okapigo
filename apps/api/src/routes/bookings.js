@@ -58,7 +58,11 @@ const FULL = {
 };
 
 /** Mistakes in the REQUEST (fix the input and resend), as opposed to conflicts with state. */
-export const BAD_INPUT_CODES = new Set(['PICKUP_POINT_REQUIRED', 'UNKNOWN_PICKUP_POINT']);
+export const BAD_INPUT_CODES = new Set([
+  'PICKUP_POINT_REQUIRED',
+  'UNKNOWN_PICKUP_POINT',
+  'VALIDATION_ERROR', // e.g. a traveller's name typed at check-in (stage 15a)
+]);
 
 /**
  * Turns domain errors into HTTP errors: "not found" → 404, bad input → 400, everything else
