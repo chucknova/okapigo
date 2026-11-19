@@ -23,7 +23,7 @@ export const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
  *   send: (m: {
  *     operator: any,
  *     guestPhone: string,
- *     messages: Array<{ id: string, body: any, staffName?: string | null }>,
+ *     messages: Array<{ id: string, body: any, staffName?: string | null, useTemplate?: boolean }>,
  *   }) => Promise<Array<{ id: string, providerMessageId?: string, error?: string }>>,
  * }} Channel
  */
@@ -72,18 +72,30 @@ export async function deliver(deps, { conversation, operator, messages, unprompt
       id: conversation.id,
       channel: conversation.channel,
     }));
-  const results = outside
-    ? // WhatsApp would refuse it (error 131047): don't try; staff see why.
-      messages.map((msg) => ({
+  // Outside the window, a message that has an approved TEMPLATE (the guest messages, 14c)
+  // goes as that template; anything else would be refused by WhatsApp (error 131047).
+  const sendable = outside
+    ? messages.filter((m) => m.body?.template).map((m) => ({ ...m, useTemplate: true }))
+    : messages;
+  const refused = outside ? messages.filter((m) => !m.body?.template) : [];
+  const results = !channel
+    ? messages.map((msg) => ({
         id: msg.id,
-        error: 'OUTSIDE_24H: the guest last wrote more than 24 hours ago',
+        error: `NO_CHANNEL: ${conversation.channel} is not set up`,
       }))
-    : channel
-      ? await channel.send({ operator, guestPhone: conversation.guestPhone, messages })
-      : messages.map((msg) => ({
+    : [
+        ...refused.map((msg) => ({
           id: msg.id,
-          error: `NO_CHANNEL: ${conversation.channel} is not set up`,
-        }));
+          error: 'OUTSIDE_24H: the guest last wrote more than 24 hours ago',
+        })),
+        ...(sendable.length
+          ? await channel.send({
+              operator,
+              guestPhone: conversation.guestPhone,
+              messages: sendable,
+            })
+          : []),
+      ];
   for (const r of results ?? []) {
     await deps.prisma.chatMessage.update({
       where: { id: r.id },

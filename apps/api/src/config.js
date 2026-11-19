@@ -78,6 +78,11 @@ const EnvSchema = z
     // Any long random string YOU choose, typed into Meta's webhook settings too: Meta sends it
     // back once, when you connect the webhook, to prove the address is yours.
     WHATSAPP_VERIFY_TOKEN: optional(z.string().min(16)),
+    // The language the message templates were approved in (stage 14c), as Meta writes it.
+    WHATSAPP_TEMPLATE_LANGUAGE: z
+      .string()
+      .regex(/^[a-z]{2}(_[A-Z]{2})?$/)
+      .default('en'),
     // The Graph API version the calls are made to.
     WHATSAPP_GRAPH_VERSION: z
       .string()

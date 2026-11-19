@@ -19,10 +19,33 @@ const GRAPH = 'https://graph.facebook.com';
  * One of our messages as Meta's API wants it. A person from the team signs their message
  * ("*Tolu · Ìrìn team*"), since WhatsApp shows everything as from the business; an event
  * ("Tolu from Ìrìn joined") becomes a line in italics.
+ * Outside WhatsApp's 24-hour window, a guest message goes as its approved TEMPLATE instead
+ * (stage 14c, templates.js): its name, the language, and the blanks in order.
  * @param {any} body  a message from messages.js
- * @param {{ staffName?: string | null, operatorName: string }} who
+ * @param {{ staffName?: string | null, operatorName: string, useTemplate?: boolean, language?: string }} who
  */
-export function toGraph(body, { staffName = null, operatorName }) {
+export function toGraph(
+  body,
+  { staffName = null, operatorName, useTemplate = false, language = 'en' },
+) {
+  if (useTemplate && body.template) {
+    return {
+      type: 'template',
+      template: {
+        name: body.template.name,
+        language: { code: language },
+        components: [
+          {
+            type: 'body',
+            parameters: body.template.params.map((/** @type {string} */ text) => ({
+              type: 'text',
+              text,
+            })),
+          },
+        ],
+      },
+    };
+  }
   if (body.kind === 'buttons') {
     return {
       type: 'interactive',
@@ -79,15 +102,21 @@ export function toGraph(body, { staffName = null, operatorName }) {
 /**
  * The WhatsApp channel. `send` makes one API call per message, in order, and says for each
  * whether Meta took it (its "wamid", for the delivery receipts) or why not.
- * @param {{ accessToken: string, graphVersion: string, fetch?: typeof fetch, log?: { warn: Function } }} c
+ * @param {{ accessToken: string, graphVersion: string, templateLanguage?: string, fetch?: typeof fetch, log?: { warn: Function } }} c
  */
-export function whatsappChannel({ accessToken, graphVersion, fetch: doFetch = fetch, log }) {
+export function whatsappChannel({
+  accessToken,
+  graphVersion,
+  templateLanguage = 'en',
+  fetch: doFetch = fetch,
+  log,
+}) {
   return {
     /**
      * @param {{
      *   operator: { name: string, whatsappPhoneNumberId: string | null },
      *   guestPhone: string,
-     *   messages: Array<{ id: string, body: any, staffName?: string | null }>,
+     *   messages: Array<{ id: string, body: any, staffName?: string | null, useTemplate?: boolean }>,
      * }} m
      * @returns {Promise<Array<{ id: string, providerMessageId?: string, error?: string }>>}
      */
@@ -115,7 +144,12 @@ export function whatsappChannel({ accessToken, graphVersion, fetch: doFetch = fe
                 recipient_type: 'individual',
                 // Meta wants the number in international form without the "+".
                 to: guestPhone.replace(/^\+/, ''),
-                ...toGraph(msg.body, { staffName: msg.staffName, operatorName: operator.name }),
+                ...toGraph(msg.body, {
+                  staffName: msg.staffName,
+                  operatorName: operator.name,
+                  useTemplate: msg.useTemplate,
+                  language: templateLanguage,
+                }),
               }),
             },
           );

@@ -48,6 +48,9 @@ function fakeApi() {
       return { conversation: { token: 'tok', handledBy }, replies: [] };
     }),
     messages: vi.fn(async () => ({ conversation: { handledBy }, messages: [...stored] })),
+    // The business may have written first (14c): no chat for this guest unless set.
+    firstToken: /** @type {string | null} */ (null),
+    find: vi.fn(async () => api.firstToken),
     reset: vi.fn(async () => {
       stored.length = 0;
       return null;
@@ -210,5 +213,14 @@ describe('the simulator', () => {
     api.operator.mockRejectedValueOnce(new Error('404'));
     render(<App api={api} operatorSlug="nobody" pollMs={60_000} />);
     expect(await screen.findByText('No business called “nobody”. Check the address.')).toBeTruthy();
+  });
+
+  it('the business wrote first (a website booking’s confirmation): the chat shows it', async () => {
+    const api = fakeApi();
+    api.add('bot', { kind: 'text', text: 'Hi Adaeze, your booking is confirmed!' });
+    api.firstToken = 'tok';
+    render(<App api={api} operatorSlug="irin-lagos-tours" pollMs={60_000} />);
+    expect(await screen.findByText('Hi Adaeze, your booking is confirmed!')).toBeTruthy();
+    expect(api.find).toHaveBeenCalledWith('irin-lagos-tours', '0803 123 4567');
   });
 });

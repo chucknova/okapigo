@@ -57,6 +57,31 @@ export function useChat({ api, operatorSlug, operatorName, guest, pollMs = POLL_
     [api, tokenKey],
   );
 
+  // No chat remembered in this browser: the business may have written first (a website
+  // booking's confirmation, 14c). Ask, once; and again while waiting, in case it does.
+  useEffect(() => {
+    if (token) return undefined;
+    let live = true;
+    const look = () =>
+      api.find(operatorSlug, guest.phone).then(
+        (t) => {
+          if (live && t) {
+            memory.set(tokenKey, t);
+            setToken(t);
+          }
+        },
+        () => {},
+      );
+    look();
+    const timer = setInterval(() => {
+      if (busy.current === 0) look();
+    }, pollMs);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [api, token, operatorSlug, guest.phone, tokenKey, pollMs]);
+
   // Load the chat, then keep it current: messages nobody replied to arrive by themselves.
   useEffect(() => {
     if (!token) return undefined;

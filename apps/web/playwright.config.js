@@ -50,6 +50,9 @@ export default defineConfig({
         // worker running alongside can't take these jobs.
         JOBS_PREFIX: 'okg-e2e',
         LOG_LEVEL: 'warn',
+        // The guest messages' emails go to the local mailbox (Mailpit, pnpm services:up), and
+        // the journeys read them there (stage 14c). Nothing leaves this machine.
+        EMAIL_PROVIDER: 'mailpit',
       },
       reuseExistingServer: false,
       timeout: 60_000,

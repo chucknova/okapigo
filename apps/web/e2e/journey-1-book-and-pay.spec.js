@@ -3,10 +3,12 @@
  * PRD journey 1, "Guest books on the website": picks the Heritage Walk and a date, adds
  * travellers, seats are held, pays by (test) card, the payment webhook confirms the booking,
  * and the guest sees the confirmation. (The QR ticket arrives with the trip hub, stage 12f.)
+ * And the confirmation reaches them, in their chat and by email (stage 14c).
  *
  * Every step is done the way a guest does it: by visible labels and buttons on a phone.
  */
 import { test, expect } from '@playwright/test';
+import { waitForChat, emailTo } from './messages.js';
 
 const slug = () => /** @type {string} */ (process.env.E2E_OPERATOR_SLUG);
 
@@ -73,6 +75,22 @@ test('a guest books the Heritage Walk for an adult and a child, and pays', async
 
   const final = await (await request.get(`/public/bookings/${token}`)).json();
   expect(final.booking.status).toBe('paid');
+
+  // The confirmation arrives (stage 14c, OPS-11): in the guest's chat (the simulator) and by
+  // email (the local mailbox), in your wording, with the trip page.
+  const ref = final.booking.reference;
+  const chat = await waitForChat(
+    request,
+    slug(),
+    '0803 123 4567',
+    /^Hi Adaeze, your booking is confirmed!/,
+  );
+  expect(chat.find((t) => t.startsWith('Hi Adaeze'))).toContain(`Ref ${ref}`);
+  const email = await emailTo(request, 'adaeze.okafor@guest.example', ref);
+  expect(email.subject).toMatch(/^Booking confirmed: Heritage Walk, /);
+  expect(email.from).toMatch(/^Ìrìn Lagos Tours </);
+  expect(email.text).toContain('Hi Adaeze, your booking is confirmed!');
+  expect(email.text).toContain(`/trip/${token}`);
 
   // The trip hub (stage 12f): the QR ticket, the meeting point, the route.
   await page.getByRole('link', { name: 'Open your trip page' }).click();

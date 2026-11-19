@@ -81,6 +81,7 @@ const app = createApp({
         appSecret: /** @type {string} */ (config.WHATSAPP_APP_SECRET),
         verifyToken: /** @type {string} */ (config.WHATSAPP_VERIFY_TOKEN),
         graphVersion: config.WHATSAPP_GRAPH_VERSION,
+        templateLanguage: config.WHATSAPP_TEMPLATE_LANGUAGE,
       }
     : null,
   // The built guest web (pnpm --filter @okapigo/web build), if present.
@@ -103,6 +104,7 @@ const channels = createChannels({
     ? {
         accessToken: config.WHATSAPP_ACCESS_TOKEN,
         graphVersion: config.WHATSAPP_GRAPH_VERSION,
+        templateLanguage: config.WHATSAPP_TEMPLATE_LANGUAGE,
         log: logger,
       }
     : null,

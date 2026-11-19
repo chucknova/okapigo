@@ -65,6 +65,7 @@ import { createSessionService } from './auth/session-service.js';
  *   simulatorLimit?: number, // WhatsApp simulator messages per minute per IP (default 120)
  *   whatsapp?: {             // the WhatsApp Cloud API (13c-3); null = the simulator only
  *     accessToken: string, appSecret: string, verifyToken: string, graphVersion: string,
+ *     templateLanguage?: string,
  *     fetch?: typeof fetch,  // tests pass a fake Meta
  *   } | null,
  *   webPublicUrl?: string,   // where guests see booking links; default: apiPublicUrl
@@ -97,6 +98,7 @@ export function createApp({
     whatsapp: whatsapp && {
       accessToken: whatsapp.accessToken,
       graphVersion: whatsapp.graphVersion,
+      templateLanguage: whatsapp.templateLanguage,
       fetch: whatsapp.fetch,
       log: logger,
     },

@@ -5,6 +5,7 @@
  * booking is cancelled with the refund sent to the provider (the simulator in test mode).
  */
 import { test, expect } from '@playwright/test';
+import { emailTo } from './messages.js';
 
 const slug = () => /** @type {string} */ (process.env.E2E_OPERATOR_SLUG);
 
@@ -63,5 +64,21 @@ test('a guest cancels from the trip page and gets the policy’s refund', async 
   // And the trip page says so, with no ticket.
   await page.getByRole('link', { name: 'Back to your trip page' }).click();
   await expect(page.getByText(/^Refunded ₦25,000 on /)).toBeVisible();
+
+  // …and the guest is told (stage 14c): the cancellation with the policy's refund, then
+  // "refund sent" once it has left, both by email.
+  const cancelled = await emailTo(
+    request,
+    'bola.ade@guest.example',
+    `${final.reference} is cancelled`,
+  );
+  expect(cancelled.text).toMatch(/Refund: ₦25,000 \(100%, cancelled \d+ (days|hours) before\)\./);
+  const refunded = await emailTo(
+    request,
+    'bola.ade@guest.example',
+    'Your refund of ₦25,000',
+    final.reference,
+  );
+  expect(refunded.text).toContain('It may take 5–10 working days to show in your account');
   await expect(page.getByRole('img', { name: /QR ticket/ })).toHaveCount(0);
 });

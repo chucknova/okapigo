@@ -330,6 +330,19 @@ describe('the simulator app (13c-2)', () => {
     ).toBe(404);
   });
 
+  it('finds a guest’s chat by number, for when the business wrote first (14c)', async () => {
+    const request = (await import('supertest')).default;
+    const { operator } = await ctx.seedOperator();
+    const find = (/** @type {string} */ phone) =>
+      request(ctx.app).post(`/simulator/whatsapp/${operator.slug}/conversations`).send({ phone });
+    expect((await find('0803 123 4567')).status).toBe(404); // no chat yet
+    const g = guest(operator.slug);
+    await g.say('Hi');
+    const found = await find('+234 803 123 4567'); // any way of writing the number
+    expect(found.status).toBe(200);
+    expect(found.body.conversation.token).toBe(g.token());
+  });
+
   it('is served at /simulator/whatsapp/, next to the simulator’s API', async () => {
     const request = (await import('supertest')).default;
     const { mkdtempSync, writeFileSync, mkdirSync } = await import('node:fs');

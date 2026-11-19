@@ -8,6 +8,10 @@
  *        → { conversation: { token, handledBy }, replies: [...] }
  *   GET  /simulator/whatsapp/conversations/:token/messages
  *        → { conversation: { handledBy }, messages: [{ id, author, authorName?, body, createdAt }] }
+ *   POST /simulator/whatsapp/:operatorSlug/conversations     { phone } → { conversation: { token } }
+ *        the guest's chat, if they have one: messages the business sent FIRST (a website
+ *        booking's confirmation, 14c) are in a chat the simulator holds no token for yet.
+ *        No more than sending already gives: anyone can be any guest in the simulator.
  *   POST /simulator/whatsapp/conversations/:token/reset      "New chat" (13c-2): empty chat,
  *        seats held by it given back                         → 204
  *
@@ -17,6 +21,7 @@
  * a phone number. Sending is rate-limited per IP, like the website's booking.
  */
 import { Router } from 'express';
+import { normalizePhone } from '@okapigo/shared/contact';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
@@ -141,6 +146,34 @@ export function whatsappSimulatorRouter({
       })),
     });
   });
+
+  router.post(
+    '/simulator/whatsapp/:operatorSlug/conversations',
+    limiter,
+    validate({ body: z.object({ phone: z.string().trim().min(7).max(30) }) }),
+    async (req, res) => {
+      const operator = await prisma.operator.findUnique({
+        where: { slug: req.params.operatorSlug },
+      });
+      const guestPhone = normalizePhone(req.body.phone);
+      const conversation =
+        operator && guestPhone
+          ? await prisma.conversation.findUnique({
+              where: {
+                operatorId_channel_guestPhone: {
+                  operatorId: operator.id,
+                  channel: 'simulator',
+                  guestPhone,
+                },
+              },
+            })
+          : null;
+      if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'No chat yet.');
+      res.json({
+        conversation: { token: tokenFor(conversation.id), handledBy: conversation.handledBy },
+      });
+    },
+  );
 
   router.post('/simulator/whatsapp/conversations/:token/reset', limiter, async (req, res) => {
     const id = idFrom(req.params.token);

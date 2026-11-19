@@ -348,9 +348,10 @@ describe('sending: what can go wrong', () => {
     expect((await outbox(bookingId)).map((n) => n.status)).toEqual(['cancelled', 'cancelled']);
   });
 
-  it('the channel refuses it (WhatsApp, 24 hours of silence): failed, with why', async () => {
+  it('the guest’s chat is on WhatsApp, but this server isn’t connected to it: failed, with why', async () => {
     const { operator } = await seedOperator();
-    // The guest chatted on real WhatsApp long ago.
+    // The guest chatted on real WhatsApp long ago; this server has no WhatsApp connection.
+    // (Connected, it would go as the approved template: whatsapp-templates.test.js.)
     const c = await ctx.prisma.conversation.create({
       data: { operatorId: operator.id, channel: 'whatsapp', guestPhone: '+2348031234567' },
     });
@@ -369,7 +370,7 @@ describe('sending: what can go wrong', () => {
     expect(await send()).toMatchObject({ sent: 0, failed: 1 });
     const row = (await outbox(bookingId)).find((n) => n.channel === 'whatsapp');
     expect(row).toMatchObject({ status: 'failed', sentAt: null });
-    expect(/** @type {any} */ (row ?? {}).data?.error).toMatch(/^OUTSIDE_24H/);
+    expect(/** @type {any} */ (row ?? {}).data?.error).toMatch(/^NO_CHANNEL/);
   });
 });
 

@@ -22,6 +22,7 @@
 import { compose } from './compose.js';
 import { deliver } from '../whatsapp/channels.js';
 import { renderEmail } from './email.js';
+import { fillTemplate } from '../whatsapp/templates.js';
 import { MailError } from './mailers.js';
 import { readSite } from '@okapigo/shared/schemas/website';
 
@@ -95,7 +96,7 @@ export async function sendGuestMessages(deps) {
     let error = null;
     try {
       const words = await compose(deps, n.booking, n);
-      if (n.channel === 'whatsapp') error = await toChat(deps, n.booking, words.body, now);
+      if (n.channel === 'whatsapp') error = await toChat(deps, n.booking, n.kind, words, now);
       if (n.channel === 'email') {
         const id = await toEmail(deps, n.booking, n, words);
         n.data = { .../** @type {object} */ (n.data ?? {}), emailId: id };
@@ -124,9 +125,10 @@ export async function sendGuestMessages(deps) {
 /**
  * Into the guest's chat: the one they last used with this business (simulator or WhatsApp),
  * or a new simulator chat if they never wrote. Returns why it failed, or null.
- * @param {SendDeps} deps @param {any} booking @param {string} body @param {Date} now
+ * @param {SendDeps} deps @param {any} booking @param {string} kind
+ * @param {{ body: string, values: any }} words @param {Date} now
  */
-async function toChat(deps, booking, body, now) {
+async function toChat(deps, booking, kind, words, now) {
   const { prisma } = deps;
   const operator = booking.product.operator;
   const guestPhone = booking.leadPhone;
@@ -134,24 +136,31 @@ async function toChat(deps, booking, body, now) {
     where: { operatorId: operator.id, guestPhone },
     orderBy: { lastMessageAt: 'desc' },
   });
+  // A guest who never wrote (a website booking): a REAL WhatsApp chat when this server and
+  // this business are connected to WhatsApp (stage 14c), else the simulator's.
+  const channel =
+    deps.channels.whatsapp && operator.whatsappPhoneNumberId ? 'whatsapp' : 'simulator';
   const conversation =
     existing ??
     (await prisma.conversation.upsert({
       where: {
-        operatorId_channel_guestPhone: {
-          operatorId: operator.id,
-          channel: 'simulator',
-          guestPhone,
-        },
+        operatorId_channel_guestPhone: { operatorId: operator.id, channel, guestPhone },
       },
       create: {
         operatorId: operator.id,
-        channel: 'simulator',
+        channel,
         guestPhone,
         guestName: (booking.leadName ?? '').slice(0, 80),
       },
       update: {},
     }));
+  // The words as the business wrote them, and the approved template to send instead if
+  // WhatsApp's 24-hour window is closed (channels.js decides).
+  const body = {
+    kind: 'text',
+    text: words.body,
+    template: fillTemplate(kind, words.values),
+  };
 
   // The chat's own lock (conversations.js): never in the middle of the guest's turn.
   const stored = await prisma.$transaction(async (tx) => {
@@ -162,7 +171,7 @@ async function toChat(deps, booking, body, now) {
         conversationId: conversation.id,
         direction: 'out',
         author: 'bot',
-        body: { kind: 'text', text: body },
+        body,
       },
     });
     await tx.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: now } });

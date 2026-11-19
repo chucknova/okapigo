@@ -4,6 +4,7 @@
  * link, and pays the rest by link. (Reminder messages themselves are sent from session 14.)
  */
 import { test, expect } from '@playwright/test';
+import { waitForChat } from './messages.js';
 import { existsSync } from 'node:fs';
 import { createPrismaClient, createPaymentLink } from '@okapigo/db';
 
@@ -39,6 +40,18 @@ test('deposit now, then the balance through a payment link', async ({ page, requ
   await expect(page.getByText('Balance due')).toBeVisible();
   const reference = await page.locator('.okg-confirmed-band__code').textContent();
   const tripToken = new URL(page.url()).pathname.split('/')[2];
+
+  // "Deposit received" reaches the guest's chat (stage 14c): what was paid, the balance, its
+  // due date and the page to pay it. (This guest gave a phone only: no email.)
+  const chat = await waitForChat(
+    request,
+    slug(),
+    '0805 987 6543',
+    /we got your deposit of ₦19,500/,
+  );
+  const deposit = /** @type {string} */ (chat.find((t) => /we got your deposit/.test(t)));
+  expect(deposit).toMatch(/Balance: ₦45,500, due by \w{3} \d+ \w{3}\./);
+  expect(deposit).toContain(`/trip/${tripToken}/pay`);
 
   // Staff send a payment link for the balance (as they would from the operator app).
   const rootEnv = new URL('../../../.env', import.meta.url);
