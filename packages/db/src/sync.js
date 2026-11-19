@@ -110,7 +110,7 @@ export async function offlinePackage(prisma, { operatorId, userId, secret, now =
 /**
  * @typedef {{ id: string, at: string, departureId: string } & (
  *   | { kind: 'check_in', code?: string, bookingId?: string, travellerIds?: string[],
- *       status: 'present' | 'late' | 'pending', confirmOwed?: boolean, seen?: Record<string, string> }
+ *       status: 'present' | 'late' | 'no_show' | 'pending', confirmOwed?: boolean, seen?: Record<string, string> }
  *   | { kind: 'no_show', bookingId: string }
  *   | { kind: 'name', travellerId: string, name: string, seen?: string }
  * )} Change
@@ -348,14 +348,17 @@ async function explain(prisma, { operatorId, userId, secret }, change, at, now, 
         : chosen.length === b?.travellers.length
           ? `${lead}’s booking (${chosen.length} guests)`
           : `${chosen.length} guests on ${lead}’s booking`;
+    /** @type {Record<string, string>} */
+    const marked = { present: 'present', late: 'late', no_show: 'a no-show' };
     did =
       change.status === 'pending'
         ? `undid the check-in for ${whom}`
-        : `marked ${whom} ${change.status}`;
+        : `marked ${whom} ${marked[change.status]}`;
+    const not = chosen.length > 1 ? 'weren’t' : 'wasn’t';
     title =
       change.status === 'pending'
         ? `The check-in for ${whom} wasn’t undone`
-        : `${capital(whom)} ${chosen.length > 1 ? 'weren’t' : 'wasn’t'} ${change.status === 'late' ? 'marked late' : 'checked in'}`;
+        : `${capital(whom)} ${not} ${change.status === 'present' ? 'checked in' : `marked ${marked[change.status]}`}`;
   } else if (change.kind === 'no_show') {
     did = `marked ${lead}’s booking a no-show`;
     title = `${lead}’s booking wasn’t marked a no-show`;

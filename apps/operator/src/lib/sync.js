@@ -142,10 +142,12 @@ export function createSyncEngine({
    */
   async function record(what) {
     const change = makeChange(what, { now: now() });
-    const outbox = [...state.outbox, change];
-    await store.set('outbox', outbox);
-    set({ outbox });
-    // Send it now. If a sync is already running and past sending, run once more after it.
+    // Change the outbox in memory in ONE step (nothing can run in between), then save what
+    // it holds now. Reading it, waiting to save, then writing it back would lose whatever
+    // changed during the wait: a second quick tap, or answers arriving (found in 15c-2).
+    set({ outbox: [...state.outbox, change] });
+    await store.set('outbox', state.outbox);
+    // Send it now. If a sync is already running, it goes round once more.
     if (running) again = true;
     else void sync();
     return change;
@@ -201,21 +203,22 @@ export function createSyncEngine({
       // (conflicts are fetched next, with their reasons). Only unanswered ones stay.
       const answers = new Map(body.results.map((/** @type {any} */ r) => [r.id, r]));
       const answered = batch.filter((c) => answers.has(c.id));
-      const outbox = state.outbox.filter((c) => !answers.has(c.id));
-      const sent = [
-        ...state.sent,
-        ...answered.map((c) => ({ ...c, outcome: answers.get(c.id).outcome })),
-      ].slice(-KEEP_SENT);
       const lastSentAt = now().toISOString();
-      await store.set('outbox', outbox);
-      await store.set('sent', sent);
-      await saveMeta({ lastSentAt });
+      // In memory first, in one step; then saved (see record: no update lost in between).
       set({
-        outbox,
-        sent,
+        outbox: state.outbox.filter((c) => !answers.has(c.id)),
+        sent: [
+          ...state.sent,
+          ...answered.map((c) => ({ ...c, outcome: answers.get(c.id).outcome })),
+        ].slice(-KEEP_SENT),
         lastSentAt,
-        sending: { total, done: total - outbox.length },
       });
+      // Sent so far, and so far + still waiting (a tap meanwhile joins the count).
+      const done = (state.sending?.done ?? 0) + answered.length;
+      set({ sending: { done, total: done + state.outbox.length } });
+      await store.set('outbox', state.outbox);
+      await store.set('sent', state.sent);
+      await saveMeta({ lastSentAt });
       if (answered.length === 0) break; // nothing answered: don't loop forever
     }
   }

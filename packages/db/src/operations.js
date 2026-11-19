@@ -176,6 +176,7 @@ export async function manifest(prisma, { operatorId, departureId }) {
         include: {
           travellers: { orderBy: { position: 'asc' } },
           addOns: { include: { addOn: true } },
+          policyVersion: true,
           events: {
             where: { toStatus: { in: ['cancelled', 'no_show'] } },
             orderBy: { createdAt: 'desc' },
@@ -230,6 +231,9 @@ export async function manifest(prisma, { operatorId, departureId }) {
         // "₦45,500 still to pay" (decided 2026-11-19: shown, and check-in asks first).
         label: owedKobo > 0 ? `${formatNaira(owedKobo)} still to pay` : 'Paid',
       },
+      // What a no-show gets back under the policy this booking was sold with (0 at Ìrìn): the
+      // guide's "Mark no-show?" says so (designs: O3 states). Null when sold without one.
+      noShowRefundPercent: b.policyVersion ? b.policyVersion.noShowRefundBasisPoints / 100 : null,
       // A cancelled booking stays, struck through: "cancelled yesterday".
       endedAt: active ? null : (b.events[0]?.createdAt ?? null),
       travellers,
@@ -279,7 +283,7 @@ export async function manifest(prisma, { operatorId, departureId }) {
  * @param {{
  *   operatorId: string, departureId: string, secret: string,
  *   code?: string, bookingId?: string, travellerIds?: string[],
- *   status: 'present' | 'late' | 'pending', confirmOwed?: boolean,
+ *   status: 'present' | 'late' | 'no_show' | 'pending', confirmOwed?: boolean,
  *   seen?: Record<string, string>,
  *   userId: string, now?: Date,
  * }} c
@@ -347,8 +351,17 @@ export async function checkIn(
         'This booking isn’t confirmed (it may still be in checkout).',
       );
     }
+    // Late and a traveller's no-show unlock at the start time (designs: O3 states). A
+    // traveller's no-show is just "not here" for one person (the others came); the whole
+    // booking not coming is noShow() below, where the policy applies.
+    if ((status === 'late' || status === 'no_show') && b.departure.startsAt > now) {
+      throw new BookingError(
+        'NOT_STARTED',
+        `${status === 'late' ? 'Late' : 'No-show'} can only be marked from ${localTime(b.departure.startsAt, tz)}.`,
+      );
+    }
     const owedKobo = b.totalKobo - b.amountPaidKobo;
-    if (owedKobo > 0 && status !== 'pending' && !confirmOwed) {
+    if (owedKobo > 0 && (status === 'present' || status === 'late') && !confirmOwed) {
       throw new BookingError(
         'BALANCE_OWED',
         `They still owe ${formatNaira(owedKobo)}. Check in anyway?`,

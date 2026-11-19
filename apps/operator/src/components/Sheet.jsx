@@ -6,19 +6,26 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * @param {{ title: string, onClose?: () => void, children: import('react').ReactNode, alert?: boolean }} props
+ * `center`: a dialog in the middle of the screen (a question to answer: "Mark no-show?"),
+ * instead of a sheet from the bottom.
+ * @param {{ title: string, onClose?: () => void, children: import('react').ReactNode, alert?: boolean, center?: boolean }} props
  */
-export function Sheet({ title, onClose, children, alert = false }) {
+export function Sheet({ title, onClose, children, alert = false, center = false }) {
   const ref = useRef(/** @type {HTMLDialogElement | null} */ (null));
   useEffect(() => {
     const d = ref.current;
-    if (d && !d.open) d.showModal?.();
+    // showModal(): the browser keeps focus inside and dims the rest. (Without it, as in
+    // the test environment, it still opens, just not modal.)
+    if (d && !d.open) {
+      if (typeof d.showModal === 'function') d.showModal();
+      else d.setAttribute('open', '');
+    }
     return () => d?.close?.();
   }, []);
   return (
     <dialog
       ref={ref}
-      className="sheet"
+      className={center ? 'sheet sheet--center' : 'sheet'}
       role={alert ? 'alertdialog' : 'dialog'}
       aria-label={title}
       onCancel={(e) => {

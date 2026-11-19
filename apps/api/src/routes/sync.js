@@ -41,7 +41,7 @@ const Change = z.discriminatedUnion('kind', [
       code: z.string().trim().min(10).max(80).optional(),
       bookingId: z.uuid().optional(),
       travellerIds: z.array(z.uuid()).max(50).optional(),
-      status: z.enum(['present', 'late', 'pending']),
+      status: z.enum(['present', 'late', 'no_show', 'pending']),
       confirmOwed: z.boolean().optional(),
       // What the phone saw for each traveller when the guide tapped (to spot someone else's change).
       seen: z.record(z.uuid(), z.enum(CHECK_IN_STATES)).optional(),

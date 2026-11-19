@@ -62,6 +62,9 @@ const PATHS = {
   phone: (
     <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
   ),
+  print: (
+    <path d="M7 9V3h10v6M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 14h10v7H7z" />
+  ),
   spinner: <path d="M12 3a9 9 0 1 1-9 9" />,
   ring: <circle cx="12" cy="12" r="9" />,
 };

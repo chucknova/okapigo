@@ -61,7 +61,7 @@ const CheckInBody = z
     code: z.string().trim().min(10).max(80).optional(),
     bookingId: z.uuid().optional(),
     travellerIds: z.array(z.uuid()).max(50).optional(),
-    status: z.enum(['present', 'late', 'pending']).default('present'),
+    status: z.enum(['present', 'late', 'no_show', 'pending']).default('present'),
     confirmOwed: z.boolean().default(false),
   })
   .refine((b) => Boolean(b.code) !== Boolean(b.bookingId), 'Send a ticket code OR a booking');

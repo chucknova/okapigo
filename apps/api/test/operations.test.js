@@ -396,9 +396,24 @@ describe('check-in (OPS-08)', () => {
         { name: 'Chidi Okafor', age: 36 },
       ],
     });
+    // (Booked now: nobody can book once the walk has started, below.)
+    const gone = await book(walk, {
+      name: 'Tola Bello',
+      travellers: [{ name: 'Tola Bello', age: 30 }],
+    });
     const [, chidi] = await ctx.prisma.traveller.findMany({
       where: { bookingId: id },
       orderBy: { position: 'asc' },
+    });
+    // Late (and one traveller's no-show) unlock at the start time (designs: O3 states).
+    const early = await asKemi
+      .post(`/api/departures/${walk.id}/check-ins`)
+      .send({ bookingId: id, travellerIds: [chidi.id], status: 'late' });
+    expect(early.body.error.code).toBe('NOT_STARTED');
+    expect(early.body.error.message).toMatch(/^Late can only be marked from \d\d:\d\d\.$/);
+    await ctx.prisma.departure.update({
+      where: { id: walk.id },
+      data: { startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 3_600_000) },
     });
     const late = await asKemi
       .post(`/api/departures/${walk.id}/check-ins`)
@@ -407,6 +422,13 @@ describe('check-in (OPS-08)', () => {
       'pending',
       'late',
     ]);
+    // One traveller not here, the other came: a no-show for that person only. The booking
+    // stays as it was (no policy: only noShow() for the whole booking applies that).
+    const absent = await asKemi
+      .post(`/api/departures/${walk.id}/check-ins`)
+      .send({ bookingId: id, travellerIds: [chidi.id], status: 'no_show' });
+    expect(absent.body.checkIn.travellers[1].checkInStatus).toBe('no_show');
+    expect((await ctx.prisma.booking.findUniqueOrThrow({ where: { id } })).status).toBe('paid');
     const undo = await asKemi
       .post(`/api/departures/${walk.id}/check-ins`)
       .send({ bookingId: id, travellerIds: [chidi.id], status: 'pending' });
@@ -415,10 +437,6 @@ describe('check-in (OPS-08)', () => {
       checkedInAt: null,
     });
 
-    const gone = await book(walk, {
-      name: 'Tola Bello',
-      travellers: [{ name: 'Tola Bello', age: 30 }],
-    });
     await manager
       .post(`/api/bookings/${gone}/cancel`)
       .send({ initiatedBy: 'guest', reason: 'Asked to' });
@@ -451,6 +469,17 @@ describe('check-in (OPS-08)', () => {
       .post(`/api/departures/${walk.id}/check-ins`)
       .send({ bookingId: id, confirmOwed: true });
     expect(ok.body.checkIn.travellers[0].checkInStatus).toBe('present');
+
+    // Marking someone NOT here doesn't ask about money (15c-2): nobody is being let in.
+    await ctx.prisma.departure.update({
+      where: { id: walk.id },
+      data: { startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 3_600_000) },
+    });
+    const absent = await asKemi
+      .post(`/api/departures/${walk.id}/check-ins`)
+      .send({ bookingId: id, status: 'no_show' });
+    expect(absent.status).toBe(200);
+    expect(absent.body.checkIn.travellers[0].checkInStatus).toBe('no_show');
   });
 });
 

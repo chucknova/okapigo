@@ -54,7 +54,6 @@ export function withChanges(pkg, outbox) {
       if (!b || !CAN_CHECK_IN.includes(b.status)) continue; // the server will say why
       for (const t of b.travellers) {
         if (c.travellerIds?.length && !c.travellerIds.includes(t.id)) continue;
-        if (t.checkInStatus === 'no_show') continue;
         t.checkInStatus = c.status;
         t.checkedInAt = c.status === 'pending' ? null : c.at;
         t.unsent = c.at;
@@ -62,6 +61,7 @@ export function withChanges(pkg, outbox) {
     } else if (c.kind === 'no_show') {
       const b = bookings.get(c.bookingId);
       if (!b || !CAN_CHECK_IN.includes(b.status)) continue;
+      b.status = 'no_show'; // the whole booking: decided (the server applies the policy)
       for (const t of b.travellers) {
         if (t.checkInStatus !== 'pending') continue;
         t.checkInStatus = 'no_show';

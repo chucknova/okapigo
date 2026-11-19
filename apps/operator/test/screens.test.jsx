@@ -215,3 +215,127 @@ describe('Sync (O5): a conflict', () => {
     expect(await screen.findByRole('heading', { name: 'Everything is sent' })).toBeTruthy();
   });
 });
+
+describe('the manifest (O3)', () => {
+  /** The fixture, started at 07:00; Okafor owes money. @param {string} [query] */
+  async function manifestAt(time = '07:12') {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`2026-12-05T${time}:00+01:00`));
+    vi.stubGlobal('navigator', { ...navigator, onLine: false });
+    const pkg = makePackage();
+    pkg.departures[0].bookings[0].money = { owedKobo: 4_550_000, label: '₦45,500 still to pay' };
+    pkg.departures[0].bookings[1].noShowRefundPercent = 0;
+    return show(
+      { ...signedIn, package: { data: pkg, etag: null, savedAt: '2026-12-05T05:40:00.000Z' } },
+      '/departures/dep-badagry',
+    );
+  }
+
+  it('a tap moves a traveller on, into the outbox; the row says not sent yet', async () => {
+    const engine = await manifestAt();
+    expect(screen.getByRole('heading', { name: 'Badagry Heritage Day Trip' })).toBeTruthy();
+    expect(screen.getByText('Sat 5 Dec · started 07:00')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Emeka Nwosu: Not yet. Tap to change.' }));
+    await waitFor(() => expect(engine.getState().outbox).toHaveLength(1));
+    expect(engine.getState().outbox[0]).toMatchObject({
+      kind: 'check_in',
+      bookingId: 'b-nwosu',
+      travellerIds: ['t-emeka'],
+      status: 'present',
+      seen: { 't-emeka': 'pending' },
+    });
+    expect(
+      await screen.findByRole('button', { name: 'Emeka Nwosu: ✓ Present. Tap to change.' }),
+    ).toBeTruthy();
+    expect(screen.getByText('Not sent yet · 07:12')).toBeTruthy();
+    expect(screen.getByText('of 5 checked in').previousElementSibling?.textContent).toBe('1');
+  });
+
+  it('money owed: asks first; “Check in, still owing” records it confirmed', async () => {
+    const engine = await manifestAt();
+    expect(screen.getByText('₦45,500 still to pay')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Adaeze Okafor: Not yet. Tap to change.' }));
+    expect(await screen.findByRole('heading', { name: 'Adaeze still owes ₦45,500' })).toBeTruthy();
+    expect(engine.getState().outbox).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Check in, still owing' }));
+    await waitFor(() =>
+      expect(engine.getState().outbox[0]).toMatchObject({ status: 'present', confirmOwed: true }),
+    );
+  });
+
+  it('a long press opens the choices; before the start, late and no-show are locked', async () => {
+    await manifestAt('06:52');
+    fireEvent.contextMenu(
+      screen.getByRole('button', { name: 'Emeka Nwosu: Not yet. Tap to change.' }),
+    );
+    expect(
+      /** @type {HTMLButtonElement} */ (
+        await screen.findByRole('button', { name: 'Late · from 07:00' })
+      ).disabled,
+    ).toBe(true);
+    expect(
+      /** @type {HTMLButtonElement} */ (
+        screen.getByRole('button', { name: 'No-show · from 07:00' })
+      ).disabled,
+    ).toBe(true);
+    expect(
+      /** @type {HTMLButtonElement} */ (screen.getByRole('button', { name: '✓ Present' })).disabled,
+    ).toBe(false);
+    // No "mark the rest no-show" before the start, either.
+    expect(
+      screen.queryByRole('button', { name: 'Mark the rest of this booking no-show' }),
+    ).toBeNull();
+  });
+
+  it('a name for “Guest 2”, saved and marked present', async () => {
+    const engine = await manifestAt();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a name (optional)' }));
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Obinna Nwosu' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and mark present' }));
+    await waitFor(() => expect(engine.getState().outbox).toHaveLength(2));
+    expect(
+      engine.getState().outbox.map((/** @type {any} */ c) => [c.kind, c.name ?? c.status]),
+    ).toEqual([
+      ['name', 'Obinna Nwosu'],
+      ['check_in', 'present'],
+    ]);
+    expect(
+      await screen.findByRole('button', { name: 'Obinna Nwosu: ✓ Present. Tap to change.' }),
+    ).toBeTruthy();
+  });
+
+  it('nobody on a booking came: “Mark no-show?” with the policy, then the whole booking', async () => {
+    const engine = await manifestAt();
+    const rest = screen.getAllByRole('button', { name: 'Mark the rest of this booking no-show' });
+    fireEvent.click(rest[1]);
+    expect(
+      await screen.findByRole('heading', { name: 'Mark Emeka Nwosu’s booking no-show?' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        '2 travellers. Under Ìrìn Lagos Tours’s policy a no-show gets no refund. The office can change this later.',
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Mark no-show' }));
+    await waitFor(() =>
+      expect(engine.getState().outbox[0]).toEqual(
+        expect.objectContaining({ kind: 'no_show', bookingId: 'b-nwosu' }),
+      ),
+    );
+    expect(await screen.findByText('No-show')).toBeTruthy();
+  });
+
+  it('search narrows the list; the cancelled booking is struck through; offline, the PDF needs signal', async () => {
+    await manifestAt();
+    expect(screen.getByText('Bayo Adewale · 1 guest')).toBeTruthy();
+    expect(
+      /** @type {HTMLButtonElement} */ (screen.getByRole('button', { name: 'Needs signal' }))
+        .disabled,
+    ).toBe(true);
+    fireEvent.change(screen.getByLabelText('Search by name'), { target: { value: 'okaf' } });
+    expect(screen.getByText('1 match')).toBeTruthy();
+    expect(screen.queryByText('Emeka Nwosu')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Search by name'), { target: { value: 'Okonkwo' } });
+    expect(screen.getByText('No one called “Okonkwo” on this trip.')).toBeTruthy();
+  });
+});

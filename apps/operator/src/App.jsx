@@ -5,7 +5,7 @@
  *   not signed in on this phone   → Sign in (O1)
  *   signed in, first time here    → First run (install · saving · ready)
  *   otherwise                     → the connection strip, the screen, the tabs
- *                                   Today (O2) · Scan (O4, 15c-3) · Sync (O5)
+ *                                   Today (O2) · a manifest (O3) · Scan (O4, 15c-3) · Sync (O5)
  *
  * The sign-in running out (30 days) while offline doesn't stop anything: the app works as
  * normal, and once there's signal a sheet asks to sign in again to send the changes.
@@ -22,6 +22,7 @@ import { FirstRun } from './screens/FirstRun.jsx';
 import { Today } from './screens/Today.jsx';
 import { Sync } from './screens/Sync.jsx';
 import { Later } from './screens/Later.jsx';
+import { Manifest } from './screens/Manifest.jsx';
 
 /** @param {{ base?: string }} props */
 export function App({ base = '/app' }) {
@@ -61,9 +62,7 @@ export function App({ base = '/app' }) {
             <Route path="/scan">
               {() => <Later title="Scan" what="Scanning tickets" stage="15c-3" />}
             </Route>
-            <Route path="/departures/:id">
-              {() => <Later title="Manifest" what="The manifest" stage="15c-2" back />}
-            </Route>
+            <Route path="/departures/:id" component={Manifest} />
             <Route>{() => <Later title="Not found" what="This page" stage="" back />}</Route>
           </Switch>
         </div>

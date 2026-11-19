@@ -149,6 +149,23 @@ describe('record: saved first, sent by itself', () => {
   });
 });
 
+describe('two quick taps', () => {
+  it('both kept, in order (each waits for the one before to be saved)', async () => {
+    const s = await setup({ online: false });
+    const [a, b, c] = await Promise.all([
+      s.engine.record(checkIn('t-adaeze')),
+      s.engine.record(checkIn('t-chidi')),
+      s.engine.record(checkIn('t-kamsi')),
+    ]);
+    expect(s.engine.getState().outbox.map((x) => x.id)).toEqual([a.id, b.id, c.id]);
+    expect((await s.store.get('outbox')).map((/** @type {any} */ x) => x.id)).toEqual([
+      a.id,
+      b.id,
+      c.id,
+    ]);
+  });
+});
+
 describe('sending', () => {
   it('oldest first, in batches; every change once', async () => {
     const outbox = Array.from({ length: BATCH + 5 }, (_, i) => ({

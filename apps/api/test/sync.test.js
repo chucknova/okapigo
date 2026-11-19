@@ -172,6 +172,8 @@ describe('the offline package (what the phone saves)', () => {
       phone: s.operator.phone,
     });
     expect(m.bookings[0].travellers[0].displayName).toBe('Adaeze Okafor');
+    // What a no-show gets back under this booking's policy (the guide's "Mark no-show?").
+    expect(m.bookings[0].noShowRefundPercent).toBe(0);
     // The fingerprint of the QR's code, never the code itself (a lost phone gives no tickets).
     expect(m.bookings[0].ticketFingerprint).toBe(
       createHash('sha256').update(bookings[0].code).digest('hex'),
@@ -574,7 +576,8 @@ describe('72 hours offline (PRD: zero data loss)', () => {
       },
     });
     const [adaeze, tunde, ngozi] = bookings;
-    const times = [ago(72 * HOUR + 10 * 60_000), ago(72 * HOUR + 5 * 60_000), ago(71 * HOUR)];
+    // After the start (72 hours ago), except the first check-in (guests arrive early).
+    const times = [ago(72 * HOUR + 10 * 60_000), ago(72 * HOUR - 5 * 60_000), ago(71 * HOUR)];
     const res = await s.asKemi.sync([
       s.change({
         at: times[0],
