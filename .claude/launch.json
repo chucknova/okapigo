@@ -26,6 +26,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@okapigo/api", "dev"],
       "port": 4000
+    },
+    {
+      "name": "simulator",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@okapigo/simulators", "dev"],
+      "port": 5174
     }
   ]
 }

@@ -380,3 +380,84 @@ export function contrastRatio(a, b) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
+
+// ---------------------------------------------------------------------------------------------
+// THE WHATSAPP SIMULATOR (stage 13c-2): a phone chat, not an operator's website, so it has its
+// own small set, read from your chat designs (docs/designs/06-whatsapp/). Light only: it
+// stands in for WhatsApp's own look, which the operator's style doesn't change.
+// `pnpm --filter @okapigo/simulators tokens` writes apps/simulators/src/styles/tokens.css.
+// ---------------------------------------------------------------------------------------------
+
+export const CHAT = {
+  color: {
+    // Around the phone (desktop), the phone's edge, and the chat's background.
+    page: '#E9EDE7',
+    'phone-edge': '#C9CFC7',
+    chat: '#ECEFE8',
+    // The header: the operator's picture and name.
+    header: '#111511',
+    'header-text': '#EEF2EC',
+    'header-muted': '#A9B3A8',
+    avatar: '#9BD10F',
+    'on-avatar': '#111511',
+    // Bubbles: the guest's (mine), the bot's (theirs), a person from the team's.
+    mine: '#DDF1B4',
+    theirs: '#FFFFFF',
+    staff: '#F1FBD6',
+    text: '#111511',
+    muted: '#4F584F',
+    // Reply buttons, the list button, links and the staff member's name.
+    action: '#3F5A00',
+    // Day lines and events ("Tolu from Ìrìn joined").
+    event: '#DCE2D9',
+    'event-text': '#3B423B',
+    // A link's preview card, the bar at the bottom, the text box.
+    preview: '#F4F6F3',
+    bar: '#F4F6F3',
+    line: '#DCE2D9',
+    input: '#FFFFFF',
+    placeholder: '#5E675E',
+    send: '#9BD10F',
+    'on-send': '#111511',
+    // A message that didn't send (not in the designs: the brief's "failed" state).
+    danger: '#B42318',
+    'danger-soft': '#FDECEA',
+    // The list sheet's backdrop.
+    scrim: 'rgba(17, 21, 17, 0.45)',
+  },
+  font: LAGOON.font.family,
+  /** size / line height, in px (the designs: 15 bubbles, 14 labels, 13 previews, 12 events, 11 times) */
+  text: {
+    time: [11, 14],
+    event: [12, 16],
+    preview: [13, 18],
+    label: [14, 20],
+    body: [15, 21],
+    name: [15, 20],
+  },
+  /** px */
+  radius: { bubble: 12, tail: 4, button: 10, preview: 8, phone: 16, pill: 999 },
+  /** px */
+  size: { phone: 360, avatar: 36, control: 40, bubble: 290, mine: 250 },
+};
+
+/** The simulator's tokens as CSS custom properties (--chat-…). @returns {string} */
+export function chatTokensToCss() {
+  const lines = [
+    ...Object.entries(CHAT.color).map(([k, v]) => `  --chat-${k}: ${v};`),
+    `  --chat-font: ${CHAT.font};`,
+    ...Object.entries(CHAT.text).flatMap(([k, [size, line]]) => [
+      `  --chat-text-${k}: ${size}px;`,
+      `  --chat-leading-${k}: ${line}px;`,
+    ]),
+    ...Object.entries(CHAT.radius).map(([k, v]) => `  --chat-radius-${k}: ${v}px;`),
+    ...Object.entries(CHAT.size).map(([k, v]) => `  --chat-size-${k}: ${v}px;`),
+  ];
+  return `/* Generated from packages/shared/src/tokens.js (CHAT). Don't edit by hand:
+   run \`pnpm --filter @okapigo/simulators tokens\`. */
+:root {
+  color-scheme: light;
+${lines.join('\n')}
+}
+`;
+}

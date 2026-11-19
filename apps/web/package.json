@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "tokens": "node scripts/write-tokens.js",
     "test": "vitest run",
-    "e2e": "vite build && playwright test"
+    "e2e": "vite build && pnpm --filter @okapigo/simulators build && playwright test"
   },
   "dependencies": {
     "@okapigo/shared": "workspace:*",

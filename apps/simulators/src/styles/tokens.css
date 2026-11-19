@@ -1,0 +1,55 @@
+/* Generated from packages/shared/src/tokens.js (CHAT). Don't edit by hand:
+   run `pnpm --filter @okapigo/simulators tokens`. */
+:root {
+  color-scheme: light;
+  --chat-page: #E9EDE7;
+  --chat-phone-edge: #C9CFC7;
+  --chat-chat: #ECEFE8;
+  --chat-header: #111511;
+  --chat-header-text: #EEF2EC;
+  --chat-header-muted: #A9B3A8;
+  --chat-avatar: #9BD10F;
+  --chat-on-avatar: #111511;
+  --chat-mine: #DDF1B4;
+  --chat-theirs: #FFFFFF;
+  --chat-staff: #F1FBD6;
+  --chat-text: #111511;
+  --chat-muted: #4F584F;
+  --chat-action: #3F5A00;
+  --chat-event: #DCE2D9;
+  --chat-event-text: #3B423B;
+  --chat-preview: #F4F6F3;
+  --chat-bar: #F4F6F3;
+  --chat-line: #DCE2D9;
+  --chat-input: #FFFFFF;
+  --chat-placeholder: #5E675E;
+  --chat-send: #9BD10F;
+  --chat-on-send: #111511;
+  --chat-danger: #B42318;
+  --chat-danger-soft: #FDECEA;
+  --chat-scrim: rgba(17, 21, 17, 0.45);
+  --chat-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --chat-text-time: 11px;
+  --chat-leading-time: 14px;
+  --chat-text-event: 12px;
+  --chat-leading-event: 16px;
+  --chat-text-preview: 13px;
+  --chat-leading-preview: 18px;
+  --chat-text-label: 14px;
+  --chat-leading-label: 20px;
+  --chat-text-body: 15px;
+  --chat-leading-body: 21px;
+  --chat-text-name: 15px;
+  --chat-leading-name: 20px;
+  --chat-radius-bubble: 12px;
+  --chat-radius-tail: 4px;
+  --chat-radius-button: 10px;
+  --chat-radius-preview: 8px;
+  --chat-radius-phone: 16px;
+  --chat-radius-pill: 999px;
+  --chat-size-phone: 360px;
+  --chat-size-avatar: 36px;
+  --chat-size-control: 40px;
+  --chat-size-bubble: 290px;
+  --chat-size-mine: 250px;
+}

@@ -284,3 +284,71 @@ describe('when seats run out (design: few seats, sold out, seats ran out)', () =
     expect((await held(operator.id)).leadName).toBe('Adaeze Okafor');
   });
 });
+
+describe('the simulator app (13c-2)', () => {
+  it('"New chat": an empty chat, seats held by the old one given back; a forged token is refused', async () => {
+    const request = (await import('supertest')).default;
+    const { operator } = await ctx.seedOperator();
+    const g = guest(operator.slug);
+    await toSummary(g, { tour: 'lagos-island-heritage-walk' });
+    const { departure } = await held(operator.id);
+    expect(departure.seatsHeld).toBe(2);
+
+    const res = await request(ctx.app).post(`/simulator/whatsapp/conversations/${g.token()}/reset`);
+    expect(res.status).toBe(204);
+    expect(await g.chat()).toEqual([]);
+    expect(
+      (await ctx.prisma.departure.findUniqueOrThrow({ where: { id: departure.id } })).seatsHeld,
+    ).toBe(0);
+    expect(words(await g.say('Hi'))).toContain('booking assistant'); // starts afresh
+
+    const [id] = g.token().split('.');
+    expect(
+      (await request(ctx.app).post(`/simulator/whatsapp/conversations/${id}.forged/reset`)).status,
+    ).toBe(404);
+  });
+
+  it('"New chat" never wipes a real WhatsApp chat, even with a valid token', async () => {
+    const request = (await import('supertest')).default;
+    const { createHmac } = await import('node:crypto');
+    const { TEST_AUTH_SECRET } = await import('./helpers.js');
+    const { operator } = await ctx.seedOperator();
+    const c = await ctx.prisma.conversation.create({
+      data: { operatorId: operator.id, channel: 'whatsapp', guestPhone: '+2348035550000' },
+    });
+    // The simulator's own token for it (the same signature as routes/whatsapp-simulator.js).
+    const key = createHmac('sha256', TEST_AUTH_SECRET).update('okapigo:simulator-chat:v1').digest();
+    const token = `${c.id}.${createHmac('sha256', key).update(c.id).digest().subarray(0, 16).toString('base64url')}`;
+    expect(
+      (await request(ctx.app).get(`/simulator/whatsapp/conversations/${token}/messages`)).status,
+    ).toBe(200);
+    expect(
+      (await request(ctx.app).post(`/simulator/whatsapp/conversations/${token}/reset`)).status,
+    ).toBe(404);
+  });
+
+  it('is served at /simulator/whatsapp/, next to the simulator’s API', async () => {
+    const request = (await import('supertest')).default;
+    const { mkdtempSync, writeFileSync, mkdirSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { buildApp } = await import('./helpers.js');
+    const dir = mkdtempSync(join(tmpdir(), 'okg-sim-'));
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><title>Chat simulator</title>');
+    mkdirSync(join(dir, 'assets'));
+    writeFileSync(join(dir, 'assets', 'app-abc.js'), 'export {}');
+    const app = buildApp({ prisma: ctx.prisma, simulatorDir: dir });
+
+    const page = await request(app).get('/simulator/whatsapp/');
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Chat simulator');
+    const asset = await request(app).get('/simulator/whatsapp/assets/app-abc.js');
+    expect(asset.headers['cache-control']).toContain('immutable');
+    // The API underneath still answers.
+    const { operator } = await ctx.seedOperator();
+    const sent = await request(app)
+      .post(`/simulator/whatsapp/${operator.slug}/messages`)
+      .send({ phone: '0803 123 4567', text: 'Hi' });
+    expect(sent.status).toBe(201);
+  });
+});

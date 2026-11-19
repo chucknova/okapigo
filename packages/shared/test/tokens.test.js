@@ -98,3 +98,31 @@ describe('stylesToCss', () => {
     expect(css.indexOf('--color-primary: #9BD10F;')).toBeLessThan(css.indexOf('classic'));
   });
 });
+
+describe('the WhatsApp simulator’s tokens (stage 13c-2)', () => {
+  it('every text on its background meets WCAG AA (4.5:1), as in the designs', async () => {
+    const { CHAT } = await import('../src/tokens.js');
+    const c = CHAT.color;
+    const pairs = [
+      ['text', 'mine'],
+      ['text', 'theirs'],
+      ['text', 'staff'],
+      ['muted', 'mine'],
+      ['muted', 'theirs'],
+      ['muted', 'preview'],
+      ['action', 'theirs'],
+      ['action', 'staff'],
+      ['action', 'preview'],
+      ['event-text', 'event'],
+      ['header-text', 'header'],
+      ['header-muted', 'header'],
+      ['on-avatar', 'avatar'],
+      ['placeholder', 'input'],
+      ['danger', 'danger-soft'],
+      ['text', 'chat'],
+    ];
+    for (const [fg, bg] of pairs) {
+      expect(contrastRatio(c[fg], c[bg]), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});

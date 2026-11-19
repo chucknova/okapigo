@@ -16,7 +16,7 @@
  */
 import { normalizePhone } from '@okapigo/shared/contact';
 import { HttpError } from '../middleware/errors.js';
-import { converse } from './engine.js';
+import { converse, giveBack } from './engine.js';
 import { readState } from './state.js';
 
 /** A turn can book (seats, a payment record…): give it room, but not forever. */
@@ -109,4 +109,31 @@ export async function receive(deps, { operator, channel, phone, name = '', input
     await deps.channels[channel].send({ operator, guestPhone, replies: result.replies });
   }
   return { conversationId: conversation.id, ...result };
+}
+
+/**
+ * "New chat" in the simulator (stage 13c-2): the same guest starts over with an empty chat.
+ * Any seats the old chat was holding are given back and its payment links stopped, as for
+ * "start again"; paid bookings are untouched (they're the guest's, not the chat's).
+ * @param {import('./engine.js').Deps} deps
+ * @param {string} conversationId
+ */
+export async function resetConversation(deps, conversationId) {
+  const { prisma } = deps;
+  const c = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+  await giveBack(deps, readState(c.state), { cancelLinks: true });
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM conversations WHERE id = ${conversationId}::uuid FOR UPDATE`;
+    await tx.chatMessage.deleteMany({ where: { conversationId } });
+    await tx.conversation.update({
+      where: { id: conversationId },
+      data: {
+        state: { step: 'hello' },
+        handledBy: 'bot',
+        needsPersonSince: null,
+        bookingId: null,
+        lastMessageAt: new Date(),
+      },
+    });
+  });
 }

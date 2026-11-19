@@ -5,3 +5,4 @@ coverage
 pnpm-lock.yaml
 docs/designs
 apps/web/src/styles/tokens.css
+apps/simulators/src/styles/tokens.css

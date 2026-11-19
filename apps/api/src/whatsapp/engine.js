@@ -1150,7 +1150,7 @@ async function seatsHeld(deps, state) {
  * @param {Deps} deps @param {State} state
  * @param {{ unlessLinkSent?: boolean, cancelLinks?: boolean }} [opts]
  */
-async function giveBack(deps, state, { unlessLinkSent = false, cancelLinks = false } = {}) {
+export async function giveBack(deps, state, { unlessLinkSent = false, cancelLinks = false } = {}) {
   if (!state.bookingId) return;
   const booking = await deps.prisma.booking.findUnique({
     where: { id: state.bookingId },

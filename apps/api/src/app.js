@@ -62,6 +62,7 @@ import { createSessionService } from './auth/session-service.js';
  *   simulatorLimit?: number, // WhatsApp simulator messages per minute per IP (default 120)
  *   webPublicUrl?: string,   // where guests see booking links; default: apiPublicUrl
  *   webAssets?: import('./lib/web-assets.js').WebAssets | null,  // the built guest web, if any
+ *   simulatorDir?: string | null, // the built WhatsApp simulator app (apps/simulators/dist), if any
  * }} deps
  */
 export function createApp({
@@ -78,6 +79,7 @@ export function createApp({
   simulatorLimit,
   webPublicUrl = apiPublicUrl,
   webAssets = null,
+  simulatorDir = null,
 }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
@@ -167,6 +169,23 @@ export function createApp({
       limit: simulatorLimit,
     }),
   );
+
+  // The simulator APP (13c-2), built by apps/simulators: /simulator/whatsapp/ in a browser.
+  // After the simulator's API routes above, so those always win; only real files are served.
+  if (simulatorDir) {
+    app.use(
+      '/simulator/whatsapp/assets',
+      express.static(join(simulatorDir, 'assets'), {
+        immutable: true,
+        maxAge: '365d',
+        index: false,
+      }),
+    );
+    app.use(
+      '/simulator/whatsapp',
+      express.static(simulatorDir, { index: 'index.html', maxAge: 0 }),
+    );
+  }
 
   // --- Staff API: everything under /api requires sign-in ----------------------
   // DEFAULT DENY: `authenticate` runs before every /api route, so a route added here later

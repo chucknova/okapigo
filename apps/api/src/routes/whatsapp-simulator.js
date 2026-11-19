@@ -7,7 +7,9 @@
  *        { phone, name?, text } or { phone, name?, choice, title? }
  *        → { conversation: { token, handledBy }, replies: [...] }
  *   GET  /simulator/whatsapp/conversations/:token/messages
- *        → { conversation: { handledBy }, messages: [{ id, author, body, createdAt }] }
+ *        → { conversation: { handledBy }, messages: [{ id, author, authorName?, body, createdAt }] }
+ *   POST /simulator/whatsapp/conversations/:token/reset      "New chat" (13c-2): empty chat,
+ *        seats held by it given back                         → 204
  *
  * Anyone can be any guest here (that's what a simulator is for: "choose which guest you are").
  * So READING a conversation needs its token, returned by the first POST: a signature of the
@@ -20,7 +22,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { rateLimit } from '../middleware/rate-limit.js';
-import { receive } from '../whatsapp/conversations.js';
+import { receive, resetConversation } from '../whatsapp/conversations.js';
 
 const LABEL = 'okapigo:simulator-chat:v1';
 
@@ -138,6 +140,17 @@ export function whatsappSimulatorRouter({
         createdAt: m.createdAt,
       })),
     });
+  });
+
+  router.post('/simulator/whatsapp/conversations/:token/reset', limiter, async (req, res) => {
+    const id = idFrom(req.params.token);
+    const conversation = id ? await prisma.conversation.findUnique({ where: { id } }) : null;
+    // The simulator's own chats only: a real WhatsApp chat is never wiped from here.
+    if (!conversation || conversation.channel !== 'simulator') {
+      throw new HttpError(404, 'NOT_FOUND', 'Not found.');
+    }
+    await resetConversation({ prisma, quotes, jobs, log: req.log, webPublicUrl }, conversation.id);
+    res.status(204).end();
   });
 
   return router;

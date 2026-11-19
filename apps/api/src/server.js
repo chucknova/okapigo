@@ -15,6 +15,7 @@ import { createLogger } from './lib/logger.js';
 import { createPrismaClient } from '@okapigo/db';
 import { createRedis } from './lib/connections.js';
 import { redisRateLimitStore } from './middleware/rate-limit.js';
+import { existsSync } from 'node:fs';
 import { loadWebAssets } from './lib/web-assets.js';
 import { createLogOtpSender } from './auth/otp-sender.js';
 import { createJobClient } from '@okapigo/jobs';
@@ -22,6 +23,8 @@ import { createPaymentProvider, redisStore } from '@okapigo/payments';
 import { createApp } from './app.js';
 import { sendChatNotices } from './whatsapp/notices.js';
 import { createChannels } from './whatsapp/channels.js';
+
+const simulatorDist = new URL('../../simulators/dist', import.meta.url).pathname;
 
 const config = loadConfig();
 const logger = createLogger({
@@ -67,6 +70,8 @@ const app = createApp({
   webPublicUrl: config.WEB_PUBLIC_URL ?? config.API_PUBLIC_URL,
   // The built guest web (pnpm --filter @okapigo/web build), if present.
   webAssets: loadWebAssets(new URL('../../web/dist', import.meta.url).pathname),
+  // The built WhatsApp simulator app (pnpm --filter @okapigo/simulators build), if present.
+  simulatorDir: existsSync(simulatorDist) ? simulatorDist : null,
 });
 
 const server = app.listen(config.API_PORT, () => {
