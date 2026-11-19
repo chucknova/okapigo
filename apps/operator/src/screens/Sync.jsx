@@ -89,6 +89,16 @@ function Conflict({ conflict, phone, online }) {
       >
         OK
       </button>
+      {e.canGiveBack && (
+        <button
+          type="button"
+          className="btn btn--outline"
+          disabled={busy || !online}
+          onClick={() => act(() => engine.dismiss(conflict.id, { cashReturned: true }))}
+        >
+          I gave the cash back
+        </button>
+      )}
       {e.canUseMine && (
         <button
           type="button"

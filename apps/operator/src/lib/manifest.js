@@ -20,6 +20,7 @@ import { localDate, localTime } from '@okapigo/shared/time';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatAt } from '@okapigo/shared/tour-facts';
 import { CAN_CHECK_IN } from './outbox.js';
+import { payChip } from './money.js';
 
 /** @typedef {'pending' | 'present' | 'late' | 'no_show'} TravellerState */
 
@@ -139,12 +140,7 @@ function bookingView(b, { started, tz }) {
     via: VIA[b.channel] ?? b.channel ?? '',
     // A whole-booking no-show is decided: its pills don't change here (the office can).
     locked: !active,
-    pay:
-      b.status === 'no_show'
-        ? { text: 'No-show', tone: 'no_show' }
-        : owes
-          ? { text: b.money.label, tone: 'owes' }
-          : { text: 'Paid', tone: 'paid' },
+    pay: payChip(b),
     owesKobo: owes ? b.money.owedKobo : 0,
     extras: (b.addOns ?? [])
       .map((/** @type {any} */ a) => `${a.quantity} × ${a.name.toLowerCase()}`)
@@ -207,9 +203,9 @@ const fold = (s) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
  * else changed it meanwhile). Money owed was already confirmed if someone on the booking is
  * in: then it doesn't ask again.
  * @param {any} m @param {any} b  the booking (from the manifest) @param {any} t @param {TravellerState} to
- * @param {{ confirmOwed?: boolean }} [o]
+ * @param {{ confirmOwed?: boolean, paidBy?: 'link' }} [o]  paidBy: they paid by the QR's link
  */
-export function stateChange(m, b, t, to, { confirmOwed = false } = {}) {
+export function stateChange(m, b, t, to, { confirmOwed = false, paidBy } = {}) {
   return {
     kind: /** @type {const} */ ('check_in'),
     departureId: m.departure.id,
@@ -218,6 +214,7 @@ export function stateChange(m, b, t, to, { confirmOwed = false } = {}) {
     status: to,
     seen: { [t.id]: t.checkInStatus },
     ...(confirmOwed || alreadyConfirmed(b) ? { confirmOwed: true } : {}),
+    ...(paidBy ? { paidBy } : {}),
   };
 }
 

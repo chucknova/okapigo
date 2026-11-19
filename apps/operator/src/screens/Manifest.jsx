@@ -16,11 +16,13 @@ import { useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { Icon } from '../components/Icon.jsx';
 import { Sheet } from '../components/Sheet.jsx';
+import { MoneyOwed } from '../components/MoneyOwed.jsx';
+import { cashChange } from '../lib/money.js';
+import { stopsView, everyoneHere } from '../lib/stops.js';
 import { useEngine, useNow, useSync } from '../lib/engine.jsx';
 import { withChanges } from '../lib/outbox.js';
 import { useLongPress } from '../lib/long-press.js';
 import { openPrintable } from '../lib/print.js';
-import { formatNaira } from '@okapigo/shared/money';
 import {
   manifestView,
   stateChange,
@@ -63,10 +65,14 @@ export function Manifest() {
     );
   }
   const v = manifestView(m, { now, tz, query });
+  // A pickup tour (Lekki): by stop, in the van's order (lib/stops.js).
+  const stops = stopsView(m, tz);
   /** The booking and traveller, as in the manifest (not the view): what a change is made from. */
   const raw = (/** @type {string} */ bookingId) =>
     m.bookings.find((/** @type {any} */ b) => b.id === bookingId);
   const online = s.connection === 'online';
+  // "Cash reported by Femi": the person signed in on this phone.
+  const guide = firstName(s.session?.user?.name ?? 'you');
 
   /** A tap on a traveller's pill. @param {any} bv @param {any} pv */
   function tap(bv, pv) {
@@ -75,11 +81,100 @@ export function Manifest() {
     if (needsOweQuestion(b, t, pv.next)) return setOpen({ kind: 'owe', b, t, to: pv.next });
     void engine.record(stateChange(m, b, t, pv.next));
   }
-  /** @param {any} b @param {any} t @param {string} to @param {{ confirmOwed?: boolean }} [o] */
+  /** @param {any} b @param {any} t @param {string} to @param {{ confirmOwed?: boolean, paidBy?: 'link' }} [o] */
   function setState(b, t, to, o) {
     setOpen(null);
     void engine.record(stateChange(m, b, t, /** @type {any} */ (to), o));
   }
+
+  /** One booking's section (the same alone, or under its pickup stop). @param {any} b */
+  const bookingSection = (b) => (
+    <section key={b.id} className="booking">
+      <div className="booking-head">
+        <div className="grow">
+          <div className="booking-lead">{b.lead}</div>
+          <div className="small muted">
+            {b.ref}
+            {b.via ? ` · ${b.via}` : ''}
+          </div>
+          <div className="chips">
+            <span className={`chip chip--${b.pay.tone}`}>{b.pay.text}</span>
+            {b.extras && <span className="chip">{b.extras}</span>}
+          </div>
+        </div>
+        {b.phone && (
+          <a className="call-btn" href={`tel:${b.phone}`} aria-label={`Call ${b.lead}, ${b.phone}`}>
+            <Icon name="phone" size={22} width={2} />
+          </a>
+        )}
+      </div>
+      {b.people.map((p) => (
+        <div key={p.id} className="traveller">
+          <div className="grow">
+            <div className={p.unnamed ? 'strong muted' : 'strong'}>{p.name}</div>
+            {p.unsent ? (
+              <div className="small muted with-icon">
+                <Icon name="clock" size={14} />
+                {p.unsent}
+              </div>
+            ) : (
+              <div className="small muted">
+                {p.meta}
+                {p.diet && (
+                  <>
+                    {' · '}
+                    <strong className="warning">{p.diet}</strong>
+                  </>
+                )}
+              </div>
+            )}
+            {p.unnamed && !b.locked && (
+              <button
+                type="button"
+                className="text-link text-link--small"
+                onClick={() => {
+                  const rb = raw(b.id);
+                  setOpen({
+                    kind: 'name',
+                    b: rb,
+                    t: rb.travellers.find((/** @type {any} */ x) => x.id === p.id),
+                  });
+                }}
+              >
+                Add a name (optional)
+              </button>
+            )}
+          </div>
+          <StatePill
+            person={p}
+            locked={b.locked}
+            onTap={() => tap(b, p)}
+            onLong={() => {
+              const rb = raw(b.id);
+              setOpen({
+                kind: 'state',
+                b: rb,
+                t: rb.travellers.find((/** @type {any} */ x) => x.id === p.id),
+              });
+            }}
+          />
+        </div>
+      ))}
+      {b.canMarkRest && (
+        <button
+          type="button"
+          className="rest-no-show"
+          onClick={() =>
+            b.restIsWholeBooking
+              ? setOpen({ kind: 'no-show', b })
+              : void engine.record(restNoShowChange(m, raw(b.id)))
+          }
+        >
+          Mark the rest of this booking no-show
+        </button>
+      )}
+    </section>
+  );
 
   return (
     <>
@@ -108,8 +203,30 @@ export function Manifest() {
         {v.sub && <div className="sm muted">{v.sub}</div>}
         <div className="count-line">
           <span className="h-time-lg">{v.checkedIn}</span>
-          <span className="h-sm">of {v.total} checked in</span>
+          <span className="h-sm">
+            of {v.total} {stops ? 'picked up' : 'checked in'}
+          </span>
         </div>
+        {stops?.next && stops.next.time && !query.trim() && (
+          <div role="status" className="next-stop">
+            <span className="grow">
+              <span className="next-stop-tag">NEXT STOP · {stops.next.time}</span>
+              <strong className="block">
+                {[stops.next.area, stops.next.place].filter(Boolean).join(' · ')}
+              </strong>
+            </span>
+            {stops.next.directions && (
+              <a
+                className="directions"
+                href={stops.next.directions}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Directions
+              </a>
+            )}
+          </div>
+        )}
         <div className="progress" aria-hidden="true">
           <div className="progress-bar" style={{ width: `${v.pct}%` }} />
         </div>
@@ -135,97 +252,35 @@ export function Manifest() {
       </header>
 
       <main className="manifest-list">
-        {v.bookings.map((b) => (
-          <section key={b.id} className="booking">
-            <div className="booking-head">
-              <div className="grow">
-                <div className="booking-lead">{b.lead}</div>
-                <div className="small muted">
-                  {b.ref}
-                  {b.via ? ` · ${b.via}` : ''}
-                </div>
-                <div className="chips">
-                  <span className={`chip chip--${b.pay.tone}`}>{b.pay.text}</span>
-                  {b.extras && <span className="chip">{b.extras}</span>}
-                </div>
-              </div>
-              {b.phone && (
-                <a
-                  className="call-btn"
-                  href={`tel:${b.phone}`}
-                  aria-label={`Call ${b.lead}, ${b.phone}`}
-                >
-                  <Icon name="phone" size={22} width={2} />
-                </a>
-              )}
-            </div>
-            {b.people.map((p) => (
-              <div key={p.id} className="traveller">
-                <div className="grow">
-                  <div className={p.unnamed ? 'strong muted' : 'strong'}>{p.name}</div>
-                  {p.unsent ? (
-                    <div className="small muted with-icon">
-                      <Icon name="clock" size={14} />
-                      {p.unsent}
+        {stops && !query.trim()
+          ? stops.stops.map((st) => (
+              <section key={st.key} className={`stop stop--${st.state}`}>
+                <div className="stop-head">
+                  <div className="grow">
+                    <div className={`eyebrow stop-tag stop-tag--${st.state}`}>{st.tag}</div>
+                    <div className="booking-lead">
+                      {[st.time, st.area].filter(Boolean).join(' · ')}
                     </div>
-                  ) : (
-                    <div className="small muted">
-                      {p.meta}
-                      {p.diet && (
-                        <>
-                          {' · '}
-                          <strong className="warning">{p.diet}</strong>
-                        </>
-                      )}
-                    </div>
-                  )}
-                  {p.unnamed && !b.locked && (
-                    <button
-                      type="button"
-                      className="text-link text-link--small"
-                      onClick={() => {
-                        const rb = raw(b.id);
-                        setOpen({
-                          kind: 'name',
-                          b: rb,
-                          t: rb.travellers.find((/** @type {any} */ x) => x.id === p.id),
-                        });
-                      }}
-                    >
-                      Add a name (optional)
-                    </button>
-                  )}
+                    {st.place && <div className="small muted">{st.place}</div>}
+                  </div>
+                  <span className="small strong nowrap">{st.count}</span>
                 </div>
-                <StatePill
-                  person={p}
-                  locked={b.locked}
-                  onTap={() => tap(b, p)}
-                  onLong={() => {
-                    const rb = raw(b.id);
-                    setOpen({
-                      kind: 'state',
-                      b: rb,
-                      t: rb.travellers.find((/** @type {any} */ x) => x.id === p.id),
-                    });
-                  }}
-                />
-              </div>
-            ))}
-            {b.canMarkRest && (
-              <button
-                type="button"
-                className="rest-no-show"
-                onClick={() =>
-                  b.restIsWholeBooking
-                    ? setOpen({ kind: 'no-show', b })
-                    : void engine.record(restNoShowChange(m, raw(b.id)))
-                }
-              >
-                Mark the rest of this booking no-show
-              </button>
-            )}
-          </section>
-        ))}
+                {st.bookingIds.map((id) => {
+                  const b = v.bookings.find((x) => x.id === id);
+                  return b ? bookingSection(b) : null;
+                })}
+                {st.state === 'next' && (
+                  <EveryoneHere
+                    stop={st}
+                    onGo={(changes) => {
+                      for (const c of changes) void engine.record(c);
+                    }}
+                    m={m}
+                  />
+                )}
+              </section>
+            ))
+          : v.bookings.map((b) => bookingSection(b))}
         {v.cancelled.map((c) => (
           <section key={c.id} className="booking booking--gone">
             <div className="strong struck">{c.line}</div>
@@ -245,29 +300,19 @@ export function Manifest() {
 
       {open?.kind === 'owe' && (
         <Sheet title="Money still owed" alert center onClose={() => setOpen(null)}>
-          <div className="dialog">
-            <h2 className="h-lg">
-              {firstName(open.b.lead.name)} still owes {formatNaira(open.b.money.owedKobo)}
-            </h2>
-            <p className="muted">
-              Ask them to pay now. If they can’t, you can still check them in and the office will
-              follow up.
-            </p>
-            <button
-              type="button"
-              className="btn btn--outline btn--strong"
-              onClick={() => setState(open.b, open.t, open.to, { confirmOwed: true })}
-            >
-              Check in, still owing
-            </button>
-            <button
-              type="button"
-              className="text-link text-link--plain"
-              onClick={() => setOpen(null)}
-            >
-              Not now
-            </button>
-          </div>
+          <MoneyOwed
+            b={open.b}
+            guide={guide}
+            onClose={() => setOpen(null)}
+            onStillOwing={() => setState(open.b, open.t, open.to, { confirmOwed: true })}
+            onPaidByLink={() =>
+              setState(open.b, open.t, open.to, { confirmOwed: true, paidBy: 'link' })
+            }
+            onCash={(kobo) => {
+              void engine.record(cashChange(m, open.b, kobo));
+              setState(open.b, open.t, open.to, { confirmOwed: true });
+            }}
+          />
         </Sheet>
       )}
 
@@ -441,5 +486,35 @@ function NoShowDialog({ b, business, onClose, onConfirm }) {
         <p className="tiny muted">Works offline; sends with the other changes.</p>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * "Everyone here: check in 4" at the next stop. A booking that owes money is left out: its
+ * people are checked in one by one, so the money question is asked.
+ * @param {{ m: any, stop: any, onGo: (changes: any[]) => void }} props
+ */
+function EveryoneHere({ m, stop, onGo }) {
+  const { changes, count, owing } = everyoneHere(m, stop);
+  if (count === 0) {
+    return owing.length ? (
+      <p className="small muted stop-note">
+        {owing.map((b) => b.lead.name).join(', ')} still {owing.length === 1 ? 'owes' : 'owe'}{' '}
+        money: tap each name to check in.
+      </p>
+    ) : null;
+  }
+  return (
+    <>
+      <button type="button" className="everyone" onClick={() => onGo(changes)}>
+        Everyone here: check in {count}
+      </button>
+      {owing.length > 0 && (
+        <p className="small muted stop-note">
+          Not {owing.map((b) => b.lead.name).join(', ')}: still{' '}
+          {owing.length === 1 ? 'owes' : 'owe'} money.
+        </p>
+      )}
+    </>
   );
 }

@@ -118,7 +118,7 @@ describe('Scan (O4)', () => {
   it('money owed: the sheet asks first', async () => {
     const engine = await scanner({ owes: true });
     cam.codes.push('code-0');
-    expect(await screen.findByText('They still owe ₦45,500')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Adaeze still owes ₦45,500' })).toBeTruthy();
     expect(screen.getByText('Deposit of ₦19,500 paid. Balance was due Sat 28 Nov.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Check in, still owing' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Check in 3' }));

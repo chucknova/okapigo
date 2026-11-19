@@ -339,3 +339,136 @@ describe('the manifest (O3)', () => {
     expect(screen.getByText('No one called “Okonkwo” on this trip.')).toBeTruthy();
   });
 });
+
+describe('money on the day and pickup stops (15c-4)', () => {
+  /** Okafor owes ₦45,500 and has a tour-day payment link. @param {(pkg: any) => void} [tweak] */
+  async function day(tweak = () => {}, path = '/departures/dep-badagry', extra = {}) {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-12-05T07:12:00+01:00'));
+    vi.stubGlobal('navigator', { ...navigator, onLine: false });
+    const pkg = makePackage();
+    const okafor = pkg.departures[0].bookings[0];
+    okafor.money = { owedKobo: 4_550_000, paidKobo: 1_950_000, label: '₦45,500 still to pay' };
+    okafor.payLink = 'https://okapigo.example/pay/' + 'a'.repeat(32);
+    tweak(pkg);
+    return show(
+      {
+        ...signedIn,
+        package: { data: pkg, etag: null, savedAt: '2026-12-05T05:40:00.000Z' },
+        ...extra,
+      },
+      path,
+    );
+  }
+
+  it('Show payment QR → they’ve paid · check them in: confirming, until the server knows', async () => {
+    const engine = await day();
+    fireEvent.click(screen.getByRole('button', { name: 'Adaeze Okafor: Not yet. Tap to change.' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Show payment QR' }));
+    expect(screen.getByRole('heading', { name: 'Scan to pay ₦45,500' })).toBeTruthy();
+    expect(
+      screen.getByRole('img', { name: 'Payment QR code for booking ILT-7Q2LKD' }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'They’ve paid · check them in' }));
+    await waitFor(() =>
+      expect(engine.getState().outbox[0]).toMatchObject({
+        kind: 'check_in',
+        status: 'present',
+        paidBy: 'link',
+        confirmOwed: true,
+      }),
+    );
+    expect(await screen.findByText('Paid by link · confirming')).toBeTruthy();
+  });
+
+  it('They paid me cash: up to what’s owed; recorded and checked in; on Today, Femi’s cash', async () => {
+    const engine = await day();
+    fireEvent.click(screen.getByRole('button', { name: 'Adaeze Okafor: Not yet. Tap to change.' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'They paid me cash' }));
+    const amount = screen.getByLabelText(/Amount you received/);
+    expect(/** @type {HTMLInputElement} */ (amount).value).toBe('45,500');
+    expect(screen.getByText(/cash reported by Femi/)).toBeTruthy();
+    fireEvent.change(amount, { target: { value: '50,000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Record and check in' }));
+    expect(screen.getByRole('alert').textContent).toBe('That’s more than they owe.');
+    fireEvent.change(amount, { target: { value: '45,500' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Record ₦45,500 and check in' }));
+    await waitFor(() =>
+      expect(engine.getState().outbox.map((/** @type {any} */ c) => c.kind)).toEqual([
+        'cash',
+        'check_in',
+      ]),
+    );
+    expect(engine.getState().outbox[0]).toMatchObject({
+      bookingId: 'b-okafor',
+      amountKobo: 4_550_000,
+    });
+    expect(await screen.findByText('Cash ₦45,500 reported · office to confirm')).toBeTruthy();
+    fireEvent.click(screen.getByRole('link', { name: 'Back to Today' }));
+    expect(await screen.findByText('Femi’s cash today')).toBeTruthy();
+    expect(screen.getByText('₦45,500 from 1 booking · hand in to the office')).toBeTruthy();
+  });
+
+  it('a possible double payment: "I gave the cash back" tells the server', async () => {
+    const calls = fakeFetch({ '/api/sync/conflicts/srv-9/dismiss': () => [204, null] });
+    vi.stubGlobal('navigator', { ...navigator, onLine: true });
+    await show(
+      {
+        ...signedIn,
+        package: { data: makePackage(), etag: null, savedAt: new Date().toISOString() },
+        conflicts: [
+          {
+            id: 'srv-9',
+            explanation: {
+              title: 'The cash from Funmi Adeyemi needs a look',
+              youDid: 'Reported ₦45,500 cash from Funmi Adeyemi at 07:12 (offline).',
+              theyLabel: 'The server had',
+              theyHad: 'They paid ₦45,500 by link at 07:14, before you synced.',
+              soNow:
+                'Their booking is paid. Your cash report is kept as a possible double payment: …',
+              canUseMine: false,
+              canGiveBack: true,
+            },
+          },
+        ],
+      },
+      '/sync',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'I gave the cash back' }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.path === '/api/sync/conflicts/srv-9/dismiss')?.body).toEqual({
+        cashReturned: true,
+      }),
+    );
+  });
+
+  it('a pickup tour: by stop, the next one with directions; "Everyone here" checks the stop in', async () => {
+    const engine = await day((pkg) => {
+      const m = pkg.departures[0];
+      m.tour.pickupPoints = [
+        { name: 'Victoria Island', address: 'Eko Hotel main gate', time: '07:15' },
+        { name: 'Ikoyi', address: 'Falomo roundabout', time: '07:30' },
+      ];
+      m.bookings[0].pickupPoint = { name: 'Ikoyi' };
+      m.bookings[1].pickupPoint = { name: 'Victoria Island' };
+    });
+    expect(screen.getByText('of 5 picked up')).toBeTruthy();
+    expect(screen.getByText('NEXT STOP · 07:15')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Directions' }).getAttribute('href')).toContain(
+      'Eko%20Hotel%20main%20gate',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Everyone here: check in 2' }));
+    await waitFor(() =>
+      expect(engine.getState().outbox[0]).toMatchObject({
+        bookingId: 'b-nwosu',
+        travellerIds: ['t-emeka', 't-guest2'],
+      }),
+    );
+    // Victoria Island is done; Ikoyi is next (Okafor owes: one by one there).
+    expect(await screen.findByText('NEXT STOP · 07:30')).toBeTruthy();
+    expect(screen.getByText(/^DONE · 07:12$/)).toBeTruthy();
+    expect(
+      screen.getByText(/Adaeze Okafor still owes money: tap each name to check in\./),
+    ).toBeTruthy();
+  });
+});

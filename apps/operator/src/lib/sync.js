@@ -257,9 +257,16 @@ export function createSyncEngine({
     retryTimer = setTimer(() => void sync(), ms);
   }
 
-  /** "OK" on a conflict: it's been seen. Needs signal (it's the server's list). @param {string} id */
-  async function dismiss(id) {
-    await call(`/api/sync/conflicts/${id}/dismiss`, { method: 'POST' });
+  /**
+   * "OK" on a conflict: it's been seen. Needs signal (it's the server's list).
+   * `cashReturned`: "I gave the cash back" on a possible double payment (15c-4).
+   * @param {string} id @param {{ cashReturned?: boolean }} [o]
+   */
+  async function dismiss(id, { cashReturned = false } = {}) {
+    await call(`/api/sync/conflicts/${id}/dismiss`, {
+      method: 'POST',
+      ...(cashReturned ? { body: { cashReturned: true } } : {}),
+    });
     const conflicts = state.conflicts.filter((c) => c.id !== id);
     await store.set('conflicts', conflicts);
     set({ conflicts });

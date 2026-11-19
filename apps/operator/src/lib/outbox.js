@@ -16,6 +16,7 @@
  * else changed it in between (a conflict, not a silent overwrite).
  */
 import { localTime } from '@okapigo/shared/time';
+import { formatNaira } from '@okapigo/shared/money';
 
 /** Bookings whose guests can be checked in (the server's rule, packages/db operations.js). */
 export const CAN_CHECK_IN = ['confirmed', 'part_paid', 'paid', 'amended', 'completed'];
@@ -52,6 +53,8 @@ export function withChanges(pkg, outbox) {
     if (c.kind === 'check_in') {
       const b = bookings.get(c.bookingId);
       if (!b || !CAN_CHECK_IN.includes(b.status)) continue; // the server will say why
+      // "They've paid by link · check them in" (15c-4): confirming, until the server knows.
+      if (c.paidBy === 'link') b.paidByLink = true;
       for (const t of b.travellers) {
         if (c.travellerIds?.length && !c.travellerIds.includes(t.id)) continue;
         t.checkInStatus = c.status;
@@ -68,6 +71,10 @@ export function withChanges(pkg, outbox) {
         t.checkedInAt = c.at;
         t.unsent = c.at;
       }
+    } else if (c.kind === 'cash') {
+      // Cash reported (15c-4): shown on the booking at once; still owing until the office confirms.
+      const b = bookings.get(c.bookingId);
+      if (b) b.cashReportedKobo = (b.cashReportedKobo ?? 0) + c.amountKobo;
     } else if (c.kind === 'name') {
       const hit = travellers.get(c.travellerId);
       if (!hit) continue;
@@ -123,6 +130,13 @@ export function describeChange(c, pkg, timeZone) {
   }
   if (c.kind === 'no_show') {
     return { who: booking ? `${booking.lead.name}’s booking` : 'A booking', what: 'no-show', time };
+  }
+  if (c.kind === 'cash') {
+    return {
+      who: `${booking?.lead.name ?? 'A booking'} · cash ${formatNaira(c.amountKobo)}`,
+      what: 'cash reported',
+      time,
+    };
   }
   const chosen = (booking?.travellers ?? []).filter(
     (/** @type {any} */ t) => !c.travellerIds?.length || c.travellerIds.includes(t.id),

@@ -1067,3 +1067,122 @@
   min-height: 100%;
   padding-top: 48px;
 }
+
+/* --- Money on the day (15c-4) ------------------------------------------------------------------ */
+.qr {
+  align-self: center;
+  width: 240px;
+  height: 240px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: #ffffff;
+}
+.center-text {
+  text-align: center;
+}
+.center-text .btn {
+  align-self: stretch;
+}
+.input--money {
+  height: 60px;
+  font-size: 26px;
+  font-weight: 800;
+}
+.plain {
+  font-weight: 400;
+}
+.info-box {
+  padding: 14px;
+  border-radius: var(--radius-button);
+  background: var(--color-info-soft);
+  color: var(--color-info);
+  font-size: var(--text-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chip--cash {
+  background: var(--color-info-soft);
+  color: var(--color-info);
+  font-weight: 800;
+}
+
+/* --- A pickup tour's manifest, by stop (Lekki) --------------------------------------------------- */
+.next-stop {
+  padding: 12px 14px;
+  border-radius: var(--radius-button);
+  background: var(--color-text);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.next-stop-tag {
+  display: block;
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  color: var(--color-mark-text);
+}
+.directions {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  flex: none;
+}
+.stop {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.stop--next {
+  border: 2px solid var(--color-text);
+}
+.stop-head {
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+.stop--done .stop-head {
+  background: var(--color-bg);
+}
+.stop--next .stop-head {
+  background: var(--color-primary-soft);
+}
+.stop-tag--done {
+  color: var(--color-success);
+}
+.stop-tag--next {
+  color: var(--color-primary-ink);
+}
+.stop .booking {
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.everyone {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  background: var(--color-surface);
+  color: var(--color-success);
+  font-size: var(--text-base);
+  font-weight: 800;
+  cursor: pointer;
+}
+.stop-note {
+  padding: 0 14px 12px;
+}

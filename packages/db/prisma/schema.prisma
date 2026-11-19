@@ -83,6 +83,7 @@ model Operator {
   messageTemplates     MessageTemplate[]
   resources            Resource[]
   syncChanges          SyncChange[]
+  cashReports          CashReport[]
   guestRequests        GuestRequest[]
   conversations        Conversation[]
 
@@ -157,6 +158,8 @@ model User {
   guiding  Departure[]
   // Changes this person's phone sent from its offline outbox (stage 15b).
   syncChanges SyncChange[]
+  // Cash this person took from guests on tour day (stage 15c-4).
+  cashReports CashReport[]
 
   // Lets departures reference (user id + operator id) together: a guide from another
   // business can't be assigned (tenant safety, like roles).
@@ -586,6 +589,7 @@ model Booking {
   addOns        BookingAddOn[]
   events        BookingEvent[]
   ledgerEntries LedgerEntry[]
+  cashReports CashReport[]
   payments      Payment[]
   paymentLinks  PaymentLink[]
   refunds       Refund[]
@@ -1215,4 +1219,31 @@ model SyncChange {
   @@unique([userId, clientId])
   @@index([operatorId, outcome, dismissedAt])
   @@map("sync_changes")
+}
+
+// Cash a guide says a guest paid them on tour day (stage 15c-4, decided 2026-11-19: "cash
+// reported by Femi"). NOT a payment: the booking still owes until the office confirms the
+// money was handed in (the bookings desk, session 16). If the guest had also paid by link,
+// it's kept as a possible double payment, for the office to sort out.
+model CashReport {
+  id           String    @id @default(uuid()) @db.Uuid
+  operatorId   String    @map("operator_id") @db.Uuid
+  bookingId    String    @map("booking_id") @db.Uuid
+  reportedById String    @map("reported_by_id") @db.Uuid
+  amountKobo   Int       @map("amount_kobo")
+  // When the guide took it (the phone's clock, like a check-in).
+  reportedAt   DateTime  @map("reported_at") @db.Timestamptz(3)
+  // reported → confirmed (handed in) · possible_double (they'd paid by link too) → returned
+  status       String    @default("reported")
+  resolvedAt   DateTime? @map("resolved_at") @db.Timestamptz(3)
+  resolvedById String?   @map("resolved_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  reportedBy User     @relation(fields: [reportedById], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([reportedById, status])
+  @@map("cash_reports")
 }

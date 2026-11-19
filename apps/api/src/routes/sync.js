@@ -7,7 +7,7 @@
  *                                                              I'm on, with manifests (304 if unchanged)
  *   POST /api/sync/changes                  operations: edit   { changes: [...] } oldest first
  *   GET  /api/sync/conflicts                operations: view   waiting to be looked at (O5)
- *   POST /api/sync/conflicts/:id/dismiss    operations: edit   "OK"
+ *   POST /api/sync/conflicts/:id/dismiss    operations: edit   "OK" ({ cashReturned }: "I gave the cash back"
  *
  * A guide sees and sends only their own; staff who can edit bookings (manager, owner) may
  * act on any departure, and see everyone's conflicts.
@@ -45,9 +45,18 @@ const Change = z.discriminatedUnion('kind', [
       confirmOwed: z.boolean().optional(),
       // What the phone saw for each traveller when the guide tapped (to spot someone else's change).
       seen: z.record(z.uuid(), z.enum(CHECK_IN_STATES)).optional(),
+      // "She's paid by link · check her in" (15c-4): kept with the change, for the phone.
+      paidBy: z.enum(['link']).optional(),
     })
     .refine((c) => Boolean(c.code) !== Boolean(c.bookingId), 'Send a ticket code OR a booking'),
   z.object({ ...Common, kind: z.literal('no_show'), bookingId: z.uuid() }),
+  // "She paid me cash" (15c-4): reported, not a payment until the office confirms it.
+  z.object({
+    ...Common,
+    kind: z.literal('cash'),
+    bookingId: z.uuid(),
+    amountKobo: z.number().int().min(100).max(100_000_000),
+  }),
   z.object({
     ...Common,
     kind: z.literal('name'),
@@ -64,8 +73,13 @@ const ChangesBody = z.object({
     .refine((cs) => new Set(cs.map((c) => c.id)).size === cs.length, 'Each change id once'),
 });
 
-/** @param {{ prisma: import('@prisma/client').PrismaClient, authSecret: string }} deps */
-export function syncRouter({ prisma, authSecret }) {
+const DismissBody = z.object({ cashReturned: z.boolean().optional() }).optional();
+
+/**
+ * @param {{ prisma: import('@prisma/client').PrismaClient, authSecret: string, webPublicUrl?: string }} deps
+ *   webPublicUrl: where guests pay (the tour-day payment links' QR, 15c-4)
+ */
+export function syncRouter({ prisma, authSecret, webPublicUrl = '' }) {
   const router = Router();
   /** @returns {import('../middleware/auth.js').AuthContext} */
   // @ts-ignore: req.auth is set by requireAuth
@@ -83,7 +97,12 @@ export function syncRouter({ prisma, authSecret }) {
 
   router.get('/sync/package', requirePermission('operations', 'view'), async (req, res) => {
     const { operatorId, userId } = authOf(req);
-    const pkg = await offlinePackage(prisma, { operatorId, userId, secret: authSecret });
+    const pkg = await offlinePackage(prisma, {
+      operatorId,
+      userId,
+      secret: authSecret,
+      webPublicUrl,
+    });
     // no-cache = "keep it, but ask me first": the phone sends the ETag back (If-None-Match)
     // and gets 304 Not Modified, with no body, when nothing changed. Express adds the ETag.
     res.set('Cache-Control', 'private, no-cache').json({ package: pkg });
@@ -116,11 +135,17 @@ export function syncRouter({ prisma, authSecret }) {
   router.post(
     '/sync/conflicts/:id/dismiss',
     requirePermission('operations', 'edit'),
-    validate({ params: IdParamsSchema }),
+    validate({ params: IdParamsSchema, body: DismissBody }),
     async (req, res) => {
       const { operatorId, userId } = authOf(req);
       await domain(() =>
-        dismissConflict(prisma, { operatorId, userId, everyone: everyone(req), id: req.params.id }),
+        dismissConflict(prisma, {
+          operatorId,
+          userId,
+          everyone: everyone(req),
+          id: req.params.id,
+          cashReturned: Boolean(req.body?.cashReturned),
+        }),
       );
       res.status(204).end();
     },

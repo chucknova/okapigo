@@ -12,6 +12,8 @@ import { useNow, useSync, useEngine } from '../lib/engine.jsx';
 import { withChanges } from '../lib/outbox.js';
 import { daysOf, cardFacts } from '../lib/today.js';
 import { isStale } from '../lib/status.js';
+import { cashToday } from '../lib/money.js';
+import { firstName } from '../lib/manifest.js';
 import { formatAt } from '@okapigo/shared/tour-facts';
 import { localDate } from '@okapigo/shared/time';
 
@@ -28,6 +30,9 @@ export function Today() {
   const todayDate = localDate(now, tz);
   const who = [pkg?.operator?.name, s.session?.user?.name].filter(Boolean).join(' · ');
   const conflict = s.conflicts[0];
+  // "Femi’s cash today" (designs: Money owed on the day 3), so nothing is forgotten.
+  const cash = cashToday(pkg, s.outbox);
+  const me = firstName(s.session?.user?.name ?? 'Your');
   const stale = !coversToday && pkg && s.connection !== 'online' && isStale(s, now);
 
   return (
@@ -130,6 +135,13 @@ export function Today() {
                 );
               })}
             </>
+          )}
+          {cash && (
+            <section className="card stack-xs">
+              <strong>{me === 'Your' ? 'Your' : `${me}’s`} cash today</strong>
+              <span className="sm">{cash}</span>
+              <span className="small muted">Not a payment until the office confirms it.</span>
+            </section>
           )}
           {today.length + tomorrow.length > 0 && (
             <p className="small muted">

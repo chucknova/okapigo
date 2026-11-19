@@ -281,7 +281,7 @@ export function createApp({
   api.use(websiteRouter({ prisma })); // the website's style and mode (12g)
   api.use(messageTemplatesRouter({ prisma })); // the guest messages' wording (14a)
   api.use(operationsRouter({ prisma, authSecret })); // resources, manifests, check-in (15a)
-  api.use(syncRouter({ prisma, authSecret })); // the operator app offline: package, outbox (15b)
+  api.use(syncRouter({ prisma, authSecret, webPublicUrl })); // the operator app offline: package, outbox (15b)
   api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).

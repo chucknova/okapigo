@@ -26,6 +26,7 @@ import { formatNaira } from '@okapigo/shared/money';
 import { BookingError } from './booking-lifecycle.js';
 import { ticketCode, bookingIdFromTicketCode } from './guest-links.js';
 import { manifest, checkIn, noShow, nameTraveller } from './operations.js';
+import { tourDayLink, reportCash, cashReturned } from './cash.js';
 
 /** At most this many changes per request; a phone with more sends them in turns. */
 export const MAX_CHANGES_PER_SYNC = 500;
@@ -46,6 +47,7 @@ const CONFLICT_CODES = new Set([
   'NOT_ASSIGNED', //       this guide was taken off the departure
   'NOT_STARTED', //        a no-show before the start (the phone's clock?)
   'INVALID_TRANSITION', // the booking's state moved on some other way
+  'PAID_MEANWHILE', //     cash reported, but they'd paid by link meanwhile (15c-4)
 ]);
 
 /**
@@ -68,9 +70,14 @@ export const ticketFingerprint = (code) => createHash('sha256').update(code, 'ut
  * refreshing every few minutes gets "304 Not Modified" (an ETag) unless something changed.
  *
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ operatorId: string, userId: string, secret: string, now?: Date }} q
+ * Also (15c-4): each booking that still owes carries its balance as a payment link (the guide
+ * shows it as a QR, with no signal), and the guide's cash not yet confirmed by the office.
+ * @param {{ operatorId: string, userId: string, secret: string, webPublicUrl?: string, now?: Date }} q
  */
-export async function offlinePackage(prisma, { operatorId, userId, secret, now = new Date() }) {
+export async function offlinePackage(
+  prisma,
+  { operatorId, userId, secret, webPublicUrl = '', now = new Date() },
+) {
   const operator = await prisma.operator.findUniqueOrThrow({ where: { id: operatorId } });
   const tz = operator.timeZone;
   const today = localDate(now, tz);
@@ -89,19 +96,47 @@ export async function offlinePackage(prisma, { operatorId, userId, secret, now =
   const manifests = [];
   for (const { id } of departures) {
     const m = await manifest(prisma, { operatorId, departureId: id });
-    manifests.push({
-      ...m,
-      bookings: m.bookings.map((b) => ({
+    const raw = await prisma.booking.findMany({ where: { departureId: id, operatorId } });
+    const bookings = [];
+    for (const b of m.bookings) {
+      const row = raw.find((x) => x.id === b.id);
+      bookings.push({
         ...b,
         ticketFingerprint: ticketFingerprint(ticketCode(secret, b.id)),
-      })),
-    });
+        payLink:
+          row && b.money.owedKobo > 0
+            ? await tourDayLink(prisma, {
+                operatorId,
+                booking: row,
+                endsAt: new Date(m.departure.endsAt),
+                secret,
+                webPublicUrl,
+              })
+            : null,
+      });
+    }
+    manifests.push({ ...m, bookings });
   }
+  // "Femi's cash today": what this guide took and hasn't handed in yet (designs: Money owed).
+  const cash = await prisma.cashReport.findMany({
+    where: { operatorId, reportedById: userId, status: { in: ['reported', 'possible_double'] } },
+    include: { booking: true },
+    orderBy: { reportedAt: 'asc' },
+  });
   return {
     // "Call the office" (O4, O5): the business's phone, if it has one.
     operator: { name: operator.name, timeZone: tz, phone: operator.phone },
     days: [today, addDays(today, 1)],
     departures: manifests,
+    myCash: cash.map((c) => ({
+      id: c.id,
+      bookingId: c.bookingId,
+      reference: c.booking.reference,
+      lead: c.booking.leadName,
+      amountKobo: c.amountKobo,
+      reportedAt: c.reportedAt,
+      status: c.status,
+    })),
   };
 }
 
@@ -113,11 +148,12 @@ export async function offlinePackage(prisma, { operatorId, userId, secret, now =
  *       status: 'present' | 'late' | 'no_show' | 'pending', confirmOwed?: boolean, seen?: Record<string, string> }
  *   | { kind: 'no_show', bookingId: string }
  *   | { kind: 'name', travellerId: string, name: string, seen?: string }
+ *   | { kind: 'cash', bookingId: string, amountKobo: number }
  * )} Change
  *
  * @typedef {{
  *   title: string, youDid: string, theyLabel: string, theyHad: string, soNow: string,
- *   canUseMine: boolean,
+ *   canUseMine: boolean, canGiveBack: boolean,
  * }} Explanation  a conflict as screen O5 shows it (YOU DID / THE OFFICE HAD / SO NOW)
  *
  * @typedef {{
@@ -247,6 +283,18 @@ async function perform(prisma, { operatorId, userId, secret, anyDeparture }, cha
     });
     return { bookingId: r.booking.id, already: r.already };
   }
+  if (change.kind === 'cash') {
+    const operator = await prisma.operator.findUniqueOrThrow({ where: { id: operatorId } });
+    return reportCash(prisma, {
+      operatorId,
+      departureId,
+      bookingId: change.bookingId,
+      amountKobo: change.amountKobo,
+      userId,
+      at,
+      tz: operator.timeZone,
+    });
+  }
   if (change.kind === 'no_show') {
     return noShow(prisma, {
       operatorId,
@@ -305,7 +353,7 @@ async function explain(prisma, { operatorId, userId, secret }, change, at, now, 
       ? change.code
         ? bookingIdFromTicketCode(secret, change.code)
         : change.bookingId
-      : change.kind === 'no_show'
+      : change.kind === 'no_show' || change.kind === 'cash'
         ? change.bookingId
         : ((await prisma.traveller.findFirst({ where: { id: change.travellerId, operatorId } }))
             ?.bookingId ?? null);
@@ -359,6 +407,9 @@ async function explain(prisma, { operatorId, userId, secret }, change, at, now, 
       change.status === 'pending'
         ? `The check-in for ${whom} wasn’t undone`
         : `${capital(whom)} ${not} ${change.status === 'present' ? 'checked in' : `marked ${marked[change.status]}`}`;
+  } else if (change.kind === 'cash') {
+    did = `reported ${formatNaira(change.amountKobo)} cash from ${lead}`;
+    title = `The cash from ${lead} needs a look`;
   } else if (change.kind === 'no_show') {
     did = `marked ${lead}’s booking a no-show`;
     title = `${lead}’s booking wasn’t marked a no-show`;
@@ -453,6 +504,19 @@ async function explain(prisma, { operatorId, userId, secret }, change, at, now, 
       had: 'Hadn’t started yet. Is this phone’s clock right?',
       now: 'Nothing changed. Mark it again once the tour has started.',
     },
+    PAID_MEANWHILE: {
+      why: details.paid?.time
+        ? `they’d paid ${formatNaira(details.paid.amountKobo)} by link at ${details.paid.time}`
+        : 'the booking was already paid',
+      label: 'The server had',
+      had: details.paid?.time
+        ? `They paid ${formatNaira(details.paid.amountKobo)} by link at ${details.paid.time}, before you synced.`
+        : 'The booking was already paid, before you synced.',
+      now:
+        (details.owedKobo ?? 0) > 0
+          ? `They still owe ${formatNaira(details.owedKobo)}. Your cash report is kept as a possible double payment: the office will sort it out with you.`
+          : 'Their booking is paid. Your cash report is kept as a possible double payment: give the cash back to them, or hand it in and the office will refund one.',
+    },
     INVALID_TRANSITION: {
       why: `the booking had changed (it’s now ${b?.status.replace('_', ' ') ?? 'gone'})`,
       label: office,
@@ -483,6 +547,8 @@ async function explain(prisma, { operatorId, userId, secret }, change, at, now, 
       soNow: p.now,
       // "Use mine": only when someone else's check-in state won (send mine again, after theirs).
       canUseMine: err.code === 'CHANGED_FIRST' && change.kind === 'check_in',
+      // "I gave the cash back": only on a possible double payment (15c-4).
+      canGiveBack: err.code === 'PAID_MEANWHILE',
     },
   };
 }
@@ -528,11 +594,13 @@ export async function listConflicts(prisma, { operatorId, userId, everyone }) {
  * "OK" on a conflict: someone has seen it. Nothing else changes (the server's version
  * already stands; "Undo mine" on the phone is just a new change in the outbox).
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ operatorId: string, userId: string, everyone: boolean, id: string, now?: Date }} q
+ * `cashReturned` ("I gave the cash back", 15c-4): the possible double payment's cash report
+ * is closed too.
+ * @param {{ operatorId: string, userId: string, everyone: boolean, id: string, cashReturned?: boolean, now?: Date }} q
  */
 export async function dismissConflict(
   prisma,
-  { operatorId, userId, everyone, id, now = new Date() },
+  { operatorId, userId, everyone, id, cashReturned: gaveBack = false, now = new Date() },
 ) {
   const { count } = await prisma.syncChange.updateMany({
     where: {
@@ -545,4 +613,11 @@ export async function dismissConflict(
     data: { dismissedAt: now, dismissedById: userId },
   });
   if (count === 0) throw new BookingError('NOT_FOUND', 'That conflict wasn’t found.');
+  if (gaveBack) {
+    const row = await prisma.syncChange.findUniqueOrThrow({ where: { id } });
+    const cashReportId = /** @type {any} */ (row.data)?.cashReportId;
+    if (row.code === 'PAID_MEANWHILE' && cashReportId) {
+      await cashReturned(prisma, { operatorId, cashReportId, userId, now });
+    }
+  }
 }

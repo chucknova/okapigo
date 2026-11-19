@@ -22,6 +22,7 @@ import { formatNaira } from '@okapigo/shared/money';
 import { formatAt } from '@okapigo/shared/tour-facts';
 import { balanceDueDate } from '@okapigo/shared/deposits';
 import { CAN_CHECK_IN } from './outbox.js';
+import { payChip } from './money.js';
 
 /** The shape of an OkapiGo ticket code (packages/db guest-links.js): readable without the secret. */
 export const TICKET_PATTERN = /^OKG1[A-Za-z0-9_-]{38}$/;
@@ -198,7 +199,9 @@ export function goodScan(m, b, { now, tz }) {
   return {
     ref: b.reference,
     lead,
-    pay: owedKobo > 0 ? { text: b.money.label, tone: 'owes' } : { text: 'Paid', tone: 'paid' },
+    pay: payChip(b),
+    payLink: b.payLink ?? null,
+    owedKobo,
     owes:
       owedKobo > 0
         ? {
@@ -239,9 +242,9 @@ export function goodScan(m, b, { now, tz }) {
 /**
  * Checking in the ticked travellers: one change. `seen`: they were "Not yet" on this phone.
  * @param {any} m @param {any} b @param {string[]} ids @param {'present' | 'late'} status
- * @param {{ confirmOwed?: boolean }} [o]
+ * @param {{ confirmOwed?: boolean, paidBy?: 'link' }} [o]
  */
-export function scanCheckIn(m, b, ids, status, { confirmOwed = false } = {}) {
+export function scanCheckIn(m, b, ids, status, { confirmOwed = false, paidBy } = {}) {
   return {
     kind: /** @type {const} */ ('check_in'),
     departureId: m.departure.id,
@@ -250,6 +253,7 @@ export function scanCheckIn(m, b, ids, status, { confirmOwed = false } = {}) {
     status,
     seen: Object.fromEntries(ids.map((id) => [id, 'pending'])),
     ...(confirmOwed ? { confirmOwed: true } : {}),
+    ...(paidBy ? { paidBy } : {}),
   };
 }
 

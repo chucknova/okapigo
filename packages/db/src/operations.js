@@ -177,6 +177,8 @@ export async function manifest(prisma, { operatorId, departureId }) {
           travellers: { orderBy: { position: 'asc' } },
           addOns: { include: { addOn: true } },
           policyVersion: true,
+          // Cash a guide reported, not yet confirmed by the office (15c-4).
+          cashReports: { where: { status: { in: ['reported', 'possible_double'] } } },
           events: {
             where: { toStatus: { in: ['cancelled', 'no_show'] } },
             orderBy: { createdAt: 'desc' },
@@ -234,6 +236,7 @@ export async function manifest(prisma, { operatorId, departureId }) {
       // What a no-show gets back under the policy this booking was sold with (0 at Ìrìn): the
       // guide's "Mark no-show?" says so (designs: O3 states). Null when sold without one.
       noShowRefundPercent: b.policyVersion ? b.policyVersion.noShowRefundBasisPoints / 100 : null,
+      cashReportedKobo: b.cashReports.reduce((n, c) => n + c.amountKobo, 0),
       // A cancelled booking stays, struck through: "cancelled yesterday".
       endedAt: active ? null : (b.events[0]?.createdAt ?? null),
       travellers,
@@ -241,6 +244,8 @@ export async function manifest(prisma, { operatorId, departureId }) {
   });
 
   return {
+    // For the printed manifest's header ("ÌRÌN LAGOS TOURS · MANIFEST", "Printed …").
+    business: { name: d.product.operator.name, timeZone: tz },
     departure: {
       id: d.id,
       status: d.status,
@@ -259,6 +264,9 @@ export async function manifest(prisma, { operatorId, departureId }) {
       shortTitle: d.product.shortTitle,
       meetingPoint: d.product.meetingPoint,
       durationMinutes: d.product.durationMinutes,
+      // The van's stops, in order, each with its time (Lekki: 07:15 · 07:30 · 07:45). The
+      // manifest of a pickup tour is grouped by them (designs: Manifest with pickup points).
+      pickupPoints: d.product.pickupPoints,
     },
     guide: d.guide ? { id: d.guide.id, name: d.guide.name } : null,
     resource: d.resource

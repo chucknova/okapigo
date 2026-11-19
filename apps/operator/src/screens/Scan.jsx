@@ -17,6 +17,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { Icon } from '../components/Icon.jsx';
 import { Sheet } from '../components/Sheet.jsx';
+import { MoneyOwed } from '../components/MoneyOwed.jsx';
+import { cashChange } from '../lib/money.js';
+import { firstName } from '../lib/manifest.js';
 import { useEngine, useNow, useSync } from '../lib/engine.jsx';
 import { withChanges } from '../lib/outbox.js';
 import { formatAt } from '@okapigo/shared/tour-facts';
@@ -94,9 +97,12 @@ export function Scan() {
     buzz(r.kind === 'ok' ? 'ok' : 'problem');
     show(r);
   }
-  /** @param {any} b @param {string[]} ids @param {'present' | 'late'} status @param {boolean} confirmOwed */
-  async function checkIn(b, ids, status, confirmOwed) {
-    const change = await engine.record(scanCheckIn(m, b, ids, status, { confirmOwed }));
+  /**
+   * @param {any} b @param {string[]} ids @param {'present' | 'late'} status
+   * @param {boolean} confirmOwed @param {'link'} [paidBy]
+   */
+  async function checkIn(b, ids, status, confirmOwed, paidBy) {
+    const change = await engine.record(scanCheckIn(m, b, ids, status, { confirmOwed, paidBy }));
     setResult(null);
     setNote({ text: afterNote(b, ids, status), change });
     setView('camera');
@@ -110,8 +116,10 @@ export function Scan() {
         b={raw(result.b.id)}
         now={now}
         tz={tz}
+        guide={firstName(s.session?.user?.name ?? 'you')}
         onClose={() => setResult(null)}
         onCheckIn={checkIn}
+        onCash={(cb, kobo) => void engine.record(cashChange(m, cb, kobo))}
       />
     ) : result ? (
       <ProblemSheet
@@ -332,15 +340,17 @@ function NoCamera({ denied, onRetry, onSearch }) {
 
 /**
  * "Ticket OK": tick who's here, then check them in (or mark them late).
- * @param {{ m: any, b: any, now: Date, tz: string, onClose: () => void,
- *   onCheckIn: (b: any, ids: string[], status: 'present' | 'late', confirmOwed: boolean) => void }} props
+ * @param {{ m: any, b: any, now: Date, tz: string, guide: string, onClose: () => void,
+ *   onCash: (b: any, amountKobo: number) => void,
+ *   onCheckIn: (b: any, ids: string[], status: 'present' | 'late', confirmOwed: boolean, paidBy?: 'link') => void }} props
  */
-function GoodScanSheet({ m, b, now, tz, onClose, onCheckIn }) {
+function GoodScanSheet({ m, b, now, tz, guide, onClose, onCheckIn, onCash }) {
   const v = goodScan(m, b, { now, tz });
   const [ticked, setTicked] = useState(
     () => new Set(v.people.filter((p) => p.waiting).map((p) => p.id)),
   );
   const [owingOk, setOwingOk] = useState(v.owesAsked);
+  const [paidBy, setPaidBy] = useState(/** @type {'link' | undefined} */ (undefined));
   const ids = v.people.filter((p) => ticked.has(p.id)).map((p) => p.id);
   const waiting = v.people.filter((p) => p.waiting).length;
   const howMany = ids.length === waiting ? `${ids.length}` : `${ids.length} of ${waiting}`;
@@ -360,22 +370,21 @@ function GoodScanSheet({ m, b, now, tz, onClose, onCheckIn }) {
           {!v.owes && <span className={`chip chip--${v.pay.tone}`}>{v.pay.text}</span>}
         </div>
         {asking && v.owes ? (
-          <>
-            <div role="alert" className="owes-box">
-              <strong className="owes-title">{v.owes.title}</strong>
-              <span className="sm">{v.owes.detail}</span>
-            </div>
-            <button
-              type="button"
-              className="btn btn--outline btn--strong"
-              onClick={() => setOwingOk(true)}
-            >
-              Check in, still owing
-            </button>
-            <button type="button" className="text-link text-link--plain" onClick={onClose}>
-              Not now
-            </button>
-          </>
+          <MoneyOwed
+            b={b}
+            guide={guide}
+            detail={v.owes.detail}
+            onClose={onClose}
+            onStillOwing={() => setOwingOk(true)}
+            onPaidByLink={() => {
+              setPaidBy('link');
+              setOwingOk(true);
+            }}
+            onCash={(kobo) => {
+              onCash(b, kobo);
+              setOwingOk(true);
+            }}
+          />
         ) : (
           <>
             <fieldset className="who">
@@ -413,7 +422,7 @@ function GoodScanSheet({ m, b, now, tz, onClose, onCheckIn }) {
               type="button"
               className="btn btn--present btn--big"
               disabled={ids.length === 0}
-              onClick={() => onCheckIn(b, ids, 'present', Boolean(v.owes))}
+              onClick={() => onCheckIn(b, ids, 'present', Boolean(v.owes), paidBy)}
             >
               Check in {howMany}
             </button>
@@ -421,7 +430,7 @@ function GoodScanSheet({ m, b, now, tz, onClose, onCheckIn }) {
               <button
                 type="button"
                 className="btn btn--outline"
-                onClick={() => onCheckIn(b, ids, 'late', Boolean(v.owes))}
+                onClick={() => onCheckIn(b, ids, 'late', Boolean(v.owes), paidBy)}
               >
                 Mark {ids.length} late ({v.lateAt})
               </button>

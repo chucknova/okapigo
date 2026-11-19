@@ -15,6 +15,7 @@ import { describe, it, expect, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { bookingIdFromGuestToken, ticketCode } from '@okapigo/db';
 import { createTestContext, TEST_AUTH_SECRET } from './helpers.js';
+import { printableManifest } from '../src/routes/operations.js';
 import { sendGuestMessages } from '../src/messages/send.js';
 import { createChannels } from '../src/whatsapp/channels.js';
 
@@ -336,9 +337,93 @@ describe('the manifest (OPS-07, screen O3)', () => {
     // Printable (or "Save as PDF"): every row, escaped, the cancelled one struck through.
     const page = await asKemi.get(`/api/departures/${walk.id}/manifest/print`);
     expect(page.headers['content-type']).toMatch(/text\/html/);
-    expect(page.text).toContain('Guest 2 of Adaeze Okafor’s booking');
-    expect(page.text).toContain('₦25,000 still to pay');
-    expect(page.text).toMatch(/<tr class="ended">/);
+    // (The A4 design, 15c-4.)
+    expect(page.text).toContain('Ìrìn Lagos Tours · Manifest');
+    expect(page.text).toContain('<strong>3</strong>travellers · 2 adults, 1 child');
+    expect(page.text).toContain('<strong>1</strong>dietary: no peanuts');
+    expect(page.text).toContain('<strong>₦25,000</strong>still owed (1 booking)');
+    expect(page.text).toContain('Guest 2 (name: ____________)');
+    expect(page.text).toContain('NO PEANUTS');
+    expect(page.text).toContain('owes ₦25,000');
+    expect(page.text).toMatch(
+      /Cancelled, don’t check in:<\/strong> Tola Bello · [A-Z]+-\w+ · 1 guest \(cancelled /,
+    );
+    expect(page.text).toContain('No-show: write NS in the box. Late: write the time.');
+  });
+
+  it('printed: a pickup tour’s rows grouped by stop, in the van’s order, with their times', () => {
+    const t = (
+      /** @type {string} */ id,
+      /** @type {string} */ name,
+      /** @type {number} */ position,
+    ) => ({
+      id,
+      name,
+      position,
+      age: null,
+      dietaryNeeds: '',
+      checkInStatus: 'pending',
+      checkedInAt: null,
+      category: { key: 'adult', name: 'Adult (13+)' },
+    });
+    const b = (
+      /** @type {string} */ ref,
+      /** @type {string} */ lead,
+      /** @type {string} */ stop,
+      /** @type {any[]} */ travellers,
+    ) => ({
+      id: ref,
+      reference: ref,
+      status: 'paid',
+      endedAt: null,
+      lead: { name: lead, phone: '+2348020000000' },
+      pickupPoint: { name: stop },
+      addOns: [],
+      money: { owedKobo: 0, label: 'Paid' },
+      travellers,
+    });
+    const html = printableManifest(
+      {
+        business: { name: 'Ìrìn Lagos Tours', timeZone: 'Africa/Lagos' },
+        departure: {
+          startsAt: '2026-12-05T07:00:00Z',
+          endsAt: '2026-12-05T12:00:00Z',
+          localDate: '2026-12-05',
+          localTime: '08:00',
+          notes: 'Driver: Sola',
+        },
+        tour: {
+          title: 'Lekki Nature and Craft Half-Day',
+          meetingPoint: { name: 'the Conservation Centre' },
+          pickupPoints: [
+            { name: 'Victoria Island', address: 'Eko Hotel main gate', time: '07:15' },
+            { name: 'Ikoyi', address: 'Falomo roundabout', time: '07:30' },
+          ],
+        },
+        guide: { name: 'Segun' },
+        resource: { name: 'Van 2', seats: 10 },
+        bookings: [
+          b('ILT-IKOYI1', 'Tola Johnson', 'Ikoyi', [t('a', 'Tola Johnson', 1), t('b', '', 2)]),
+          b('ILT-VI0001', 'Kelechi <Okoro>', 'Victoria Island', [t('c', 'Kelechi Okoro', 1)]),
+        ],
+      },
+      new Date('2026-12-05T05:35:00Z'),
+    );
+    const vi = html.indexOf('07:15 · Victoria Island · Eko Hotel main gate');
+    const ikoyi = html.indexOf('07:30 · Ikoyi · Falomo roundabout');
+    expect(vi).toBeGreaterThan(0);
+    expect(ikoyi).toBeGreaterThan(vi); // the van's order, not the bookings'
+    expect(html.indexOf('ILT-VI0001')).toBeGreaterThan(vi);
+    expect(html.indexOf('ILT-VI0001')).toBeLessThan(ikoyi);
+    expect(html.indexOf('ILT-IKOYI1')).toBeGreaterThan(ikoyi);
+    // Each booking once, under its own stop.
+    expect(html.split('ILT-VI0001').length - 1).toBe(1);
+    expect(html.split('ILT-IKOYI1').length - 1).toBe(1);
+    expect(html).toContain('Guest 2 (name: ____________)');
+    expect(html).toContain('Kelechi &lt;Okoro&gt;'); // escaped
+    expect(html).toContain('<strong>Van 2</strong> · 10 seats · Driver: Sola');
+    expect(html).toContain('Printed Sat 5 Dec, 06:35');
+    expect(html).toContain('Sat 5 Dec 2026 · 08:00 · back about 13:00 · the Conservation Centre');
   });
 });
 

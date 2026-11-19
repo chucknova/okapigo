@@ -99,6 +99,18 @@ async function setup() {
     return { id, code: ticketCode(TEST_AUTH_SECRET, id), travellerIds };
   };
 
+  /** A booking made by the office and confirmed, nothing paid: it owes the whole price. */
+  const bookOwing = async (/** @type {any} */ departure, name = 'Funmi Adeyemi') => {
+    const created = await manager.post('/api/bookings').send({
+      departureId: departure.id,
+      lead: { name, phone: '0805 987 6543', acceptTerms: true },
+      travellers: [{ name, age: 30 }],
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    await manager.post(`/api/bookings/${created.body.booking.id}/confirm`).send({});
+    return /** @type {string} */ (created.body.booking.id);
+  };
+
   /** Moves a departure so it starts `fromNow` ms from now (negative: already started). */
   const moveTo = async (/** @type {any} */ departure, /** @type {number} */ fromNow) => {
     const startsAt = new Date(Date.now() + fromNow);
@@ -138,6 +150,7 @@ async function setup() {
     asChinedu,
     departureOf,
     book,
+    bookOwing,
     moveTo,
     assign,
     tourDay,
@@ -365,6 +378,7 @@ describe('conflicts: kept in plain words; the server’s version stands', () => 
       theyHad: expect.stringMatching(/^Cancelled the booking at \d\d:\d\d\.$/),
       soNow: 'Nothing changed. The booking stays cancelled. If they’re with you, call the office.',
       canUseMine: false,
+      canGiveBack: false,
     });
     expect((await s.traveller(bookings[0].travellerIds[0])).checkInStatus).toBe('pending');
 
@@ -613,5 +627,146 @@ describe('72 hours offline (PRD: zero data loss)', () => {
       orderBy: { happenedAt: 'asc' },
     });
     expect(stored.map((c) => c.happenedAt.toISOString())).toEqual(times);
+  });
+});
+
+describe('money on the day (15c-4): the payment QR and cash', () => {
+  /** Today's walk with Kemi, one booking that owes. */
+  async function owingDay() {
+    const s = await setup();
+    const walk = await s.departureOf('lagos-island-heritage-walk');
+    const owing = await s.bookOwing(walk);
+    await s.moveTo(walk, -HOUR);
+    await s.assign(walk, s.kemi.id);
+    const row = await ctx.prisma.booking.findUniqueOrThrow({ where: { id: owing } });
+    return { ...s, walk, owing, owedKobo: row.totalKobo - row.amountPaidKobo };
+  }
+  const bookingIn = (/** @type {any} */ pkg, /** @type {string} */ id) =>
+    pkg.departures[0].bookings.find((/** @type {any} */ b) => b.id === id);
+
+  it('a booking that owes carries its balance as a link: the same on every refresh, made without messaging the guest', async () => {
+    const d = await owingDay();
+    const first = await d.asKemi.get('/api/sync/package');
+    const link = bookingIn(first.body.package, d.owing).payLink;
+    expect(link).toMatch(/\/pay\/[A-Za-z0-9_-]{32}$/);
+    // The same link again: the package is unchanged, so its ETag too (304).
+    const again = await d.asKemi.get('/api/sync/package').set('If-None-Match', first.headers.etag);
+    expect(again.status).toBe(304);
+    expect(await ctx.prisma.paymentLink.count({ where: { bookingId: d.owing } })).toBe(1);
+    // It's a real link for the whole balance, good until the day after the tour.
+    const page = await request(ctx.app).get(`/public/payment-links/${link.split('/').pop()}`);
+    expect(page.status).toBe(200);
+    const row = await ctx.prisma.paymentLink.findFirstOrThrow({ where: { bookingId: d.owing } });
+    expect(row).toMatchObject({ amountKobo: d.owedKobo, status: 'active', createdById: null });
+    // No message to the guest about it (unlike a link the office sends).
+    expect(
+      await ctx.prisma.notification.count({ where: { bookingId: d.owing, kind: 'payment_link' } }),
+    ).toBe(0);
+  });
+
+  it('cash reported: kept, shown to the guide; the booking still owes until the office confirms', async () => {
+    const d = await owingDay();
+    const res = await d.asKemi.sync([
+      d.change({
+        at: ago(10 * 60_000),
+        kind: 'cash',
+        departureId: d.walk.id,
+        bookingId: d.owing,
+        amountKobo: d.owedKobo,
+      }),
+    ]);
+    expect(res.body.results[0]).toMatchObject({ outcome: 'applied' });
+    expect(res.body.results[0].data.label).toMatch(/^Cash ₦[\d,]+ reported · office to confirm$/);
+    const b = await ctx.prisma.booking.findUniqueOrThrow({ where: { id: d.owing } });
+    expect(b.amountPaidKobo).toBe(0); // not a payment
+    const pkg = (await d.asKemi.get('/api/sync/package')).body.package;
+    expect(bookingIn(pkg, d.owing).cashReportedKobo).toBe(d.owedKobo);
+    expect(pkg.myCash).toEqual([
+      expect.objectContaining({ bookingId: d.owing, amountKobo: d.owedKobo, status: 'reported' }),
+    ]);
+    expect(
+      await ctx.prisma.bookingEvent.count({ where: { bookingId: d.owing, type: 'cash_reported' } }),
+    ).toBe(1);
+  });
+
+  it('they’d paid by link before the phone synced: a possible double payment; "I gave the cash back"', async () => {
+    const d = await owingDay();
+    const link = bookingIn((await d.asKemi.get('/api/sync/package')).body.package, d.owing).payLink;
+    const token = link.split('/').pop();
+    const reference = (
+      await request(ctx.app).post(`/public/payment-links/${token}/pay`)
+    ).body.payment.authorizationUrl
+      .split('/')
+      .pop();
+    await ctx.provider.complete(reference);
+    await request(ctx.app).post(`/public/payment-links/${token}/check`);
+
+    const res = await d.asKemi.sync([
+      d.change({
+        at: ago(5 * 60_000),
+        kind: 'cash',
+        departureId: d.walk.id,
+        bookingId: d.owing,
+        amountKobo: d.owedKobo,
+      }),
+    ]);
+    const [r] = res.body.results;
+    expect(r).toMatchObject({ outcome: 'conflict', code: 'PAID_MEANWHILE' });
+    expect(r.explanation).toMatchObject({
+      title: 'The cash from Funmi Adeyemi needs a look',
+      theyLabel: 'The server had',
+      theyHad: expect.stringMatching(
+        /^They paid ₦[\d,]+ by link at \d\d:\d\d, before you synced\.$/,
+      ),
+      soNow:
+        'Their booking is paid. Your cash report is kept as a possible double payment: give the cash back to them, or hand it in and the office will refund one.',
+      canGiveBack: true,
+      canUseMine: false,
+    });
+    const report = await ctx.prisma.cashReport.findFirstOrThrow({ where: { bookingId: d.owing } });
+    expect(report.status).toBe('possible_double');
+
+    const [conflict] = (await d.asKemi.get('/api/sync/conflicts')).body.conflicts;
+    expect(
+      (
+        await d.asKemi
+          .post(`/api/sync/conflicts/${conflict.id}/dismiss`)
+          .send({ cashReturned: true })
+      ).status,
+    ).toBe(204);
+    expect(
+      (await ctx.prisma.cashReport.findUniqueOrThrow({ where: { id: report.id } })).status,
+    ).toBe('returned');
+    expect((await d.asKemi.get('/api/sync/package')).body.package.myCash).toEqual([]);
+    // …and the booking no longer shows it as reported (settled: given back).
+    expect(
+      bookingIn((await d.asKemi.get('/api/sync/package')).body.package, d.owing).cashReportedKobo,
+    ).toBe(0);
+  });
+
+  it('the office cancelled the tour-day link: no QR on the phone (not made again either)', async () => {
+    const d = await owingDay();
+    const first = bookingIn(
+      (await d.asKemi.get('/api/sync/package')).body.package,
+      d.owing,
+    ).payLink;
+    expect(first).toBeTruthy();
+    const link = await ctx.prisma.paymentLink.findFirstOrThrow({ where: { bookingId: d.owing } });
+    expect((await d.manager.post(`/api/payment-links/${link.id}/cancel`)).status).toBe(204);
+    expect(
+      bookingIn((await d.asKemi.get('/api/sync/package')).body.package, d.owing).payLink,
+    ).toBeNull();
+    expect(await ctx.prisma.paymentLink.count({ where: { bookingId: d.owing } })).toBe(1);
+  });
+
+  it('the manifest of a pickup tour carries its stops, in order, with their times', async () => {
+    const s = await setup();
+    const lekki = await s.departureOf('lekki-nature-and-craft');
+    const m = (await s.manager.get(`/api/departures/${lekki.id}/manifest`)).body.manifest;
+    expect(m.tour.pickupPoints).toEqual([
+      { name: 'Victoria Island', address: 'Eko Hotel main gate', time: '07:15' },
+      { name: 'Ikoyi', address: 'Falomo roundabout', time: '07:30' },
+      { name: 'Lekki Phase 1', address: 'Admiralty Way gate', time: '07:45' },
+    ]);
   });
 });
