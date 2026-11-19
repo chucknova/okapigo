@@ -62,9 +62,10 @@ async function setup() {
     return { id, departureId: departure.id, tripDate, dueDate: addDays(tripDate, -7) };
   };
 
+  // The balance notices only (a pay-later booking also gets its confirmation, stage 14a).
   const notices = (bookingId) =>
     ctx.prisma.notification.findMany({
-      where: { bookingId },
+      where: { bookingId, kind: { in: ['balance_reminder', 'balance_overdue'] } },
       orderBy: { createdAt: 'asc' },
       select: { key: true, audience: true, status: true, data: true },
     });
@@ -84,7 +85,8 @@ describe('the daily balance job', () => {
     expect(await run(addDays(dueDate, -7))).toMatchObject({ reminders: 1 });
     expect(await notices(id)).toEqual([
       {
-        key: 'balance_reminder:7',
+        // One row per channel the guest gave (stage 14a): this one gave a phone only.
+        key: 'balance_reminder:7:whatsapp',
         audience: 'guest',
         status: 'pending',
         data: { daysBefore: 7, balanceKobo: 2_500_000, departureLocalDate: tripDate },
@@ -95,7 +97,7 @@ describe('the daily balance job', () => {
     expect(await run(addDays(dueDate, -7))).toMatchObject({ reminders: 0 });
     expect(await run(addDays(dueDate, -6))).toMatchObject({ reminders: 0 });
 
-    // 3 days before: a new reminder; the 7-day one nobody sent (no sender until session 14)
+    // 3 days before: a new reminder; the 7-day one nobody sent (here: no sender is running)
     // is cancelled so the guest never gets both.
     await run(addDays(dueDate, -3));
     await run(addDays(dueDate, -1));
@@ -104,9 +106,9 @@ describe('the daily balance job', () => {
     expect(await run(addDays(dueDate, 2))).toMatchObject({ overdue: 0 });
 
     expect((await notices(id)).map((n) => [n.key, n.audience, n.status])).toEqual([
-      ['balance_reminder:7', 'guest', 'cancelled'],
-      ['balance_reminder:3', 'guest', 'cancelled'],
-      ['balance_reminder:1', 'guest', 'cancelled'],
+      ['balance_reminder:7:whatsapp', 'guest', 'cancelled'],
+      ['balance_reminder:3:whatsapp', 'guest', 'cancelled'],
+      ['balance_reminder:1:whatsapp', 'guest', 'cancelled'],
       ['balance_overdue', 'staff', 'pending'],
     ]);
     // …and the booking itself is untouched: nothing is cancelled automatically.
@@ -123,7 +125,7 @@ describe('the daily balance job', () => {
     // The job didn't run on the 3-day milestone; the next morning it catches up.
     expect(await run(addDays(dueDate, -2))).toMatchObject({ reminders: 1 });
 
-    expect((await notices(id)).map((n) => n.key)).toEqual(['balance_reminder:3']);
+    expect((await notices(id)).map((n) => n.key)).toEqual(['balance_reminder:3:whatsapp']);
   });
 
   it('cancels waiting notices once the balance is paid or the trip is called off', async () => {

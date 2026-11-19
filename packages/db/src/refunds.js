@@ -19,6 +19,7 @@
  * The ledger is written only when the money actually leaves (markRefundProcessed), because
  * "we asked Paystack" is not "the guest has their money".
  */
+import { planGuestMessage } from './guest-messages.js';
 import { POSTINGS } from '@okapigo/shared/ledger';
 import { formatNaira } from '@okapigo/shared/money';
 import { BookingError, transitionBookingInTx } from './booking-lifecycle.js';
@@ -281,6 +282,13 @@ export function markRefundProcessed(prisma, refundId) {
             _sum: { amountKobo: true },
           })
         )._sum.amountKobo ?? 0;
+      // "Your refund of ₦31,250 has been sent" (stage 14a), decided with the ledger entry.
+      await planGuestMessage(tx, {
+        booking,
+        kind: 'refund_sent',
+        key: `refund_sent:${refund.id}`,
+        data: { refundKobo: refund.amountKobo },
+      });
       await tx.bookingEvent.create({
         data: {
           operatorId: booking.operatorId,

@@ -22,19 +22,22 @@ reuses checkout's screens inside a frame, so it needs the least new design.
 
 ## Decisions so far
 
-| Date       | Question                                       | Decision                                                                                                 | Brief | Built in         |
-| ---------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----- | ---------------- |
-| 2026-11-17 | Can children or infants book without an adult? | **No.** At least one adult per booking, on every channel. "Adult" = the tour's adult price (13+ at Ìrìn) | 01    | stage 11b        |
-| 2026-11-17 | Is the pickup point stored?                    | **Yes**, required on tours with pickup points                                                            | 01    | stage 11b        |
-| 2026-11-17 | When is a deposit balance due?                 | **7 days before the trip**; later bookings pay in full                                                   | 02    | stage 11c        |
-| 2026-11-17 | When do balance reminders go out?              | **7, 3 and 1 days before the due date**                                                                  | 02    | stage 11d        |
-| 2026-11-17 | Balance not paid in time?                      | **Staff are alerted**; nothing is cancelled automatically                                                | 02    | stage 11d        |
-| 2026-11-17 | Can guests cancel from the trip hub?           | **Yes, and they can ask the operator instead**                                                           | 05    | session 12       |
-| 2026-11-17 | When is the widget's Embed page designed?      | **Later, with the operator app** (see below)                                                             | 03    | sessions 15–16   |
-| 2026-11-18 | WhatsApp: travellers' names and ages?          | **The lead's name; ages only for children and infants** (staff name the rest at check-in)                | 06    | session 13       |
-| 2026-11-18 | WhatsApp: how long are seats held?             | **30 minutes** (the website keeps 15)                                                                    | 06    | session 13       |
-| 2026-11-18 | WhatsApp: the staff take-over screen?          | **Later, with the operator app**; its API now                                                            | 06    | session 13 (API) |
-| 2026-11-18 | WhatsApp: how does the ticket arrive?          | **The QR image and the trip page link**                                                                  | 06    | session 13       |
+| Date       | Question                                       | Decision                                                                                                                      | Brief | Built in         |
+| ---------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----- | ---------------- |
+| 2026-11-17 | Can children or infants book without an adult? | **No.** At least one adult per booking, on every channel. "Adult" = the tour's adult price (13+ at Ìrìn)                      | 01    | stage 11b        |
+| 2026-11-17 | Is the pickup point stored?                    | **Yes**, required on tours with pickup points                                                                                 | 01    | stage 11b        |
+| 2026-11-17 | When is a deposit balance due?                 | **7 days before the trip**; later bookings pay in full                                                                        | 02    | stage 11c        |
+| 2026-11-17 | When do balance reminders go out?              | **7, 3 and 1 days before the due date**                                                                                       | 02    | stage 11d        |
+| 2026-11-17 | Balance not paid in time?                      | **Staff are alerted**; nothing is cancelled automatically                                                                     | 02    | stage 11d        |
+| 2026-11-17 | Can guests cancel from the trip hub?           | **Yes, and they can ask the operator instead**                                                                                | 05    | session 12       |
+| 2026-11-17 | When is the widget's Embed page designed?      | **Later, with the operator app** (see below)                                                                                  | 03    | sessions 15–16   |
+| 2026-11-18 | WhatsApp: travellers' names and ages?          | **The lead's name; ages only for children and infants** (staff name the rest at check-in)                                     | 06    | session 13       |
+| 2026-11-18 | WhatsApp: how long are seats held?             | **30 minutes** (the website keeps 15)                                                                                         | 06    | session 13       |
+| 2026-11-18 | WhatsApp: the staff take-over screen?          | **Later, with the operator app**; its API now                                                                                 | 06    | session 13 (API) |
+| 2026-11-18 | WhatsApp: how does the ticket arrive?          | **The QR image and the trip page link**                                                                                       | 06    | session 13       |
+| 2026-11-19 | How is session 14 (messages) staged?           | **14a** messages and editable templates, sent once; **14b** email (your layout); **14c** real WhatsApp templates and journeys | 02    | session 14       |
+| 2026-11-19 | Which email service?                           | **Resend** (free tier); in development every email goes to a local mailbox                                                    | 02    | stage 14b        |
+| 2026-11-19 | WhatsApp guests who gave an email?             | **Email too**: the chat keeps its ticket, the email is the receipt; no second WhatsApp confirmation                           | 02    | stage 14a        |
 
 ## Deferred to the operator app briefs
 

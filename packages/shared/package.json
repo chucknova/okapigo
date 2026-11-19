@@ -31,7 +31,8 @@
     "./preview": "./src/preview.js",
     "./tokens": "./src/tokens.js",
     "./tour-facts": "./src/tour-facts.js",
-    "./trip-hub": "./src/trip-hub.js"
+    "./trip-hub": "./src/trip-hub.js",
+    "./message-templates": "./src/message-templates.js"
   },
   "scripts": {
     "test": "vitest run"

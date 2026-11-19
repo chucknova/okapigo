@@ -19,6 +19,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
+  planGuestMessage,
   createPaymentLink,
   findPaymentLink,
   payWithLink,
@@ -38,6 +39,9 @@ import { serializePayment, serializePaymentLink } from './serializers.js';
 const CreateLinkSchema = z.object({
   amountKobo: z.number().int().positive().max(2_000_000_000).optional(),
   expiresInDays: z.number().int().min(1).max(30).default(7),
+  // Send it to the guest too (stage 14a: WhatsApp and/or email). false = just make the
+  // link, to share some other way.
+  send: z.boolean().default(true),
 });
 const AllocateSchema = z.object({ bookingId: z.uuid() });
 
@@ -84,10 +88,28 @@ export function paymentLinksRouters({
           expiresInDays: req.body.expiresInDays,
           actor: { type: 'user', userId },
         });
+        const url = `${webPublicUrl}/pay/${token}`;
+        // "Here's your payment link" (stage 14a). The link travels in the message's row until
+        // it's sent, then the row forgets it: only the message the guest got holds it.
+        if (req.body.send) {
+          const booking = await prisma.booking.findUniqueOrThrow({
+            where: { id: req.params.id },
+            include: { product: true, departure: true },
+          });
+          await planGuestMessage(prisma, {
+            booking,
+            kind: 'payment_link',
+            key: `payment_link:${link.id}`,
+            data: {
+              url,
+              amountKobo: link.amountKobo,
+              purpose: link.purpose,
+              expiresAt: link.expiresAt.toISOString(),
+            },
+          });
+        }
         // The ONLY time the full URL is revealed: the token isn't stored, only its hash.
-        res
-          .status(201)
-          .json({ link: serializePaymentLink(link), url: `${webPublicUrl}/pay/${token}` });
+        res.status(201).json({ link: serializePaymentLink(link), url });
       } catch (err) {
         throw toHttp(err);
       }

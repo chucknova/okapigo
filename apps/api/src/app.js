@@ -36,6 +36,7 @@ import { whatsappSimulatorRouter } from './routes/whatsapp-simulator.js';
 import { conversationsRouter } from './routes/conversations.js';
 import { whatsappWebhookRouter } from './routes/whatsapp-webhook.js';
 import { whatsappSettingsRouter } from './routes/whatsapp-settings.js';
+import { messageTemplatesRouter } from './routes/message-templates.js';
 import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
@@ -236,6 +237,7 @@ export function createApp({
   api.use(alertsRouter({ prisma }));
   api.use(guestRequestsRouter({ prisma })); // "Ask Ìrìn" from the trip hub (12f-2)
   api.use(websiteRouter({ prisma })); // the website's style and mode (12g)
+  api.use(messageTemplatesRouter({ prisma })); // the guest messages' wording (14a)
   api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).

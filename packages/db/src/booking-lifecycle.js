@@ -16,6 +16,7 @@
  * It takes a transaction (`tx`), so the status change, the event, and whatever else the
  * caller is doing (moving seats, recording a payment) commit together or not at all.
  */
+import { planForTransition } from './guest-messages.js';
 import { canTransition } from '@okapigo/shared/booking-status';
 
 /** A booking action that isn't allowed right now, with a code (the API sends 409). */
@@ -75,6 +76,9 @@ export async function transitionBookingInTx(tx, { bookingId, to, actor, data = {
       data: /** @type {any} */ (data),
     },
   });
+  // The guest's messages this change brings (stage 14a), in this same transaction: decided
+  // exactly when the change happens, and never twice.
+  await planForTransition(tx, { ...booking, status: to }, { from, to, data });
 
   return { ...booking, status: to };
 }

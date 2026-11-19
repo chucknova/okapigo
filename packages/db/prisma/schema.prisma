@@ -80,6 +80,7 @@ model Operator {
   paymentLinks         PaymentLink[]
   refunds              Refund[]
   notifications        Notification[]
+  messageTemplates     MessageTemplate[]
   guestRequests        GuestRequest[]
   conversations        Conversation[]
 
@@ -979,6 +980,10 @@ model Notification {
   // "balance_reminder:3", "balance_reminder:1", "balance_overdue". However often the job runs,
   // a guest gets each reminder at most once.
   key        String
+  // A guest message goes out on one channel per row (stage 14a): "whatsapp" or "email", so
+  // each can succeed or fail on its own. Its key ends in the channel ("…:email"). Staff
+  // alerts and the chat's own notices have none.
+  channel    String?
   // What the message needs, frozen when it was decided: amount, due date, days left…
   data       Json
   status     String    @default("pending")
@@ -1105,4 +1110,28 @@ model ChatMessage {
   @@index([conversationId, seq])
   @@index([providerMessageId])
   @@map("chat_messages")
+}
+
+// MessageTemplate: an operator's own wording for one guest message (OPS-11, stage 14a).
+// No row = OkapiGo's default wording (packages/shared/src/message-templates.js, from your
+// design file 02). Deleting the row goes back to the default.
+model MessageTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  operatorId  String   @map("operator_id") @db.Uuid
+  // booking_confirmed · deposit_received · balance_reminder · payment_link ·
+  // booking_cancelled · refund_sent
+  kind        String
+  // The email's subject line (the WhatsApp message has none).
+  subject     String
+  // The words, with {placeholders} filled from the booking. Used for WhatsApp as it is,
+  // and inside the email layout (stage 14b).
+  body        String
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@unique([operatorId, kind])
+  @@map("message_templates")
 }

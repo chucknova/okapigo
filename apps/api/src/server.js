@@ -22,6 +22,7 @@ import { createJobClient } from '@okapigo/jobs';
 import { createPaymentProvider, redisStore } from '@okapigo/payments';
 import { createApp } from './app.js';
 import { sendChatNotices } from './whatsapp/notices.js';
+import { sendGuestMessages } from './messages/send.js';
 import { createChannels } from './whatsapp/channels.js';
 
 const simulatorDist = new URL('../../simulators/dist', import.meta.url).pathname;
@@ -95,29 +96,35 @@ const server = app.listen(config.API_PORT, () => {
 // "your 30 minutes are up". Every few seconds, so the ticket follows the payment closely; a
 // pass with nothing due is one small query. One pass at a time (a slow pass is skipped over,
 // not stacked). Safe with several API processes: each message is claimed once (notices.js).
+// The same channels the app delivers on (the simulator; WhatsApp when configured).
+const channels = createChannels({
+  whatsapp: config.WHATSAPP_ACCESS_TOKEN
+    ? {
+        accessToken: config.WHATSAPP_ACCESS_TOKEN,
+        graphVersion: config.WHATSAPP_GRAPH_VERSION,
+        log: logger,
+      }
+    : null,
+});
 const NOTICES_EVERY_MS = 5_000;
 let noticesRunning = false;
 const notices = setInterval(async () => {
   if (noticesRunning) return;
   noticesRunning = true;
   try {
-    const sent = await sendChatNotices({
+    const deps = {
       prisma,
       authSecret: config.AUTH_SECRET,
       apiPublicUrl: config.API_PUBLIC_URL,
       webPublicUrl: config.WEB_PUBLIC_URL ?? config.API_PUBLIC_URL,
-      channels: createChannels({
-        whatsapp: config.WHATSAPP_ACCESS_TOKEN
-          ? {
-              accessToken: config.WHATSAPP_ACCESS_TOKEN,
-              graphVersion: config.WHATSAPP_GRAPH_VERSION,
-              log: logger,
-            }
-          : null,
-      }),
+      channels,
       log: logger,
-    });
-    if (sent.tickets + sent.holdsOver > 0) logger.info(sent, 'chat notices sent');
+    };
+    const sent = await sendChatNotices(deps);
+    if (sent.tickets + sent.holdsOver + sent.declined > 0) logger.info(sent, 'chat notices sent');
+    // The guest messages (stage 14a): confirmations, reminders, cancellations, refunds.
+    const messages = await sendGuestMessages(deps);
+    if (messages.sent + messages.failed > 0) logger.info(messages, 'guest messages sent');
   } catch (err) {
     logger.warn({ err }, 'chat notices pass failed');
   } finally {

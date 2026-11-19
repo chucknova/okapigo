@@ -7,7 +7,7 @@
  * (balanceNotice) what the booking should have by today, and writes it to the OUTBOX
  * (the notifications table):
  *
- *   7, 3, 1 days before the due date → guest  "balance_reminder:7|3|1"   (sent in session 14)
+ *   7, 3, 1 days before the due date → guest  "balance_reminder:7|3|1:<channel>" (sent, 14a)
  *   the day after the due date       → staff  "balance_overdue"          (shown at /api/alerts)
  *
  * Nothing is cancelled automatically: an overdue balance only alerts staff (decided
@@ -23,6 +23,7 @@
  */
 import { balanceNotice } from '@okapigo/shared/deposits';
 import { localDate } from '@okapigo/shared/time';
+import { planGuestMessage } from './guest-messages.js';
 
 const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
 
@@ -65,36 +66,45 @@ export async function queueBalanceNotices(prisma, { now = new Date(), operatorId
     if (!notice) continue;
 
     const balanceKobo = booking.totalKobo - booking.amountPaidKobo;
-    const row =
-      notice.kind === 'reminder'
-        ? {
-            audience: 'guest',
-            kind: 'balance_reminder',
-            key: `balance_reminder:${notice.daysBefore}`,
-            data: { daysBefore: notice.daysBefore, balanceKobo, departureLocalDate },
-          }
-        : {
-            audience: 'staff',
-            kind: 'balance_overdue',
-            key: 'balance_overdue',
-            data: { balanceKobo, departureLocalDate },
-          };
+    const data = { balanceKobo, departureLocalDate };
 
     const created = await prisma.$transaction(async (tx) => {
-      const { count } = await tx.notification.createMany({
-        data: [{ operatorId: booking.operatorId, bookingId: booking.id, ...row }],
-        // ON CONFLICT DO NOTHING: this reminder was already written on an earlier run.
-        skipDuplicates: true,
-      });
+      // A reminder goes to the guest on each channel they gave (stage 14a: one row each,
+      // "balance_reminder:7:whatsapp"); the overdue alert goes to staff.
+      const count =
+        notice.kind === 'reminder'
+          ? await planGuestMessage(tx, {
+              booking,
+              kind: 'balance_reminder',
+              key: `balance_reminder:${notice.daysBefore}`,
+              data: { ...data, daysBefore: notice.daysBefore },
+            })
+          : (
+              await tx.notification.createMany({
+                data: [
+                  {
+                    operatorId: booking.operatorId,
+                    bookingId: booking.id,
+                    audience: 'staff',
+                    kind: 'balance_overdue',
+                    key: 'balance_overdue',
+                    data,
+                  },
+                ],
+                // ON CONFLICT DO NOTHING: this alert was already written on an earlier run.
+                skipDuplicates: true,
+              })
+            ).count;
       if (count > 0) {
         // A newer notice makes an older UNSENT reminder pointless (or wrong: "3 days left"
-        // arriving after the due date). Cancel it in the same transaction.
+        // arriving after the due date). Cancel it, on every channel, in this transaction.
+        const mine = notice.kind === 'reminder' ? `balance_reminder:${notice.daysBefore}:` : null;
         await tx.notification.updateMany({
           where: {
             bookingId: booking.id,
             kind: 'balance_reminder',
             status: 'pending',
-            key: { not: row.key },
+            ...(mine && { NOT: { key: { startsWith: mine } } }),
           },
           data: { status: 'cancelled' },
         });
@@ -102,8 +112,8 @@ export async function queueBalanceNotices(prisma, { now = new Date(), operatorId
       return count;
     }, TX_OPTIONS);
 
-    if (created > 0 && row.audience === 'guest') reminders += 1;
-    if (created > 0 && row.audience === 'staff') overdue += 1;
+    if (created > 0 && notice.kind === 'reminder') reminders += 1;
+    if (created > 0 && notice.kind !== 'reminder') overdue += 1;
   }
 
   return { checked: owing.length, reminders, overdue, cancelled };

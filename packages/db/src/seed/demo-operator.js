@@ -15,6 +15,7 @@
  *
  * Later sessions extend this file with schedules, bookings and resources.
  */
+import { MESSAGES } from '@okapigo/shared/message-templates';
 import { createOperatorWithPresetRoles } from '../operators.js';
 import { TOURS } from './tours.js';
 import { syncScheduleDepartures } from '../departures.js';
@@ -101,6 +102,20 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
           phone: '+2348090000123',
           whatsapp: '+2348090000123',
           site: IRIN_SITE, // the one-page website's words (stage 12g-2)
+        },
+      });
+
+      // Ìrìn's own last line for "Refund sent" (your design file 02): an example of a business
+      // editing a message. Everyone else starts with OkapiGo's wording (stage 14a).
+      await tx.messageTemplate.create({
+        data: {
+          operatorId: operator.id,
+          kind: 'refund_sent',
+          subject: MESSAGES.refund_sent.subject,
+          body: MESSAGES.refund_sent.body.replace(
+            'We hope to see you again soon.',
+            'We hope to walk Lagos with you another time.',
+          ),
         },
       });
 
