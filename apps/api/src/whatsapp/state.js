@@ -6,7 +6,7 @@
  * dropped and the chat starts again rather than crashing.
  *
  *   step         where the guest is: hello · choose_tour · choose_date · count · count_type ·
- *                age · add_on · pickup · name · email · summary
+ *                age · add_on · pickup · name · email · summary · pay_choice · hold_over
  *   tourSlug     the tour chosen          departureId  the date chosen
  *   counts       { adult: 2, child: 1 }   (per price category, in the order asked)
  *   categoryIndex / ageIndex / ages      which category or child is being asked about
@@ -30,6 +30,8 @@ export const ConversationStateSchema = z.object({
       'name',
       'email',
       'summary',
+      'pay_choice', // full or deposit? (only when the tour takes deposits)
+      'hold_over', // the 30 minutes ran out: hold the same seats again?
     ])
     .default('hello'),
   tourSlug: z.string().max(80).optional(),

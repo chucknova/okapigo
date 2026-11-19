@@ -10,7 +10,7 @@
  *   buttons    { kind: 'buttons', text, buttons: [{ id, title }] }       at most 3, 20 chars
  *   list       { kind: 'list', text, button, rows: [{ id, title, description? }] }
  *              at most 10 rows; title 24 chars, description 72, the list's button 20
- *   image      { kind: 'image', url, caption }                          the QR ticket (13b)
+ *   image      { kind: 'image', url, caption }      the QR ticket (13b); caption 1024 chars
  *
  * The builders below ENFORCE those limits (cutting with "…"), so nothing the bot says can be
  * refused by WhatsApp. `fitsWhatsApp()` is what the tests check every reply against.
@@ -26,6 +26,7 @@ export const LIMITS = {
   rowTitle: 24,
   rowDescription: 72,
   listButton: 20,
+  caption: 1024,
 };
 
 /** Cuts to `max` characters, ending in "…" when it had to. @param {string} s @param {number} max */
@@ -90,7 +91,8 @@ export function fitsWhatsApp(m) {
       )
     );
   }
-  if (m.kind === 'image') return typeof m.url === 'string';
+  if (m.kind === 'image')
+    return /^https?:\/\//.test(m.url) && (m.caption ?? '').length <= LIMITS.caption;
   return false;
 }
 
@@ -165,6 +167,42 @@ export const say = {
       { id: 'change', title: 'Change something' },
       { id: 'cancel', title: 'Cancel' },
     ]),
+  /** @param {string} full "₦70,000" @param {string} deposit "₦21,000" @param {string} balanceDue "Sat 12 Dec" */
+  payChoice: (full, deposit, balanceDue) =>
+    buttons(`Pay it all now, or pay a deposit now and the rest by ${balanceDue}?`, [
+      { id: 'pay_full', title: `Pay ${full}` },
+      { id: 'pay_deposit', title: `Deposit ${deposit}` },
+      { id: 'cancel', title: 'Cancel' },
+    ]),
+  /** @param {string} amount "₦70,000" @param {string} url @param {string} until "14:35" */
+  payLink: (amount, url, until) =>
+    text(
+      `Pay ${amount} here: ${url}\n\nYour seats are held until ${until}. Your ticket arrives here as soon as the payment goes through.`,
+    ),
+  /** Sent by itself when the hold runs out (notices.js). */
+  holdExpired: () =>
+    buttons('Your 30 minutes are up, so the seats were given back. Want me to hold them again?', [
+      { id: 'hold_again', title: 'Hold them again' },
+      { id: 'tours', title: 'See tours' },
+    ]),
+  /** @param {string[]} lines the booking, line by line */
+  ticket: (lines) => text(lines.join('\n')),
+  /** @param {string} url @param {string} reference */
+  ticketImage: (url, reference) => ({
+    kind: 'image',
+    url,
+    caption: `Your ticket · ${reference}. Show this QR code at check-in.`,
+  }),
+  /** @param {string} tripUrl */
+  tripLink: (tripUrl) =>
+    text(
+      `Your trip page (ticket, map, changes): ${tripUrl}\n\nType "person" any time to reach the team.`,
+    ),
+  holdOver: () =>
+    buttons('Sorry, the 30 minutes to pay are up and the seats were given back.', [
+      { id: 'tours', title: 'See tours' },
+      { id: 'person', title: 'Talk to a person' },
+    ]),
   cancelled: () =>
     buttons('Cancelled. Nothing was charged.', [{ id: 'tours', title: 'See tours' }]),
   /** @param {string} operatorName */
@@ -172,6 +210,16 @@ export const say = {
     text(
       `I've asked the ${shortName(operatorName)} team to join. They usually reply within a few minutes. (Until they do, you can still type "menu".)`,
     ),
+  /** A staff member took over (take-over API). @param {string} staffName @param {string} operatorName */
+  staffJoined: (staffName, operatorName) =>
+    text(
+      `${staffName.split(/\s+/)[0]} from the ${shortName(operatorName)} team has joined the chat.`,
+    ),
+  /** Staff handed the chat back to the bot. */
+  handBack: () =>
+    buttons("Thanks for chatting with the team. I'm here if you need anything else.", [
+      { id: 'tours', title: 'See tours' },
+    ]),
   /** @param {string} again what to choose ("Choose from the list") */
   didntGet: (again) => text(`Sorry, I didn't get that. ${again}, or type "menu" to start again.`),
 };

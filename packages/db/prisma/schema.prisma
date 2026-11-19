@@ -1084,9 +1084,13 @@ model ChatMessage {
   // The channel's own id for the message (WhatsApp's "wamid…"), to match delivery receipts.
   providerMessageId String? @map("provider_message_id")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  // The ORDER messages were written in (stage 13b). Not createdAt: Postgres' now() is the
+  // transaction's start, so a guest's message and the bot's replies, written in one
+  // transaction, share a timestamp and could be shown in any order.
+  seq            BigInt   @default(autoincrement())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  @@index([conversationId, createdAt])
+  @@index([conversationId, seq])
   @@map("chat_messages")
 }

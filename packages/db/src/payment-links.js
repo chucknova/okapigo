@@ -50,8 +50,16 @@ export async function createPaymentLink(
       balanceKobo,
     });
   }
+  // full: the whole price, nothing paid yet (the WhatsApp assistant's link, stage 13b)
+  // balance: what's left after a deposit · deposit: part, before anything was paid · custom
   const purpose =
-    amount === balanceKobo ? 'balance' : booking.status === 'held' ? 'deposit' : 'custom';
+    amount === balanceKobo
+      ? booking.amountPaidKobo === 0
+        ? 'full'
+        : 'balance'
+      : booking.status === 'held'
+        ? 'deposit'
+        : 'custom';
 
   const token = randomBytes(24).toString('base64url');
   const link = await prisma.paymentLink.create({

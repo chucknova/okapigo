@@ -20,6 +20,8 @@ import { createLogOtpSender } from './auth/otp-sender.js';
 import { createJobClient } from '@okapigo/jobs';
 import { createPaymentProvider, redisStore } from '@okapigo/payments';
 import { createApp } from './app.js';
+import { sendChatNotices } from './whatsapp/notices.js';
+import { createChannels } from './whatsapp/channels.js';
 
 const config = loadConfig();
 const logger = createLogger({
@@ -71,8 +73,36 @@ const server = app.listen(config.API_PORT, () => {
   logger.info(`API listening on http://localhost:${config.API_PORT}`);
 });
 
+// The WhatsApp assistant's own messages (stage 13b): the ticket once a payment settles, and
+// "your 30 minutes are up". Every few seconds, so the ticket follows the payment closely; a
+// pass with nothing due is one small query. One pass at a time (a slow pass is skipped over,
+// not stacked). Safe with several API processes: each message is claimed once (notices.js).
+const NOTICES_EVERY_MS = 5_000;
+let noticesRunning = false;
+const notices = setInterval(async () => {
+  if (noticesRunning) return;
+  noticesRunning = true;
+  try {
+    const sent = await sendChatNotices({
+      prisma,
+      authSecret: config.AUTH_SECRET,
+      apiPublicUrl: config.API_PUBLIC_URL,
+      webPublicUrl: config.WEB_PUBLIC_URL ?? config.API_PUBLIC_URL,
+      channels: createChannels(),
+      log: logger,
+    });
+    if (sent.tickets + sent.holdsOver > 0) logger.info(sent, 'chat notices sent');
+  } catch (err) {
+    logger.warn({ err }, 'chat notices pass failed');
+  } finally {
+    noticesRunning = false;
+  }
+}, NOTICES_EVERY_MS);
+notices.unref();
+
 /** @param {string} signal */
 async function shutdown(signal) {
+  clearInterval(notices);
   logger.info({ signal }, 'shutting down');
   // Stop accepting new connections. The callback runs once existing requests finish.
   server.close(async () => {

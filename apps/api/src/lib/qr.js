@@ -11,6 +11,7 @@
  * `viewBox="0 0 size size"` with a white quiet zone around it, so cameras find the edges.
  */
 import { encode } from 'uqr';
+import { Resvg } from '@resvg/resvg-js';
 
 /**
  * @param {string} text  what the guide's scanner reads (the ticket code)
@@ -30,4 +31,24 @@ export function qrPath(text) {
     }
   }
   return { size, path };
+}
+
+/** Pixels per QR module, and the white margin (in modules) cameras need around it. */
+const PNG_SCALE = 12;
+const QUIET_ZONE = 4;
+
+/**
+ * The same QR as a PNG (stage 13b): WhatsApp sends images, and doesn't take SVG. A black
+ * QR on white, whatever the operator's colours: scanners read contrast, not brand.
+ * @param {string} text
+ * @returns {Buffer}
+ */
+export function qrPng(text) {
+  const { size, path } = qrPath(text);
+  const full = size + QUIET_ZONE * 2;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${full} ${full}" width="${full * PNG_SCALE}" height="${full * PNG_SCALE}" shape-rendering="crispEdges">` +
+    `<rect width="${full}" height="${full}" fill="#fff"/>` +
+    `<path transform="translate(${QUIET_ZONE} ${QUIET_ZONE})" fill="#000" d="${path}"/></svg>`;
+  return new Resvg(svg).render().asPng();
 }

@@ -35,11 +35,10 @@ import {
   guestCancelBooking,
   requestBookingRefund,
   createGuestRequest,
-  PAYABLE_STATUSES,
   checkPayment,
 } from '@okapigo/db';
 import { localDate, localTime } from '@okapigo/shared/time';
-import { depositOffer, balanceDueDate } from '@okapigo/shared/deposits';
+import { balanceDueDate } from '@okapigo/shared/deposits';
 import { PublicQuoteRequestSchema } from '@okapigo/shared/schemas/pricing';
 import { PublicCreateBookingSchema } from '@okapigo/shared/schemas/bookings';
 import { validate } from '../middleware/validate.js';
@@ -47,8 +46,9 @@ import { HttpError } from '../middleware/errors.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { toHttp } from './bookings.js';
 import { startPaymentForHttp } from './payments.js';
-import { qrPath } from '../lib/qr.js';
+import { qrPath, qrPng } from '../lib/qr.js';
 import { bookForGuest } from '../lib/guest-booking.js';
+import { paymentOptions } from '../lib/payment-options.js';
 
 const Slug = z
   .string()
@@ -68,49 +68,6 @@ const PayBodySchema = z.object({
   // "any": the guest chooses card or bank transfer on Paystack's page.
   method: z.enum(['card', 'bank_transfer', 'any']).default('any'),
 });
-
-/**
- * @typedef {{ type: 'full', amountKobo: number }
- *   | { type: 'deposit', amountKobo: number, balanceKobo: number, balanceDueDate: string }
- *   | { type: 'balance', amountKobo: number }} PaymentOption
- */
-
-/**
- * What the guest can pay right now. Shown on the review screen AND used to check "Pay", so
- * the screen can only offer what the server will accept.
- *   held, hold still on  → full, plus a deposit if the tour allows one (deposits.js)
- *   confirmed / part_paid / amended with money owed → the balance
- *   anything else (paid, cancelled, hold expired…) → nothing
- * @param {any} b  booking with product.operator, departure, hold
- * @param {Date} now
- * @returns {PaymentOption[]}
- */
-function paymentOptions(b, now) {
-  const balanceKobo = b.totalKobo - b.amountPaidKobo;
-  if (balanceKobo <= 0 || !PAYABLE_STATUSES.includes(b.status)) return [];
-  if (b.status !== 'held') return [{ type: 'balance', amountKobo: balanceKobo }];
-  if (b.hold.status !== 'active' || b.hold.expiresAt <= now) return [];
-
-  const { timeZone } = b.product.operator;
-  const deposit = depositOffer({
-    totalKobo: b.totalKobo,
-    amountPaidKobo: b.amountPaidKobo,
-    depositBasisPoints: b.product.depositBasisPoints,
-    departureLocalDate: localDate(b.departure.startsAt, timeZone),
-    todayLocalDate: localDate(now, timeZone),
-  });
-  /** @type {PaymentOption[]} */
-  const options = [{ type: 'full', amountKobo: balanceKobo }];
-  if (deposit) {
-    options.push({
-      type: 'deposit',
-      amountKobo: deposit.depositKobo,
-      balanceKobo: deposit.balanceKobo,
-      balanceDueDate: deposit.balanceDueDate,
-    });
-  }
-  return options;
-}
 
 /**
  * Per-IP limits. Generous on purpose: one public IP is often many real people (see
@@ -586,6 +543,25 @@ export function publicCheckoutRouter({
       }
       const fresh = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
       res.set('Cache-Control', 'no-store').json({ status: fresh.status });
+    },
+  );
+
+  // --- The ticket as an image (the WhatsApp ticket, stage 13b) ----------------------------
+
+  router.get(
+    '/public/bookings/:token/ticket.png',
+    limiter('guest'),
+    validate({ params: TokenParams }),
+    async (req, res) => {
+      const booking = await findGuestBooking(req.params.token);
+      // No trip to go on (held, cancelled…), no ticket: the same rule as the trip hub.
+      if (!TICKET_STATUSES.includes(booking.status)) {
+        throw new HttpError(404, 'NOT_FOUND', 'No ticket for this booking.');
+      }
+      res
+        .set('Cache-Control', 'private, no-store')
+        .type('image/png')
+        .send(qrPng(ticketCode(authSecret, booking.id)));
     },
   );
 

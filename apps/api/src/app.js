@@ -33,6 +33,8 @@ import { alertsRouter } from './routes/alerts.js';
 import { guestRequestsRouter } from './routes/guest-requests.js';
 import { websiteRouter } from './routes/website.js';
 import { whatsappSimulatorRouter } from './routes/whatsapp-simulator.js';
+import { conversationsRouter } from './routes/conversations.js';
+import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
 import { publicCheckoutRouter } from './routes/public-checkout.js';
@@ -78,6 +80,8 @@ export function createApp({
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
   const otp = createOtpService({ prisma, otpSender, authSecret });
+  // Where chat messages are delivered (the simulator now; WhatsApp in 13c).
+  const channels = createChannels();
   const authenticate = requireAuth(sessions);
   const quotes = createQuoteService({ prisma });
   const payments = paymentsRouters({ prisma, provider, apiPublicUrl });
@@ -150,7 +154,15 @@ export function createApp({
   // The WhatsApp simulator (BKG-09, session 13): a guest's chat, the same booking engine as
   // the real WhatsApp will use. Public like the website's checkout, and rate-limited.
   app.use(
-    whatsappSimulatorRouter({ prisma, quotes, jobs, authSecret, webPublicUrl, rateLimitStore }),
+    whatsappSimulatorRouter({
+      prisma,
+      quotes,
+      jobs,
+      authSecret,
+      webPublicUrl,
+      rateLimitStore,
+      channels,
+    }),
   );
 
   // --- Staff API: everything under /api requires sign-in ----------------------
@@ -174,6 +186,7 @@ export function createApp({
   api.use(alertsRouter({ prisma }));
   api.use(guestRequestsRouter({ prisma })); // "Ask Ìrìn" from the trip hub (12f-2)
   api.use(websiteRouter({ prisma })); // the website's style and mode (12g)
+  api.use(conversationsRouter({ prisma, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

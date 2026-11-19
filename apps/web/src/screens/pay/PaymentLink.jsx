@@ -23,6 +23,7 @@ import { ErrorState } from '../../components/ErrorState.jsx';
 import { useLook } from '../../lib/look.js';
 
 const TITLE = {
+  full: 'Pay for your booking', // the whole price, nothing paid yet (WhatsApp, stage 13b)
   deposit: 'Pay your deposit',
   balance: 'Pay your balance',
   custom: 'Payment request',
@@ -214,9 +215,11 @@ export function PaymentLink({ params, done = false }) {
           <div className="okg-label">
             {link.purpose === 'custom'
               ? 'Amount'
-              : link.purpose === 'deposit'
-                ? 'Deposit'
-                : 'Balance'}
+              : link.purpose === 'full'
+                ? 'Total'
+                : link.purpose === 'deposit'
+                  ? 'Deposit'
+                  : 'Balance'}
           </div>
           <div className="okg-link-card__amount okg-money">{formatNaira(link.amountKobo)}</div>
         </div>

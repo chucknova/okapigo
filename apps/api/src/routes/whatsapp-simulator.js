@@ -21,7 +21,6 @@ import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { receive } from '../whatsapp/conversations.js';
-import { simulatorChannel } from '../whatsapp/channels.js';
 
 const LABEL = 'okapigo:simulator-chat:v1';
 
@@ -47,6 +46,7 @@ const MessageSchema = z.union([
  *   authSecret: string,
  *   webPublicUrl: string,
  *   rateLimitStore: any,
+ *   channels: Record<string, { send: Function }>,
  * }} deps
  */
 export function whatsappSimulatorRouter({
@@ -56,9 +56,9 @@ export function whatsappSimulatorRouter({
   authSecret,
   webPublicUrl,
   rateLimitStore,
+  channels,
 }) {
   const router = Router();
-  const channels = { simulator: simulatorChannel() };
   const key = createHmac('sha256', authSecret).update(LABEL).digest();
   /** @param {string} id */
   const tokenFor = (id) =>
@@ -112,12 +112,13 @@ export function whatsappSimulatorRouter({
     if (!id) throw new HttpError(404, 'NOT_FOUND', 'Not found.');
     const conversation = await prisma.conversation.findUnique({
       where: { id },
-      include: { messages: { orderBy: { createdAt: 'asc' }, take: 500 } },
+      // The LATEST 500 (in the order written: see chat_messages.seq), shown oldest first.
+      include: { messages: { orderBy: { seq: 'desc' }, take: 500 } },
     });
     if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'Not found.');
     res.set('Cache-Control', 'no-store').json({
       conversation: { handledBy: conversation.handledBy },
-      messages: conversation.messages.map((m) => ({
+      messages: conversation.messages.reverse().map((m) => ({
         id: m.id,
         author: m.author,
         body: m.body,

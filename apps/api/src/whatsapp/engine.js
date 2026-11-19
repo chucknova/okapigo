@@ -10,13 +10,14 @@
  *
  *   hello ─► choose_tour ─► choose_date ─► count (each price category) ─► age (each child)
  *         ─► add_on (each extra) ─► pickup (if any) ─► name ─► email ─► summary (seats HELD)
+ *         ─► Pay ─► (full or deposit?) ─► the payment link; the ticket follows when it settles
  *
  * Every step accepts a tapped choice, a typed number ("2" = the 2nd row) or the row's name, and
  * otherwise asks again. "hi", "menu", "start again" go back to the start from anywhere; "person"
  * asks for the team. Booking goes through bookForGuest(), the website's own code: the same
  * prices, rules and seats (PRD: "the same prices and availability in both").
  */
-import { releaseHold, listAvailability } from '@okapigo/db';
+import { releaseHold, listAvailability, createPaymentLink, BookingError } from '@okapigo/db';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatLocalDay } from '@okapigo/shared/preview';
 import { freeCancellationUntil, formatDurationShort } from '@okapigo/shared/tour-facts';
@@ -26,6 +27,7 @@ import { normalizeEmail } from '@okapigo/shared/contact';
 import { HttpError } from '../middleware/errors.js';
 import { loadCatalogueView, loadTourView } from '../lib/public-views.js';
 import { bookForGuest, plainName, ageRange } from '../lib/guest-booking.js';
+import { paymentOptions } from '../lib/payment-options.js';
 import { say } from './messages.js';
 
 /** Decided 2026-11-18: seats are held longer on WhatsApp than on the website (15). */
@@ -96,9 +98,11 @@ function pickRow(input, rows) {
 export async function converse(deps, { operator, conversation, state, input }) {
   const text = input.text?.trim() ?? '';
 
-  // From anywhere: start again (giving back any seats held), or ask for a person.
+  // From anywhere: start again (giving back any seats held), or ask for a person. Once a
+  // payment link was sent, the seats stay held: the bot said "held until 14:35", and the
+  // guest may still pay that link (or just be saying hi again).
   if (input.choice === 'restart' || (!input.choice && RESTART.test(text))) {
-    await releaseHeld(deps, state);
+    await releaseHeld(deps, state, { unlessLinkSent: true });
     return { state: { step: 'hello' }, replies: [say.hello(operator.name)], bookingId: null };
   }
   if (input.choice === 'person' || (!input.choice && PERSON.test(text))) {
@@ -278,8 +282,32 @@ export async function converse(deps, { operator, conversation, state, input }) {
           datePage: 0,
         });
       }
-      // "Pay" sends the payment link: stage 13b.
+      if (input.choice === 'pay' || (!input.choice && /^pay\b/i.test(text))) {
+        return pay(deps, operator, state, null);
+      }
       return { state, replies: [say.didntGet('Tap one of the buttons')] };
+    }
+
+    case 'hold_over': {
+      // "Your 30 minutes are up" (notices.js): hold the same tour, date and people again.
+      // Everything chosen is still in the state; hold() checks seats and prices afresh.
+      if (input.choice === 'hold_again') {
+        return hold(deps, operator, conversation, { ...state, bookingId: undefined });
+      }
+      return showTours(deps, operator);
+    }
+
+    case 'pay_choice': {
+      if (input.choice === 'cancel') {
+        await releaseHeld(deps, state);
+        return { state: { step: 'hello' }, replies: [say.cancelled()], bookingId: null };
+      }
+      if (input.choice === 'pay_full') return pay(deps, operator, state, 'full');
+      if (input.choice === 'pay_deposit') return pay(deps, operator, state, 'deposit');
+      return withPrefix(
+        say.didntGet('Tap one of the buttons'),
+        await pay(deps, operator, state, null),
+      );
     }
   }
   return { state: { step: 'hello' }, replies: [say.hello(operator.name)] };
@@ -553,12 +581,86 @@ function summary(deps, operator, tour, state, booking) {
 }
 
 /**
- * Gives back the seats of a booking this chat is holding (the guest went back, or left).
- * @param {Deps} deps @param {State} state
+ * "Pay": what can the guest pay right now (the website's own rule, payment-options.js)?
+ *   nothing (the hold ran out)       → "the 30 minutes are up"
+ *   full or a deposit, not chosen    → ask which (pay_choice)
+ *   otherwise                        → a payment link for that amount, and how long the seats
+ *                                      stay held. The guest pays on the website's /pay page
+ *                                      (Paystack); the ticket comes back here (tickets.js).
+ * @param {Deps} deps @param {any} operator @param {State} state
+ * @param {'full' | 'deposit' | null} chosen
+ * @returns {Promise<Turn>}
  */
-async function releaseHeld(deps, state) {
+async function pay(deps, operator, state, chosen) {
+  const now = (deps.now ?? (() => new Date()))();
+  const booking = state.bookingId
+    ? await deps.prisma.booking.findUnique({
+        where: { id: state.bookingId },
+        include: { product: { include: { operator: true } }, departure: true, hold: true },
+      })
+    : null;
+  const options = booking ? paymentOptions(booking, now) : [];
+  // A held booking always offers "full" while its hold is on; none means time ran out.
+  const full = options.find((o) => o.type === 'full');
+  if (!booking || !full) {
+    return { state: { step: 'hello' }, replies: [say.holdOver()], bookingId: null };
+  }
+  const deposit = options.find((o) => o.type === 'deposit');
+  if (!chosen && deposit && deposit.type === 'deposit') {
+    return {
+      state: { ...state, step: 'pay_choice' },
+      replies: [
+        say.payChoice(
+          formatNaira(full.amountKobo),
+          formatNaira(deposit.amountKobo),
+          formatLocalDay(deposit.balanceDueDate),
+        ),
+      ],
+    };
+  }
+  const option = (chosen === 'deposit' && deposit) || full;
+
+  let token;
+  try {
+    ({ token } = await createPaymentLink(deps.prisma, {
+      operatorId: operator.id,
+      bookingId: booking.id,
+      amountKobo: option.amountKobo,
+      actor: { type: 'guest' },
+      now,
+    }));
+  } catch (err) {
+    // The hold ran out between the check and the link (a race of seconds).
+    if (err instanceof BookingError) {
+      return { state: { step: 'hello' }, replies: [say.holdOver()], bookingId: null };
+    }
+    throw err;
+  }
+  const until = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: operator.timeZone,
+  }).format(booking.hold.expiresAt);
+  const url = `${deps.webPublicUrl.replace(/\/+$/, '')}/pay/${token}`;
+  return {
+    state: { ...state, step: 'summary' },
+    replies: [say.payLink(formatNaira(option.amountKobo), url, until)],
+  };
+}
+
+/**
+ * Gives back the seats of a booking this chat is holding (the guest went back, or left).
+ * `unlessLinkSent`: keep them if the guest already has a payment link for this booking.
+ * @param {Deps} deps @param {State} state @param {{ unlessLinkSent?: boolean }} [opts]
+ */
+async function releaseHeld(deps, state, { unlessLinkSent = false } = {}) {
   if (!state.bookingId) return;
-  const booking = await deps.prisma.booking.findUnique({ where: { id: state.bookingId } });
+  const booking = await deps.prisma.booking.findUnique({
+    where: { id: state.bookingId },
+    include: { _count: { select: { paymentLinks: true } } },
+  });
+  if (unlessLinkSent && (booking?._count.paymentLinks ?? 0) > 0) return;
   if (booking?.status === 'held') {
     await releaseHold(deps.prisma, booking.holdId, {
       reason: 'released',

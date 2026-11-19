@@ -18,3 +18,12 @@ export function simulatorChannel() {
     async send() {},
   };
 }
+
+/**
+ * Every channel the API delivers on. One set, shared by the guest's side (the simulator's
+ * route), the staff's side (routes/conversations.js) and the notices (notices.js).
+ * The real WhatsApp joins in 13c.
+ */
+export function createChannels() {
+  return { simulator: simulatorChannel() };
+}

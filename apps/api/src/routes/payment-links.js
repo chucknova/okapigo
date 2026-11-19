@@ -206,7 +206,7 @@ export function paymentLinksRouters({
     return {
       state,
       amountKobo: link.amountKobo,
-      purpose: link.purpose, // deposit · balance · custom
+      purpose: link.purpose, // full · deposit · balance · custom
       operator: {
         slug: operator.slug,
         name: operator.name,
