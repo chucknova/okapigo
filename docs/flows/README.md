@@ -5,14 +5,15 @@ version before I build them. Each brief lists the screens **in order**, what eac
 **lets the guest do**, the **data** behind it, the **states** to design, and the **rules** the design
 must respect. Business logic already exists in the API; screens only display data and call it.
 
-| Brief                                                     | Covers                                                                        | PRD                                      |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------- |
-| [01 Tour page and checkout](01-tour-page-and-checkout.md) | Finding a tour, choosing a date, travellers, details, paying (incl. deposits) | BKG-32, BKG-02, BKG-06, journeys 1 and 5 |
-| [02 After paying](02-after-paying.md)                     | Confirmation, "confirming your payment", payment links, paying a balance      | PAY-05, BKG-06, journey 5                |
-| [03 Booking widget](03-booking-widget.md)                 | Embedding booking on another website; the operator's Embed page               | BKG-01                                   |
-| [04 Operator website](04-operator-website.md)             | The one-page site generated from products, in 2–3 styles                      | MKT-08, MKT-09                           |
-| [05 Trip hub](05-trip-hub.md)                             | One light page per booking: itinerary, map, what to bring, QR ticket          | GST-04                                   |
-| [06 WhatsApp booking](06-whatsapp-booking.md)             | The booking conversation, the WhatsApp simulator, staff taking over           | BKG-09, journey 2 (session 13)           |
+| Brief                                                     | Covers                                                                                            | PRD                                            |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [01 Tour page and checkout](01-tour-page-and-checkout.md) | Finding a tour, choosing a date, travellers, details, paying (incl. deposits)                     | BKG-32, BKG-02, BKG-06, journeys 1 and 5       |
+| [02 After paying](02-after-paying.md)                     | Confirmation, "confirming your payment", payment links, paying a balance                          | PAY-05, BKG-06, journey 5                      |
+| [03 Booking widget](03-booking-widget.md)                 | Embedding booking on another website; the operator's Embed page                                   | BKG-01                                         |
+| [04 Operator website](04-operator-website.md)             | The one-page site generated from products, in 2–3 styles                                          | MKT-08, MKT-09                                 |
+| [05 Trip hub](05-trip-hub.md)                             | One light page per booking: itinerary, map, what to bring, QR ticket                              | GST-04                                         |
+| [06 WhatsApp booking](06-whatsapp-booking.md)             | The booking conversation, the WhatsApp simulator, staff taking over                               | BKG-09, journey 2 (session 13)                 |
+| [07 Operator app](07-operator-app.md)                     | The staff app: tour day offline (manifest, scan, no-shows), schedule, bookings, inboxes, settings | OPS-01, 07, 08, 09, journey 6 (sessions 15–16) |
 
 **Designs received (2026-11-17):** see [`docs/designs/`](../designs/README.md), which also
 holds the stage plan for building them (session 12).
