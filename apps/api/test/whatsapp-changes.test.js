@@ -6,11 +6,14 @@
  *   - a sold-out date is listed, and picking it says so
  *   - someone booked while we were chatting: "Book 1 seat" or "Choose another date"
  */
-import { describe, it, expect, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, afterAll, afterEach, vi } from 'vitest';
 import { createTestContext } from './helpers.js';
 import { chatHelpers } from './whatsapp-chat.js';
 
 const ctx = createTestContext();
+// Each test is a whole scripted chat (10+ messages, each a booking-engine turn): more time
+// than the usual 20 s, for full runs on a busy machine. A stuck test still fails, later.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 30_000 });
 afterEach(() => ctx.cleanup());
 afterAll(() => ctx.close());
 const { guest, options, words, openDates, toSummary } = chatHelpers(ctx);

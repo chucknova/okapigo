@@ -51,6 +51,10 @@ const provider = createPaymentProvider({
   simulatorAutoRefundMs: 1500,
 });
 logger.info({ provider: provider.name }, 'payment provider ready');
+logger.info(
+  { whatsapp: config.WHATSAPP_ACCESS_TOKEN ? 'connected' : 'simulator only' },
+  'chat channels ready',
+);
 
 // Without an 'error' listener, a lost Redis connection would crash the whole process.
 // We log it instead; the health check reports Redis as down and ioredis reconnects.
@@ -68,6 +72,15 @@ const app = createApp({
   // Rate-limit counters in Redis, shared by every API process (see middleware/rate-limit.js).
   rateLimitStore: redisRateLimitStore(redis),
   webPublicUrl: config.WEB_PUBLIC_URL ?? config.API_PUBLIC_URL,
+  // The real WhatsApp (13c-3), when its token is set; otherwise guests chat in the simulator.
+  whatsapp: config.WHATSAPP_ACCESS_TOKEN
+    ? {
+        accessToken: config.WHATSAPP_ACCESS_TOKEN,
+        appSecret: /** @type {string} */ (config.WHATSAPP_APP_SECRET),
+        verifyToken: /** @type {string} */ (config.WHATSAPP_VERIFY_TOKEN),
+        graphVersion: config.WHATSAPP_GRAPH_VERSION,
+      }
+    : null,
   // The built guest web (pnpm --filter @okapigo/web build), if present.
   webAssets: loadWebAssets(new URL('../../web/dist', import.meta.url).pathname),
   // The built WhatsApp simulator app (pnpm --filter @okapigo/simulators build), if present.
@@ -93,7 +106,15 @@ const notices = setInterval(async () => {
       authSecret: config.AUTH_SECRET,
       apiPublicUrl: config.API_PUBLIC_URL,
       webPublicUrl: config.WEB_PUBLIC_URL ?? config.API_PUBLIC_URL,
-      channels: createChannels(),
+      channels: createChannels({
+        whatsapp: config.WHATSAPP_ACCESS_TOKEN
+          ? {
+              accessToken: config.WHATSAPP_ACCESS_TOKEN,
+              graphVersion: config.WHATSAPP_GRAPH_VERSION,
+              log: logger,
+            }
+          : null,
+      }),
       log: logger,
     });
     if (sent.tickets + sent.holdsOver > 0) logger.info(sent, 'chat notices sent');

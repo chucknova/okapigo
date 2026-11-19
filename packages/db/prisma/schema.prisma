@@ -56,6 +56,9 @@ model Operator {
   // (The rest of the business details, tagline, about, email, socials, come in stage 12g.)
   phone        String?
   whatsapp     String?
+  // The business's number on the WhatsApp Cloud API: Meta's "phone number ID" (stage 13c-3).
+  // A guest's message arrives addressed to it, so this says which business it's for.
+  whatsappPhoneNumberId String? @unique @map("whatsapp_phone_number_id")
   // The one-page website's business details (stage 12g-2): kind, tagline, intro, about,
   // whyUs, faqs, email, address, socials. Validated by SiteSchema
   // (packages/shared/src/schemas/website.js); read as a whole, so one JSON value.
@@ -1086,6 +1089,11 @@ model ChatMessage {
   body           Json
   // The channel's own id for the message (WhatsApp's "wamid…"), to match delivery receipts.
   providerMessageId String? @map("provider_message_id")
+  // Did it reach the guest? (WhatsApp only, stage 13c-3) sent · delivered · read · failed,
+  // from Meta's delivery receipts; null for the simulator and for the guest's own messages.
+  delivery          String?
+  // Why it failed, in WhatsApp's words ("131047: Re-engagement message"), for staff.
+  deliveryError     String? @map("delivery_error")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   // The ORDER messages were written in (stage 13b). Not createdAt: Postgres' now() is the
   // transaction's start, so a guest's message and the bot's replies, written in one
@@ -1095,5 +1103,6 @@ model ChatMessage {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, seq])
+  @@index([providerMessageId])
   @@map("chat_messages")
 }

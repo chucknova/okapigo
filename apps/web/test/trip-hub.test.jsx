@@ -5,7 +5,7 @@
  * Times are Lagos (UTC+1). The Heritage Walk: Sat 5 Dec 2026, 09:00–12:00.
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, within, waitFor } from '@testing-library/react';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import { TripHub } from '../src/screens/trip/TripHub.jsx';
@@ -322,7 +322,8 @@ describe('no signal', () => {
     fakeApi([200, { booking: trip() }]);
     renderHub();
     await screen.findByText('See you on Sat 5 Dec!');
-    expect(savedTrip(T)?.booking.reference).toBe('ILT-7K4Q2M');
+    // The copy is saved just AFTER the page shows (an effect): wait for it, don't race it.
+    await waitFor(() => expect(savedTrip(T)?.booking.reference).toBe('ILT-7K4Q2M'));
     expect(savedTrip('OLD'.padEnd(44, 'x'))).toBeNull();
   });
 });

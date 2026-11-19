@@ -69,3 +69,21 @@ describe('loadConfig', () => {
     );
   });
 });
+
+describe('WhatsApp (stage 13c-3)', () => {
+  it('is optional; half a set-up is refused at start, naming what’s missing', () => {
+    expect(loadConfig({ ...valid }).WHATSAPP_ACCESS_TOKEN).toBeUndefined();
+    expect(loadConfig({ ...valid }).WHATSAPP_GRAPH_VERSION).toBe('v23.0');
+    expect(() => loadConfig({ ...valid, WHATSAPP_ACCESS_TOKEN: 'EAA' + 'x'.repeat(40) })).toThrow(
+      /WHATSAPP_ACCESS_TOKEN needs WHATSAPP_APP_SECRET and WHATSAPP_VERIFY_TOKEN/,
+    );
+    const ok = loadConfig({
+      ...valid,
+      WHATSAPP_ACCESS_TOKEN: 'EAA' + 'x'.repeat(40),
+      WHATSAPP_APP_SECRET: 'a'.repeat(32),
+      WHATSAPP_VERIFY_TOKEN: 'v'.repeat(24),
+    });
+    expect(ok.WHATSAPP_APP_SECRET).toBe('a'.repeat(32));
+    expect(() => loadConfig({ ...valid, WHATSAPP_GRAPH_VERSION: 'latest' })).toThrow();
+  });
+});

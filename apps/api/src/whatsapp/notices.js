@@ -24,6 +24,7 @@ import { formatLocalDay } from '@okapigo/shared/preview';
 import { localDate } from '@okapigo/shared/time';
 import { balanceDueDate } from '@okapigo/shared/deposits';
 import { say } from './messages.js';
+import { deliver } from './channels.js';
 import { clock, day, pickupWhere } from './engine.js';
 import { plainName } from '../lib/guest-booking.js';
 
@@ -47,7 +48,7 @@ const BOOKING_INCLUDE = /** @type {const} */ ({
  *   authSecret: string,
  *   apiPublicUrl: string,
  *   webPublicUrl: string,
- *   channels: Record<string, { send: Function }>,
+ *   channels: Record<string, import('./channels.js').Channel>,
  *   log?: { warn: Function },
  *   now?: () => Date,
  * }} NoticeDeps
@@ -173,8 +174,9 @@ async function notify(deps, booking, kind, key, now) {
     });
     if (count === 0 || !relevant || !replies) return null;
 
+    const out = [];
     for (const body of replies) {
-      await tx.chatMessage.create({
+      const stored = await tx.chatMessage.create({
         data: {
           operatorId: booking.operatorId,
           conversationId: relevant.id,
@@ -183,6 +185,7 @@ async function notify(deps, booking, kind, key, now) {
           body,
         },
       });
+      out.push({ id: stored.id, body });
     }
     const state = /** @type {any} */ (relevant.state ?? {});
     await tx.conversation.update({
@@ -198,14 +201,16 @@ async function notify(deps, booking, kind, key, now) {
         ...(kind === 'chat_ticket' && onIt && { state: { step: 'booked', bookingId: booking.id } }),
       },
     });
-    return { channel: relevant.channel, guestPhone: relevant.guestPhone };
+    return { conversation: relevant, out };
   });
 
   if (!result) return false;
-  await deps.channels[result.channel]?.send({
+  // Nobody asked for these: on WhatsApp, the 24-hour rule applies.
+  await deliver(deps, {
+    conversation: result.conversation,
     operator,
-    guestPhone: result.guestPhone,
-    replies,
+    messages: result.out,
+    unprompted: true,
   });
   return true;
 }

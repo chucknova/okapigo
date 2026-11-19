@@ -70,12 +70,34 @@ const EnvSchema = z
     // Signing secret for the SIMULATOR's webhooks (no real money in simulator mode; a default
     // is used if unset). Paystack's webhooks are signed with PAYSTACK_SECRET_KEY instead.
     SIMULATOR_WEBHOOK_SECRET: optional(z.string().min(16)),
+    // --- WhatsApp Cloud API (stage 13c-3): optional; without it, only the simulator chats ---
+    // Meta app → WhatsApp → API Setup: the access token. Kept secret like a payment key.
+    WHATSAPP_ACCESS_TOKEN: optional(z.string().min(20)),
+    // Meta app → App settings → Basic → App secret: signs every webhook Meta sends us.
+    WHATSAPP_APP_SECRET: optional(z.string().min(16)),
+    // Any long random string YOU choose, typed into Meta's webhook settings too: Meta sends it
+    // back once, when you connect the webhook, to prove the address is yours.
+    WHATSAPP_VERIFY_TOKEN: optional(z.string().min(16)),
+    // The Graph API version the calls are made to.
+    WHATSAPP_GRAPH_VERSION: z
+      .string()
+      .regex(/^v\d+\.\d$/)
+      .default('v23.0'),
+
     // The API's public address: where Paystack sends the guest back, and simulator pages live.
     API_PUBLIC_URL: z.url().default('http://localhost:4000'),
     // Where GUESTS see booking links (okapigo.app/irin-lagos-tours). Used in link previews.
     // Unset = the same as API_PUBLIC_URL (today the API serves those pages itself).
     WEB_PUBLIC_URL: optional(z.url()),
   })
+  // Half a WhatsApp set-up would only fail later, on a guest's first message.
+  .refine(
+    (env) => !env.WHATSAPP_ACCESS_TOKEN || (env.WHATSAPP_APP_SECRET && env.WHATSAPP_VERIFY_TOKEN),
+    {
+      message: 'WHATSAPP_ACCESS_TOKEN needs WHATSAPP_APP_SECRET and WHATSAPP_VERIFY_TOKEN too',
+      path: ['WHATSAPP_APP_SECRET'],
+    },
+  )
   // Choosing Paystack without a key would only fail later, on a guest's first payment.
   .refine((env) => env.PAYMENT_PROVIDER !== 'paystack' || env.PAYSTACK_SECRET_KEY, {
     message: 'PAYMENT_PROVIDER=paystack needs PAYSTACK_SECRET_KEY (a test key)',

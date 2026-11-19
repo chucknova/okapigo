@@ -21,6 +21,7 @@ import { HttpError } from '../middleware/errors.js';
 import { say, text } from '../whatsapp/messages.js';
 import { welcomeBack } from '../whatsapp/engine.js';
 import { readState } from '../whatsapp/state.js';
+import { deliver, withinServiceWindow } from '../whatsapp/channels.js';
 
 const ReplyBody = z.object({ text: z.string().trim().min(1).max(4096) });
 
@@ -30,7 +31,7 @@ const ReplyBody = z.object({ text: z.string().trim().min(1).max(4096) });
  *   quotes: any,
  *   jobs: any,
  *   webPublicUrl: string,
- *   channels: Record<string, { send: Function }>,
+ *   channels: Record<string, import('../whatsapp/channels.js').Channel>,
  * }} deps
  */
 export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels }) {
@@ -107,8 +108,7 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
       const result = await change(req.params.id, operatorId, async (tx, c, operator) => {
         if (c.handledBy === 'staff') return { conversation: c, out: [] }; // already: no repeat
         const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-        const out = [say.staffJoined(user.name, operator.name)];
-        await store(tx, c, out, 'bot');
+        const out = await store(tx, c, [say.staffJoined(user.name, operator.name)], 'bot');
         const conversation = await tx.conversation.update({
           where: { id: c.id },
           data: { handledBy: 'staff', needsPersonSince: null, lastMessageAt: new Date() },
@@ -130,8 +130,17 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
         if (c.handledBy !== 'staff') {
           throw new HttpError(409, 'NOT_TAKEN_OVER', 'Take over the chat before replying.');
         }
-        const out = [text(req.body.text)];
-        const [message] = await store(tx, c, out, 'staff', userId);
+        // WhatsApp's rule: a free-form message only within 24 hours of the guest's last one.
+        if (!(await withinServiceWindow(tx, c))) {
+          throw new HttpError(
+            409,
+            'OUTSIDE_24H',
+            'The guest last wrote more than 24 hours ago, so WhatsApp won’t take a free message now. They need to write first.',
+          );
+        }
+        const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+        const out = await store(tx, c, [text(req.body.text)], 'staff', userId, user.name);
+        const [message] = out;
         const conversation = await tx.conversation.update({
           where: { id: c.id },
           data: { lastMessageAt: new Date() },
@@ -157,8 +166,7 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
           { deps: { ...engineDeps, log: req.log }, operator, conversation: c },
           readState(c.state),
         );
-        const out = [say.staffLeft(user.name), ...turn.replies];
-        await store(tx, c, out, 'bot');
+        const out = await store(tx, c, [say.staffLeft(user.name), ...turn.replies], 'bot');
         const conversation = await tx.conversation.update({
           where: { id: c.id },
           data: {
@@ -182,22 +190,25 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
    * @returns {Promise<T>}
    */
   async function change(id, operatorId, fn) {
+    /** @type {any} */
     let operator;
-    let guestPhone = '';
-    let channel = '';
+    /** @type {any} */
+    let conversation;
     const result = await prisma.$transaction(async (tx) => {
       const found = await tx.conversation.findFirst({ where: { id, operatorId } });
       if (!found) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found.');
       await tx.$queryRaw`SELECT id FROM conversations WHERE id = ${id}::uuid FOR UPDATE`;
       const c = await tx.conversation.findUniqueOrThrow({ where: { id } });
       operator = await tx.operator.findUniqueOrThrow({ where: { id: operatorId } });
-      guestPhone = c.guestPhone;
-      channel = c.channel;
+      conversation = c;
       return fn(tx, c, operator);
     });
-    if (result.out.length > 0) {
-      await channels[channel]?.send({ operator, guestPhone, replies: result.out });
-    }
+    // After the lock is released. Staff and events aren't answers to the guest, so on
+    // WhatsApp the 24-hour rule applies (a failure is recorded on the message, for staff).
+    await deliver(
+      { prisma, channels },
+      { conversation, operator, messages: result.out, unprompted: true },
+    );
     return result;
   }
 
@@ -205,24 +216,24 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
 }
 
 /**
+ * Stores the messages; returns them as deliver() wants them (with the row, for the reply).
  * @param {any} tx @param {any} c @param {any[]} bodies
- * @param {'bot' | 'staff'} author @param {string} [userId]
+ * @param {'bot' | 'staff'} author @param {string} [userId] @param {string} [staffName]
  */
-async function store(tx, c, bodies, author, userId) {
+async function store(tx, c, bodies, author, userId, staffName) {
   const created = [];
   for (const body of bodies) {
-    created.push(
-      await tx.chatMessage.create({
-        data: {
-          operatorId: c.operatorId,
-          conversationId: c.id,
-          direction: 'out',
-          author,
-          authorUserId: userId ?? null,
-          body,
-        },
-      }),
-    );
+    const row = await tx.chatMessage.create({
+      data: {
+        operatorId: c.operatorId,
+        conversationId: c.id,
+        direction: 'out',
+        author,
+        authorUserId: userId ?? null,
+        body,
+      },
+    });
+    created.push({ ...row, staffName: staffName ?? null });
   }
   return created;
 }
@@ -245,5 +256,8 @@ const messageOf = (m) => ({
   author: m.author,
   authorUserId: m.authorUserId,
   body: m.body,
+  // WhatsApp only (13c-3): sent · delivered · read · failed, and why it failed.
+  delivery: m.delivery ?? null,
+  deliveryError: m.deliveryError ?? null,
   createdAt: m.createdAt,
 });

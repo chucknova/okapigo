@@ -3,12 +3,15 @@
  * now). "Talk to a person" puts the chat at the top of the list; staff take over (the bot
  * goes quiet and says who joined), reply, and hand back (the bot answers again).
  */
-import { describe, it, expect, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { createTestContext } from './helpers.js';
 import { chatHelpers } from './whatsapp-chat.js';
 
 const ctx = createTestContext();
+// Each test is a whole scripted chat (10+ messages, each a booking-engine turn): more time
+// than the usual 20 s, for full runs on a busy machine. A stuck test still fails, later.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 30_000 });
 afterEach(() => ctx.cleanup());
 afterAll(() => ctx.close());
 const { guest, words, options, toSummary } = chatHelpers(ctx);

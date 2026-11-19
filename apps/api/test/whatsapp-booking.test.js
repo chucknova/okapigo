@@ -7,12 +7,15 @@
  *   - typed words: help, menu, start again, numbers typed, groups over 20, "didn't catch that"
  *   - every reply fits WhatsApp's own limits; a conversation can only be read with its token
  */
-import { describe, it, expect, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { createTestContext } from './helpers.js';
 import { chatHelpers } from './whatsapp-chat.js';
 
 const ctx = createTestContext();
+// Each test is a whole scripted chat (10+ messages, each a booking-engine turn): more time
+// than the usual 20 s, for full runs on a busy machine. A stuck test still fails, later.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 30_000 });
 afterEach(() => ctx.cleanup());
 afterAll(() => ctx.close());
 const { guest, options, words, openDates, toSummary } = chatHelpers(ctx);

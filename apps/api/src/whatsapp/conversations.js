@@ -17,23 +17,28 @@
 import { normalizePhone } from '@okapigo/shared/contact';
 import { HttpError } from '../middleware/errors.js';
 import { converse, giveBack } from './engine.js';
+import { deliver } from './channels.js';
 import { readState } from './state.js';
 
 /** A turn can book (seats, a payment record…): give it room, but not forever. */
 const TURN_TX = { maxWait: 15_000, timeout: 30_000 };
 
 /**
- * @param {import('./engine.js').Deps & { channels: Record<string, { send: Function }> }} deps
+ * @param {import('./engine.js').Deps & { channels: Record<string, import('./channels.js').Channel> }} deps
  * @param {{
  *   operator: import('@prisma/client').Operator,
  *   channel: 'simulator' | 'whatsapp',
  *   phone: string,
  *   name?: string,
  *   input: import('./engine.js').Input & { title?: string },
+ *   providerMessageId?: string,   WhatsApp's id for it: a message Meta sends twice is handled once
  * }} message
- * @returns {Promise<{ conversationId: string, handledBy: string, replies: any[] }>}
+ * @returns {Promise<{ conversationId: string, handledBy: string, replies: any[], duplicate?: boolean }>}
  */
-export async function receive(deps, { operator, channel, phone, name = '', input }) {
+export async function receive(
+  deps,
+  { operator, channel, phone, name = '', input, providerMessageId },
+) {
   const guestPhone = normalizePhone(phone);
   if (!guestPhone) throw new HttpError(400, 'VALIDATION_ERROR', 'That isn’t a phone number.');
   const { prisma } = deps;
@@ -50,6 +55,15 @@ export async function receive(deps, { operator, channel, phone, name = '', input
     await tx.$queryRaw`SELECT id FROM conversations WHERE id = ${conversation.id}::uuid FOR UPDATE`;
     const current = await tx.conversation.findUniqueOrThrow({ where: { id: conversation.id } });
 
+    // Seen before? (Meta retries a webhook it isn't sure we got.) Under the lock, so two
+    // deliveries of the same message can't both get past this; a unique index backs it up.
+    if (providerMessageId) {
+      const seen = await tx.chatMessage.findFirst({
+        where: { conversationId: current.id, direction: 'in', providerMessageId },
+      });
+      if (seen) return { handledBy: current.handledBy, replies: [], out: [], duplicate: true };
+    }
+
     // 3. The guest's message, as it arrived.
     await tx.chatMessage.create({
       data: {
@@ -57,6 +71,7 @@ export async function receive(deps, { operator, channel, phone, name = '', input
         conversationId: current.id,
         direction: 'in',
         author: 'guest',
+        providerMessageId: providerMessageId ?? null,
         body: input.choice
           ? { kind: 'reply', id: input.choice, title: input.title ?? input.choice }
           : { kind: 'text', text: (input.text ?? '').slice(0, 4096) },
@@ -69,7 +84,7 @@ export async function receive(deps, { operator, channel, phone, name = '', input
         where: { id: current.id },
         data: { lastMessageAt: new Date() },
       });
-      return { handledBy: 'staff', replies: [] };
+      return { handledBy: 'staff', replies: [], out: [] };
     }
 
     // 5. The bot's turn. (It books with its own connections; this transaction only holds the
@@ -80,8 +95,9 @@ export async function receive(deps, { operator, channel, phone, name = '', input
       state: readState(current.state),
       input,
     });
+    const out = [];
     for (const body of turn.replies) {
-      await tx.chatMessage.create({
+      const stored = await tx.chatMessage.create({
         data: {
           operatorId: operator.id,
           conversationId: current.id,
@@ -90,6 +106,7 @@ export async function receive(deps, { operator, channel, phone, name = '', input
           body,
         },
       });
+      out.push({ id: stored.id, body });
     }
     await tx.conversation.update({
       where: { id: current.id },
@@ -101,14 +118,14 @@ export async function receive(deps, { operator, channel, phone, name = '', input
         ...(!current.guestName && name && { guestName: name.slice(0, 80) }),
       },
     });
-    return { handledBy: 'bot', replies: turn.replies };
+    return { handledBy: 'bot', replies: turn.replies, out };
   }, TURN_TX);
 
-  // 6. Deliver (the simulator's channel shows them from the database; WhatsApp sends, 13c).
-  if (result.replies.length > 0) {
-    await deps.channels[channel].send({ operator, guestPhone, replies: result.replies });
-  }
-  return { conversationId: conversation.id, ...result };
+  // 6. Deliver (the simulator shows them from the database; WhatsApp sends them), after the
+  //    transaction: a slow or failing WhatsApp never holds the guest's lock or loses a reply.
+  const { out, ...answer } = result;
+  await deliver(deps, { conversation: { channel, guestPhone }, operator, messages: out });
+  return { conversationId: conversation.id, ...answer };
 }
 
 /**

@@ -34,6 +34,8 @@ import { guestRequestsRouter } from './routes/guest-requests.js';
 import { websiteRouter } from './routes/website.js';
 import { whatsappSimulatorRouter } from './routes/whatsapp-simulator.js';
 import { conversationsRouter } from './routes/conversations.js';
+import { whatsappWebhookRouter } from './routes/whatsapp-webhook.js';
+import { whatsappSettingsRouter } from './routes/whatsapp-settings.js';
 import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
@@ -60,6 +62,10 @@ import { createSessionService } from './auth/session-service.js';
  *   rateLimitStore: import('./middleware/rate-limit.js').RateLimitStore,
  *   publicLimits?: typeof import('./routes/public-checkout.js').DEFAULT_PUBLIC_LIMITS,
  *   simulatorLimit?: number, // WhatsApp simulator messages per minute per IP (default 120)
+ *   whatsapp?: {             // the WhatsApp Cloud API (13c-3); null = the simulator only
+ *     accessToken: string, appSecret: string, verifyToken: string, graphVersion: string,
+ *     fetch?: typeof fetch,  // tests pass a fake Meta
+ *   } | null,
  *   webPublicUrl?: string,   // where guests see booking links; default: apiPublicUrl
  *   webAssets?: import('./lib/web-assets.js').WebAssets | null,  // the built guest web, if any
  *   simulatorDir?: string | null, // the built WhatsApp simulator app (apps/simulators/dist), if any
@@ -77,6 +83,7 @@ export function createApp({
   rateLimitStore,
   publicLimits,
   simulatorLimit,
+  whatsapp = null,
   webPublicUrl = apiPublicUrl,
   webAssets = null,
   simulatorDir = null,
@@ -85,7 +92,14 @@ export function createApp({
   const sessions = createSessionService({ prisma });
   const otp = createOtpService({ prisma, otpSender, authSecret });
   // Where chat messages are delivered (the simulator now; WhatsApp in 13c).
-  const channels = createChannels();
+  const channels = createChannels({
+    whatsapp: whatsapp && {
+      accessToken: whatsapp.accessToken,
+      graphVersion: whatsapp.graphVersion,
+      fetch: whatsapp.fetch,
+      log: logger,
+    },
+  });
   const authenticate = requireAuth(sessions);
   const quotes = createQuoteService({ prisma });
   const payments = paymentsRouters({ prisma, provider, apiPublicUrl });
@@ -130,6 +144,20 @@ export function createApp({
   // Webhooks FIRST: they need the raw request bytes to check the signature, and the JSON
   // parser below would consume them. (See routes/webhooks.js.)
   app.use(webhooksRouter({ prisma, provider, jobs }));
+  // WhatsApp's webhook (13c-3), only when this server is connected to WhatsApp.
+  if (whatsapp) {
+    app.use(
+      whatsappWebhookRouter({
+        prisma,
+        quotes,
+        jobs,
+        webPublicUrl,
+        channels,
+        appSecret: whatsapp.appSecret,
+        verifyToken: whatsapp.verifyToken,
+      }),
+    );
+  }
 
   // Parse JSON request bodies. The size limit stops someone sending a 1 GB body.
   app.use(express.json({ limit: '100kb' }));
@@ -208,6 +236,7 @@ export function createApp({
   api.use(alertsRouter({ prisma }));
   api.use(guestRequestsRouter({ prisma })); // "Ask Ìrìn" from the trip hub (12f-2)
   api.use(websiteRouter({ prisma })); // the website's style and mode (12g)
+  api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);

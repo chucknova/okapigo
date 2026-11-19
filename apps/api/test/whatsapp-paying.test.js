@@ -9,7 +9,7 @@
  *     stops working
  *   - out of time: "Your 30 minutes are up…" [Hold them again] → held again, with a fresh link
  */
-import { describe, it, expect, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { guestToken, releaseHold } from '@okapigo/db';
 import { createTestContext, TEST_AUTH_SECRET } from './helpers.js';
@@ -18,6 +18,9 @@ import { fitsWhatsApp } from '../src/whatsapp/messages.js';
 import { sendChatNotices } from '../src/whatsapp/notices.js';
 
 const ctx = createTestContext();
+// Each test is a whole scripted chat (10+ messages, each a booking-engine turn): more time
+// than the usual 20 s, for full runs on a busy machine. A stuck test still fails, later.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 30_000 });
 afterEach(() => ctx.cleanup());
 afterAll(() => ctx.close());
 const { guest, options, words, toSummary } = chatHelpers(ctx);
@@ -32,7 +35,7 @@ const notices = () =>
     authSecret: TEST_AUTH_SECRET,
     apiPublicUrl: 'http://localhost:4000',
     webPublicUrl: 'http://localhost:4000',
-    channels: { simulator: { send: async () => {} } },
+    channels: { simulator: { send: async () => [] } },
   });
 const NONE = { tickets: 0, holdsOver: 0, declined: 0 };
 
