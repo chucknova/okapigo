@@ -65,6 +65,13 @@ const PATHS = {
   print: (
     <path d="M7 9V3h10v6M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 14h10v7H7z" />
   ),
+  torch: <path d="M8 3h8l-1 6H9zM9 9h6v12H9zM12 13v3" />,
+  'camera-off': (
+    <>
+      <path d="M3 7h3l2-3h8l2 3h3v13H3zM3 3l18 18" />
+      <circle cx="12" cy="13" r="3.5" />
+    </>
+  ),
   spinner: <path d="M12 3a9 9 0 1 1-9 9" />,
   ring: <circle cx="12" cy="12" r="9" />,
 };

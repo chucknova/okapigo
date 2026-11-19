@@ -113,7 +113,7 @@ export function Manifest() {
         <div className="progress" aria-hidden="true">
           <div className="progress-bar" style={{ width: `${v.pct}%` }} />
         </div>
-        <Link href="/scan" className="btn btn--main btn--scan">
+        <Link href={`/scan/${m.departure.id}`} className="btn btn--main btn--scan">
           <Icon name="scan" size={24} width={2.2} />
           Scan a ticket
         </Link>

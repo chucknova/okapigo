@@ -758,3 +758,312 @@
 .btn--strong {
   font-weight: 800;
 }
+
+/* --- Scan (O4): full screen and dark, over the strip and the tabs ------------------------------ */
+.scanner {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: var(--color-scanner-bg);
+  color: #ffffff;
+  overflow: hidden;
+}
+.scanner-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.85;
+}
+.scanner-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 8px 4px;
+  background: linear-gradient(rgba(17, 21, 17, 0.75), transparent);
+}
+.scanner-muted {
+  color: var(--color-scanner-muted);
+}
+.strong-heavy {
+  font-weight: 800;
+}
+.icon-btn--light {
+  color: #ffffff;
+}
+.torch-btn {
+  width: var(--size-tap-min);
+  height: var(--size-tap-min);
+  border-radius: var(--radius-input);
+  border: 2px solid #ffffff;
+  background: transparent;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.torch-btn[aria-pressed='true'] {
+  background: var(--color-mark-text);
+  color: var(--color-text);
+  border-color: var(--color-mark-text);
+}
+.scan-frame {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 240px;
+  height: 240px;
+  transform: translate(-50%, -50%);
+}
+.corner {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border: 5px solid var(--color-mark-text);
+}
+.corner--tl {
+  left: 0;
+  top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 10px 0 0 0;
+}
+.corner--tr {
+  right: 0;
+  top: 0;
+  border-left: 0;
+  border-bottom: 0;
+  border-radius: 0 10px 0 0;
+}
+.corner--bl {
+  left: 0;
+  bottom: 0;
+  border-right: 0;
+  border-top: 0;
+  border-radius: 0 0 0 10px;
+}
+.corner--br {
+  right: 0;
+  bottom: 0;
+  border-left: 0;
+  border-top: 0;
+  border-radius: 0 0 10px 0;
+}
+.scan-hint {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: calc(42% + 150px);
+  text-align: center;
+  font-size: var(--text-action);
+  font-weight: 700;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+.scanner-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 32px 16px calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* The same dark fade as the top, so the words read over the camera picture. */
+  background: linear-gradient(transparent, rgba(17, 21, 17, 0.8) 40%);
+}
+.btn--ghost-light {
+  background: transparent;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  font-size: var(--text-md);
+}
+.scan-note {
+  position: relative;
+  margin: 0 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-button);
+  background: var(--color-state-present);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.undo-btn {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 2px solid #ffffff;
+  background: transparent;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+}
+/* The result sheets: a coloured band on top, then the details. */
+.result-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  margin-top: -6px;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+}
+.result-head--ok {
+  background: var(--color-state-present);
+  color: #ffffff;
+}
+.result-head--warning {
+  background: var(--color-state-late);
+  color: var(--color-state-late-ink);
+}
+.result-head--danger {
+  background: var(--color-state-no-show);
+  color: #ffffff;
+}
+.result-head--neutral {
+  background: var(--color-state-pending);
+  color: var(--color-text);
+}
+.result-title {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.result-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  border: 3px solid currentColor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: var(--text-action);
+}
+.base {
+  font-size: var(--text-base);
+}
+.md {
+  font-size: var(--text-md);
+}
+.owes-box {
+  padding: 14px;
+  border-radius: var(--radius-button);
+  background: var(--color-warning-soft);
+  border: 2px solid var(--color-warning);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.owes-title {
+  font-size: var(--text-action);
+  color: var(--color-state-late-ink);
+}
+.who {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.who legend {
+  margin-bottom: 6px;
+}
+.who-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 12px;
+  border-radius: var(--radius-input);
+  background: var(--color-bg);
+}
+.who-row--missing {
+  background: var(--color-surface);
+  border: 2px dashed var(--color-border-strong);
+}
+.who-row input {
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  accent-color: var(--color-state-present);
+  flex: none;
+}
+.btn--big {
+  min-height: 60px;
+  font-size: 19px;
+}
+/* Search instead of scanning, and no camera. */
+.search-head {
+  padding: 12px var(--size-gutter);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.input--strong {
+  border-color: var(--color-text);
+  height: 52px;
+  font-size: var(--text-action);
+}
+.hit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 8px 14px;
+  width: 100%;
+  text-align: left;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+.hit-match {
+  background: var(--color-primary-soft);
+}
+.hit-state {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.hit-state--pending {
+  background: var(--color-state-pending);
+  color: var(--color-state-pending-ink);
+}
+.hit-state--present {
+  background: var(--color-state-present);
+  color: #ffffff;
+}
+.hit-state--late {
+  background: var(--color-state-late);
+  color: var(--color-state-late-ink);
+}
+.hit-state--no_show {
+  background: var(--color-state-no-show);
+  color: #ffffff;
+}
+.center-stack--tight {
+  padding-top: 24px;
+}
+.tips,
+.steps {
+  margin: 0;
+  padding-left: 22px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-base);
+  align-self: stretch;
+}
+.page--plain {
+  background: var(--color-surface);
+  min-height: 100%;
+  padding-top: 48px;
+}

@@ -3,7 +3,7 @@
  * A sheet from the bottom of the screen (designs: naming a guest, sign in again…), over a
  * dark scrim. A real <dialog>: the browser keeps focus inside it and Escape closes it.
  */
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 /**
  * `center`: a dialog in the middle of the screen (a question to answer: "Mark no-show?"),
@@ -12,7 +12,8 @@ import { useEffect, useRef } from 'react';
  */
 export function Sheet({ title, onClose, children, alert = false, center = false }) {
   const ref = useRef(/** @type {HTMLDialogElement | null} */ (null));
-  useEffect(() => {
+  // A layout effect: opened in the same step it's drawn, never seen (or found) closed.
+  useLayoutEffect(() => {
     const d = ref.current;
     // showModal(): the browser keeps focus inside and dims the rest. (Without it, as in
     // the test environment, it still opens, just not modal.)
