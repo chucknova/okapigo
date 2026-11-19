@@ -12,6 +12,8 @@
  */
 import { encode } from 'uqr';
 import { Resvg } from '@resvg/resvg-js';
+import satori from 'satori';
+import { loadFonts, FONT_STACK } from './share-card.js';
 
 /**
  * @param {string} text  what the guide's scanner reads (the ticket code)
@@ -33,22 +35,68 @@ export function qrPath(text) {
   return { size, path };
 }
 
-/** Pixels per QR module, and the white margin (in modules) cameras need around it. */
-const PNG_SCALE = 12;
+/** The white margin (in modules) cameras need around a QR. */
 const QUIET_ZONE = 4;
+/** The ticket image's size (drawn at 2× for sharp phone screens). */
+const TICKET = { width: 460, height: 560, scale: 2 };
 
-/**
- * The same QR as a PNG (stage 13b): WhatsApp sends images, and doesn't take SVG. A black
- * QR on white, whatever the operator's colours: scanners read contrast, not brand.
- * @param {string} text
- * @returns {Buffer}
- */
-export function qrPng(text) {
+/** The QR alone as an SVG: black on white, whatever the brand (scanners read contrast). @param {string} text */
+function qrSvg(text) {
   const { size, path } = qrPath(text);
   const full = size + QUIET_ZONE * 2;
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${full} ${full}" width="${full * PNG_SCALE}" height="${full * PNG_SCALE}" shape-rendering="crispEdges">` +
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${full} ${full}" shape-rendering="crispEdges">` +
     `<rect width="${full}" height="${full}" fill="#fff"/>` +
-    `<path transform="translate(${QUIET_ZONE} ${QUIET_ZONE})" fill="#000" d="${path}"/></svg>`;
-  return new Resvg(svg).render().asPng();
+    `<path transform="translate(${QUIET_ZONE} ${QUIET_ZONE})" fill="#000" d="${path}"/></svg>`
+  );
+}
+
+/**
+ * The WhatsApp ticket (stage 13c; design: the happy path's ticket image): the QR, the booking
+ * reference under it, and "Ìrìn Lagos Tours · 2 travellers". A PNG, because WhatsApp sends
+ * pictures, not SVG. Text is drawn by satori with the share card's own fonts (never fetched).
+ * @param {{ code: string, reference: string, line: string }} t
+ * @returns {Promise<Buffer>}
+ */
+export async function ticketPng({ code, reference, line }) {
+  const qr = `data:image/svg+xml;base64,${Buffer.from(qrSvg(code)).toString('base64')}`;
+  const el = {
+    type: 'div',
+    props: {
+      style: {
+        width: TICKET.width,
+        height: TICKET.height,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#FFFFFF',
+        fontFamily: FONT_STACK,
+        color: '#111511',
+      },
+      children: [
+        { type: 'img', props: { src: qr, width: 340, height: 340 } },
+        {
+          type: 'div',
+          props: {
+            style: { fontSize: 34, fontWeight: 800, letterSpacing: 4, marginTop: 18 },
+            children: reference,
+          },
+        },
+        {
+          type: 'div',
+          props: { style: { fontSize: 20, color: '#4F584F', marginTop: 8 }, children: line },
+        },
+      ],
+    },
+  };
+  const svg = await satori(/** @type {any} */ (el), {
+    width: TICKET.width,
+    height: TICKET.height,
+    fonts: loadFonts(),
+    loadAdditionalAsset: async () => [], // never fetch fonts from the internet
+  });
+  return new Resvg(svg, { fitTo: { mode: 'width', value: TICKET.width * TICKET.scale } })
+    .render()
+    .asPng();
 }

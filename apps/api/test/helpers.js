@@ -104,6 +104,8 @@ export function buildApp(overrides = {}) {
     provider: createTestSimulator(),
     apiPublicUrl: 'http://localhost:4000',
     rateLimitStore: memoryRateLimitStore(),
+    // Scripted chats send far more than a person types; the limit itself isn't under test.
+    simulatorLimit: 1000,
     ...overrides,
   });
 }

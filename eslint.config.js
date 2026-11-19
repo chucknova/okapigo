@@ -10,7 +10,16 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
   // Never lint generated or installed code.
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', '**/.turbo/**'] },
+  // docs/designs: exported design files and their viewer runtime, not our code.
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/coverage/**',
+      '**/.turbo/**',
+      'docs/designs/**',
+    ],
+  },
 
   // ESLint's recommended "these are almost always bugs" rules.
   js.configs.recommended,

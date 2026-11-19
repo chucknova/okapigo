@@ -47,6 +47,7 @@ const MessageSchema = z.union([
  *   webPublicUrl: string,
  *   rateLimitStore: any,
  *   channels: Record<string, { send: Function }>,
+ *   limit?: number,
  * }} deps
  */
 export function whatsappSimulatorRouter({
@@ -57,6 +58,7 @@ export function whatsappSimulatorRouter({
   webPublicUrl,
   rateLimitStore,
   channels,
+  limit = 120,
 }) {
   const router = Router();
   const key = createHmac('sha256', authSecret).update(LABEL).digest();
@@ -76,7 +78,7 @@ export function whatsappSimulatorRouter({
   const limiter = rateLimit({
     store: rateLimitStore,
     name: 'wa-sim',
-    limit: 120,
+    limit,
     windowSeconds: 60,
   });
 
@@ -116,11 +118,22 @@ export function whatsappSimulatorRouter({
       include: { messages: { orderBy: { seq: 'desc' }, take: 500 } },
     });
     if (!conversation) throw new HttpError(404, 'NOT_FOUND', 'Not found.');
+    // Staff sign their replies with a FIRST name only ("Tolu · Ìrìn team" in the designs).
+    const ids = [...new Set(conversation.messages.map((m) => m.authorUserId).filter(Boolean))];
+    const staff = new Map(
+      (
+        await prisma.user.findMany({
+          where: { id: { in: /** @type {string[]} */ (ids) } },
+          select: { id: true, name: true },
+        })
+      ).map((u) => [u.id, u.name.trim().split(/\s+/)[0]]),
+    );
     res.set('Cache-Control', 'no-store').json({
       conversation: { handledBy: conversation.handledBy },
       messages: conversation.messages.reverse().map((m) => ({
         id: m.id,
         author: m.author,
+        ...(m.authorUserId && { authorName: staff.get(m.authorUserId) ?? null }),
         body: m.body,
         createdAt: m.createdAt,
       })),

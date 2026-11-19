@@ -46,7 +46,7 @@ import { HttpError } from '../middleware/errors.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { toHttp } from './bookings.js';
 import { startPaymentForHttp } from './payments.js';
-import { qrPath, qrPng } from '../lib/qr.js';
+import { qrPath, ticketPng } from '../lib/qr.js';
 import { bookForGuest } from '../lib/guest-booking.js';
 import { paymentOptions } from '../lib/payment-options.js';
 
@@ -558,10 +558,13 @@ export function publicCheckoutRouter({
       if (!TICKET_STATUSES.includes(booking.status)) {
         throw new HttpError(404, 'NOT_FOUND', 'No ticket for this booking.');
       }
-      res
-        .set('Cache-Control', 'private, no-store')
-        .type('image/png')
-        .send(qrPng(ticketCode(authSecret, booking.id)));
+      const n = booking.travellers.length;
+      const png = await ticketPng({
+        code: ticketCode(authSecret, booking.id),
+        reference: booking.reference,
+        line: `${booking.product.operator.name} · ${n} ${n === 1 ? 'traveller' : 'travellers'}`,
+      });
+      res.set('Cache-Control', 'private, no-store').type('image/png').send(png);
     },
   );
 

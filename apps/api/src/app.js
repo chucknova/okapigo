@@ -59,6 +59,7 @@ import { createSessionService } from './auth/session-service.js';
  *   apiPublicUrl: string,
  *   rateLimitStore: import('./middleware/rate-limit.js').RateLimitStore,
  *   publicLimits?: typeof import('./routes/public-checkout.js').DEFAULT_PUBLIC_LIMITS,
+ *   simulatorLimit?: number, // WhatsApp simulator messages per minute per IP (default 120)
  *   webPublicUrl?: string,   // where guests see booking links; default: apiPublicUrl
  *   webAssets?: import('./lib/web-assets.js').WebAssets | null,  // the built guest web, if any
  * }} deps
@@ -74,6 +75,7 @@ export function createApp({
   apiPublicUrl,
   rateLimitStore,
   publicLimits,
+  simulatorLimit,
   webPublicUrl = apiPublicUrl,
   webAssets = null,
 }) {
@@ -162,6 +164,7 @@ export function createApp({
       webPublicUrl,
       rateLimitStore,
       channels,
+      limit: simulatorLimit,
     }),
   );
 
@@ -186,7 +189,7 @@ export function createApp({
   api.use(alertsRouter({ prisma }));
   api.use(guestRequestsRouter({ prisma })); // "Ask Ìrìn" from the trip hub (12f-2)
   api.use(websiteRouter({ prisma })); // the website's style and mode (12g)
-  api.use(conversationsRouter({ prisma, channels })); // WhatsApp chats: take over, reply (13b)
+  api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

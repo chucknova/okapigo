@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WhatsApp booking — branches</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 1240px; height: 1700px; box-sizing: border-box; padding: 40px; background: #E9EDE7; color: #111511; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; line-height: 1.45; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; align-items: start">
+<sc-for list="{{phones}}" as="p" hint-placeholder-count="6">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 14px; font-weight: 700">{{p.label}}</div>
+<div style="width: 360px; height: 740px; background: #ECEFE8; border: 1px solid #C9CFC7; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #111511; color: #EEF2EC">
+<span aria-hidden="true" style="width: 36px; height: 36px; border-radius: 999px; background: #9BD10F; color: #111511; display: inline-flex; align-items: center; justify-content: center; font-weight: 800">Ì</span>
+<div style="flex: 1"><div style="font-weight: 700; font-size: 15px">Ìrìn Lagos Tours</div><div style="font-size: 12px; color: #A9B3A8">Booking assistant</div></div>
+</div>
+<div style="flex: 1; padding: 12px 10px; display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; overflow: hidden">
+<sc-for list="{{p.msgs}}" as="m" hint-placeholder-count="4">
+<sc-if value="{{m.isSys}}" hint-placeholder-val="{{false}}"><div style="align-self: center; padding: 4px 10px; border-radius: 8px; background: #DCE2D9; font-size: 12px; color: #3B423B; text-align: center; max-width: 290px">{{m.text}}</div></sc-if>
+<sc-if value="{{m.isGuest}}" hint-placeholder-val="{{false}}"><div style="align-self: flex-end; max-width: 250px; padding: 7px 10px 5px; border-radius: 12px 12px 4px 12px; background: #DDF1B4; font-size: 15px; white-space: pre-line">{{m.text}}<div style="font-size: 11px; color: #4F584F; text-align: right">{{m.time}}</div></div></sc-if>
+<sc-if value="{{m.isBot}}" hint-placeholder-val="{{true}}">
+<div style="align-self: flex-start; width: 290px; display: flex; flex-direction: column; gap: 3px">
+<div style="padding: 8px 10px 5px; border-radius: 12px 12px 12px 4px; background: #FFFFFF; font-size: 15px">
+<sc-if value="{{m.title}}" hint-placeholder-val="{{false}}"><div style="font-weight: 700">{{m.title}}</div></sc-if>
+<div style="white-space: pre-line">{{m.text}}</div>
+<sc-if value="{{m.link}}" hint-placeholder-val="{{false}}"><div style="margin-top: 6px; border-radius: 8px; background: #F4F6F3; padding: 8px 10px"><div style="font-weight: 700; font-size: 14px">{{m.linkTitle}}</div><div style="font-size: 13px; color: #3F5A00; text-decoration: underline">{{m.link}}</div></div></sc-if>
+<div style="font-size: 11px; color: #4F584F; text-align: right">{{m.time}}</div>
+</div>
+<sc-for list="{{m.buttons}}" as="b" hint-placeholder-count="0"><button type="button" style="min-height: 40px; border: 0; border-radius: 10px; background: #FFFFFF; color: #3F5A00; font-size: 15px; font-weight: 700">{{b}}</button></sc-for>
+<sc-if value="{{m.list}}" hint-placeholder-val="{{false}}"><button type="button" style="min-height: 40px; border: 0; border-radius: 10px; background: #FFFFFF; color: #3F5A00; font-size: 15px; font-weight: 700">≡  {{m.list}}</button></sc-if>
+</div>
+</sc-if>
+</sc-for>
+</div>
+<div style="padding: 8px 10px; background: #F4F6F3; border-top: 1px solid #DCE2D9; font-size: 12px; color: #4F584F">{{p.note}}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const bot = (text, o) => Object.assign({ isBot: true, text, buttons: [] }, o || {});
+    const me = (text, time) => ({ isGuest: true, text, time, buttons: [] });
+    const sys = (text) => ({ isSys: true, text, buttons: [] });
+    return { phones: [
+      { label: 'Pickup point (Lekki)', note: 'Pickup rows: title = area (24), description = place and time (72).', msgs: [
+        me('No', '09:12'),
+        bot('Where should the van pick you up? Pickup is included.', { time: '09:12', list: 'Choose pickup point' }),
+        me('Ikoyi', '09:13'),
+        bot('Pickup: Ikoyi, Falomo roundabout at 07:30. Please be there 5 minutes early.\n\nWhat name should the booking be under?', { time: '09:13' })
+      ] },
+      { label: 'Deposit choice (Badagry, more than 7 days away)', note: 'Three buttons is WhatsApp’s limit, so Cancel becomes a typed word here.', msgs: [
+        bot('Badagry Heritage Day Trip\nSat 5 Dec · 07:00\n1 adult · ₦65,000 (includes VAT)\n\nPay in full now, or pay a 30% deposit now and the rest (₦45,500) by Sat 28 Nov. Deposits are non-refundable.\n\nI’m holding your seat until 12:40. By tapping Pay you accept the booking terms: okapigo.app/irin-lagos-tours/terms', { title: 'Your booking', time: '12:10', buttons: ['Pay in full ₦65,000', 'Pay 30% · ₦19,500', 'Change something'] }),
+        me('Pay 30% · ₦19,500', '12:11'),
+        bot('Here’s your link for the ₦19,500 deposit. I’ll remind you about the balance before Sat 28 Nov.', { time: '12:11', link: 'okapigo.app/pay/K2mQ8a', linkTitle: 'Deposit ₦19,500 · Ìrìn Lagos Tours' })
+      ] },
+      { label: 'Few seats, sold out, no dates', note: 'Date rows: title “Sat 5 Dec · 18:30” (17), description “Only 2 left” or “Sold out”.', msgs: [
+        bot('Choose a date. Seats left are shown under each one.', { time: '10:42', list: 'Choose a date' }),
+        sys('List rows: Thu 3 Dec · 18:30 — Only 2 left · Fri 4 Dec · 18:30 — Sold out · Sat 5 Dec · 18:30 — 8 left · Later dates'),
+        me('Fri 4 Dec · 18:30', '10:42'),
+        bot('Sorry, Fri 4 Dec is sold out. Please choose another date.', { time: '10:42', list: 'Choose a date' }),
+        sys('Tour with nothing scheduled:'),
+        bot('There are no dates for the Badagry Heritage Day Trip in the next 3 months.', { time: '10:43', buttons: ['See other tours', 'Talk to a person'] })
+      ] },
+      { label: 'Seats ran out before the summary', note: 'Checked when holding seats. Name and answers so far are kept.', msgs: [
+        me('adaeze.okafor@example.com', '10:45'),
+        bot('Sorry, someone booked while we were chatting. Only 1 seat is left on Sat 5 Dec now, and you asked for 2.', { time: '10:45', buttons: ['Book 1 seat', 'Choose another date', 'Talk to a person'] }),
+        me('Choose another date', '10:46'),
+        bot('No problem, I’ll keep your other answers.', { time: '10:46', list: 'Choose a date' })
+      ] },
+      { label: 'Payment didn’t go through', note: 'Sent when Paystack reports a failed charge. The old link stops working.', msgs: [
+        bot('Your payment didn’t go through, so no money was taken. Your seats are still held until 11:15.', { time: '10:51', buttons: ['Try again', 'Talk to a person'] }),
+        me('Try again', '10:51'),
+        bot('Here’s a new link. You can choose bank transfer instead of a card.', { time: '10:51', link: 'okapigo.app/pay/Lp4Zr1', linkTitle: 'Pay ₦74,000 · Ìrìn Lagos Tours' })
+      ] },
+      { label: 'Hold expired (30 minutes)', note: 'If the seats are gone, “Hold them again” is replaced by “Choose another date”.', msgs: [
+        bot('Your 30 minutes are up, so the seats were released. They’re still free, and I can hold them again with the same details.', { time: '11:15', buttons: ['Hold them again', 'Choose another date', 'Cancel'] }),
+        me('Hold them again', '11:20'),
+        bot('Done. Your 2 seats are held until 11:50. Here’s a fresh link for ₦74,000.', { time: '11:20', link: 'okapigo.app/pay/Qe7Wn3', linkTitle: 'Pay ₦74,000 · Ìrìn Lagos Tours' })
+      ] }
+    ] };
+  }
+}
+</script>
+</body>
+</html>

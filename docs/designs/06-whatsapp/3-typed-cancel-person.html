@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WhatsApp booking — typed words and a person</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 1240px; height: 1340px; box-sizing: border-box; padding: 40px; background: #E9EDE7; color: #111511; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; line-height: 1.45; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; align-items: start">
+<sc-for list="{{phones}}" as="p" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 14px; font-weight: 700">{{p.label}}</div>
+<div style="width: 360px; height: 1200px; background: #ECEFE8; border: 1px solid #C9CFC7; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #111511; color: #EEF2EC">
+<span aria-hidden="true" style="width: 36px; height: 36px; border-radius: 999px; background: #9BD10F; color: #111511; display: inline-flex; align-items: center; justify-content: center; font-weight: 800">Ì</span>
+<div style="flex: 1"><div style="font-weight: 700; font-size: 15px">Ìrìn Lagos Tours</div><div style="font-size: 12px; color: #A9B3A8">{{p.sub}}</div></div>
+</div>
+<div style="flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 8px; overflow: hidden">
+<sc-for list="{{p.msgs}}" as="m" hint-placeholder-count="6">
+<sc-if value="{{m.isSys}}" hint-placeholder-val="{{false}}"><div style="align-self: center; padding: 4px 10px; border-radius: 8px; background: #DCE2D9; font-size: 12px; color: #3B423B; text-align: center; max-width: 290px">{{m.text}}</div></sc-if>
+<sc-if value="{{m.isGuest}}" hint-placeholder-val="{{false}}"><div style="align-self: flex-end; max-width: 250px; padding: 7px 10px 5px; border-radius: 12px 12px 4px 12px; background: #DDF1B4; font-size: 15px; white-space: pre-line">{{m.text}}<div style="font-size: 11px; color: #4F584F; text-align: right">{{m.time}}</div></div></sc-if>
+<sc-if value="{{m.isBot}}" hint-placeholder-val="{{true}}">
+<div style="align-self: flex-start; width: 290px; display: flex; flex-direction: column; gap: 3px">
+<div style="padding: 8px 10px 5px; border-radius: 12px 12px 12px 4px; background: {{m.bg}}; font-size: 15px">
+<sc-if value="{{m.staff}}" hint-placeholder-val="{{false}}"><div style="font-size: 12px; font-weight: 700; color: #3F5A00; margin-bottom: 2px">{{m.staff}}</div></sc-if>
+<sc-if value="{{m.title}}" hint-placeholder-val="{{false}}"><div style="font-weight: 700">{{m.title}}</div></sc-if>
+<div style="white-space: pre-line">{{m.text}}</div>
+<div style="font-size: 11px; color: #4F584F; text-align: right">{{m.time}}</div>
+</div>
+<sc-for list="{{m.buttons}}" as="b" hint-placeholder-count="0"><button type="button" style="min-height: 40px; border: 0; border-radius: 10px; background: #FFFFFF; color: #3F5A00; font-size: 15px; font-weight: 700">{{b}}</button></sc-for>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":1340}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const bot = (text, o) => Object.assign({ isBot: true, text, buttons: [], bg: '#FFFFFF' }, o || {});
+    const staff = (text, time) => ({ isBot: true, text, time, buttons: [], staff: 'Tolu · Ìrìn team', bg: '#F1FBD6' });
+    const me = (text, time) => ({ isGuest: true, text, time, buttons: [] });
+    const sys = (text) => ({ isSys: true, text, buttons: [] });
+    return { phones: [
+      { label: 'Words the bot understands', sub: 'Booking assistant', msgs: [
+        me('help', '10:40'),
+        bot('I can show you our tours and book one for you here. Tap a button, or type:\n• menu: see the tours\n• start again: start over\n• cancel: stop this booking\n• person: talk to the Ìrìn team', { time: '10:40', buttons: ['See tours', 'Talk to a person'] }),
+        me('how far, abeg which one is best for this weekend', '10:41'),
+        bot('Sorry, I didn’t catch that. I work best with the buttons. For advice, the Ìrìn team can help.', { time: '10:41', buttons: ['See tours', 'Talk to a person'] }),
+        sys('At “How many adults?” the guest types instead of tapping:'),
+        me('four', '10:43'),
+        bot('Please type a number, like 4.', { time: '10:43' }),
+        me('4', '10:43'),
+        bot('4 adults. Anyone under 13 coming too?', { time: '10:43', buttons: ['No', 'Yes'] }),
+        sys('Over 20 travellers:'),
+        me('25', '10:44'),
+        bot('For groups over 20 the team plans it with you directly.', { time: '10:44', buttons: ['Talk to a person', 'Change the number'] }),
+        me('start again', '10:45'),
+        bot('Starting again. Nothing was booked.', { time: '10:45', buttons: ['See tours', 'Talk to a person'] })
+      ] },
+      { label: 'Children’s ages, then cancel', sub: 'Booking assistant', msgs: [
+        bot('Anyone under 13 coming too?', { time: '09:20', buttons: ['No', 'Yes'] }),
+        me('Yes', '09:20'),
+        bot('How many under 13? Children must travel with an adult.', { time: '09:20', buttons: ['1', '2', '3 or more'] }),
+        me('2', '09:20'),
+        bot('How old is the first child? Type the age in years, 0 for a baby.', { time: '09:20' }),
+        me('8', '09:21'),
+        bot('And the second child?', { time: '09:21' }),
+        me('1', '09:21'),
+        bot('Got it:\n2 adults · ₦70,000\n1 child (8) · ₦20,000\n1 infant (1) · free, needs a seat', { time: '09:21' }),
+        sys('Under 13 with no adults: “Children must travel with an adult. How many adults (13 or over)?”'),
+        sys('Later, at any step:'),
+        me('cancel', '09:24'),
+        bot('Stop this booking? Your held seats will be released.', { time: '09:24', buttons: ['Yes, stop', 'No, carry on'] }),
+        me('Yes, stop', '09:24'),
+        bot('Stopped. Nothing was booked or paid. Type menu any time to start again.', { time: '09:24' })
+      ] },
+      { label: 'Talk to a person, then back to the bot', sub: 'Ìrìn team is replying', msgs: [
+        me('Talk to a person', '10:47'),
+        bot('I’ve asked the Ìrìn team to join. They usually reply within a few minutes, 08:00–20:00. Your seats stay held until 11:15. Until they reply, you can still type menu.', { time: '10:47' }),
+        sys('Tolu from Ìrìn joined · the assistant is paused'),
+        staff('Hi Adaeze, Tolu here. Yes, we can do a vegetarian version of every stop on Sat 5 Dec. Shall I note it on your booking?', '10:49'),
+        me('Yes please, thank you!', '10:49'),
+        staff('Done. I’ll hand you back to the assistant to finish paying.', '10:50'),
+        sys('Tolu handed back to the assistant'),
+        bot('Welcome back, Adaeze. Here’s where we were: 2 seats on Sat 5 Dec held until 11:15, total ₦74,000. Your note “vegetarian” is on the booking.', { time: '10:50', buttons: ['Pay ₦74,000', 'Change something', 'Cancel'] }),
+        sys('Outside 08:00–20:00:'),
+        bot('The team is away now and back at 08:00. I’ve passed on your message. Your seats stay held until 21:45; after that I can hold them again.', { time: '21:15' })
+      ] }
+    ] };
+  }
+}
+</script>
+</body>
+</html>

@@ -61,6 +61,7 @@ export function publicSite(o) {
       address: site.address ?? null,
       socials: site.socials ?? [],
     },
+    hours: site.hours ?? null,
   };
 }
 
@@ -139,6 +140,7 @@ export async function loadCatalogueView(prisma, operatorSlug) {
       return {
         slug: t.slug,
         title: t.title,
+        shortTitle: t.shortTitle,
         summary: t.summary,
         durationMinutes: t.durationMinutes,
         activityLabel: t.activityLabel,
@@ -195,6 +197,7 @@ export async function loadTourView(prisma, operatorSlug, tourSlug) {
       _operatorId: operator.id,
       slug: tour.slug,
       title: tour.title,
+      shortTitle: tour.shortTitle,
       summary: tour.summary,
       description: tour.description,
       durationMinutes: tour.durationMinutes,
@@ -227,6 +230,8 @@ export async function loadTourView(prisma, operatorSlug, tourSlug) {
         name: a.name,
         description: a.description,
         priceKobo: a.priceKobo,
+        // Per date; null = unlimited. (What's LEFT depends on the date: addOnUsage().)
+        stockPerDeparture: a.stockPerDeparture,
       })),
       cancellationPolicy: version
         ? {

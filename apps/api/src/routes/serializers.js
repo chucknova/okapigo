@@ -71,6 +71,7 @@ export function serializeProduct(p) {
     id: p.id,
     slug: p.slug,
     title: p.title,
+    shortTitle: p.shortTitle,
     summary: p.summary,
     description: p.description,
     status: p.status,

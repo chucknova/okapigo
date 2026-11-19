@@ -47,11 +47,11 @@ const SUBSETS = /** @type {const} */ ([
   ['latin-ext', 'Inter Ext'],
   ['vietnamese', 'Inter Viet'],
 ]);
-const FONT_STACK = SUBSETS.map(([, name]) => name).join(', ');
+export const FONT_STACK = SUBSETS.map(([, name]) => name).join(', ');
 
 /** @type {Array<{ name: string, data: Buffer, weight: 400 | 600 | 700 | 800, style: 'normal' }> | null} */
 let fonts = null;
-function loadFonts() {
+export function loadFonts() {
   if (fonts) return fonts;
   const require = createRequire(import.meta.url);
   const dir = join(dirname(require.resolve('@fontsource/inter/package.json')), 'files');

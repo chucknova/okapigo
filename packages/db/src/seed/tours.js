@@ -55,6 +55,7 @@ export const TOURS = [
     // Daily at 09:00, closed on Christmas Day (an exception date).
     schedule: { daysOfWeek: [0, 1, 2, 3, 4, 5, 6], times: ['09:00'], skipChristmas: true },
     title: 'Lagos Island Heritage Walk',
+    shortTitle: 'Heritage Walk',
     summary:
       'Three unhurried hours through old Lagos: Tinubu Square, the Brazilian Quarter, the Cathedral and Freedom Park.',
     description:
@@ -113,6 +114,7 @@ export const TOURS = [
     // Thursday to Saturday evenings.
     schedule: { daysOfWeek: [4, 5, 6], times: ['18:30'] },
     title: 'Lagos Street Food Crawl',
+    shortTitle: 'Street Food Crawl',
     summary: 'An evening of suya, boli, amala and puff-puff across Yaba and Surulere.',
     description:
       'Eat your way through Lagos after dark. Your guide leads you to trusted local spots in Yaba and Surulere for smoky suya, roasted plantain (boli) with groundnuts, amala with ewedu and gbegiri, and warm puff-puff to finish. Tell us about dietary needs when you book and we will plan around them.',
@@ -166,6 +168,7 @@ export const TOURS = [
     // Wednesday and Saturday mornings.
     schedule: { daysOfWeek: [3, 6], times: ['08:00'] },
     title: 'Lekki Nature and Craft Half-Day',
+    shortTitle: 'Lekki Nature & Craft',
     summary:
       'Canopy walk at the Lekki Conservation Centre and an hour at the Lekki Arts and Crafts Market, with hotel pickup.',
     description:
@@ -203,6 +206,7 @@ export const TOURS = [
     // Weekends only.
     schedule: { daysOfWeek: [0, 6], times: ['10:00'] },
     title: 'Tarkwa Bay Beach and Lagoon Trip',
+    shortTitle: 'Tarkwa Bay Beach Day',
     summary: 'A weekend boat ride across the Lagos lagoon to the sheltered beach at Tarkwa Bay.',
     description:
       'Leave the city behind on a chartered boat across the Lagos lagoon to Tarkwa Bay, a sheltered beach popular for swimming. Life jackets are provided. Trips depend on the weather: if the lagoon is unsafe we cancel and refund under our cancellation policy.',
@@ -254,6 +258,7 @@ export const TOURS = [
     // Saturdays, early start.
     schedule: { daysOfWeek: [6], times: ['07:00'] },
     title: 'Badagry Heritage Day Trip',
+    shortTitle: 'Badagry Day Trip',
     summary:
       'A full day in Badagry: the Point of No Return, the slave relics museum and the First Storey Building.',
     description:

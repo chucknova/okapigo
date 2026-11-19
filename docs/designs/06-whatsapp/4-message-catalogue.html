@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WhatsApp message catalogue</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1640px; height: 2600px; box-sizing: border-box; padding: 40px; background: #FFFFFF; color: #111511; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.4; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 24px">
+<div><h1 style="margin: 0; font-size: 28px">Message catalogue</h1><p style="margin: 4px 0 0; color: #4F584F; font-size: 15px">One row per template. {braces} are filled by the engine. Counts are checked against WhatsApp’s limits: button 20, list button 20, row title 24, row description 72.</p></div>
+<div style="display: flex; gap: 12px; font-size: 13px"><span style="padding: 4px 10px; border-radius: 999px; background: #E3F3E6; color: #1E6B34; font-weight: 700">{{okCount}} choices within limits</span><span style="padding: 4px 10px; border-radius: 999px; background: {{overBg}}; color: {{overFg}}; font-weight: 700">{{overCount}} over</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 150px 90px minmax(0, 1fr) 560px; border-top: 2px solid #111511">
+<div style="padding: 8px; font-weight: 700; border-bottom: 1px solid #7A847A">ID</div><div style="padding: 8px; font-weight: 700; border-bottom: 1px solid #7A847A">Block</div><div style="padding: 8px; font-weight: 700; border-bottom: 1px solid #7A847A">Message</div><div style="padding: 8px; font-weight: 700; border-bottom: 1px solid #7A847A">Choices (characters / limit)</div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="30">
+<div style="padding: 7px 8px; border-bottom: 1px solid #DCE2D9; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; font-weight: 700">{{r.id}}</div>
+<div style="padding: 7px 8px; border-bottom: 1px solid #DCE2D9; color: #4F584F">{{r.block}}</div>
+<div style="padding: 7px 8px; border-bottom: 1px solid #DCE2D9; white-space: pre-line">{{r.text}}</div>
+<div style="padding: 7px 8px; border-bottom: 1px solid #DCE2D9; display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start">
+<sc-for list="{{r.chips}}" as="c" hint-placeholder-count="2"><span style="padding: 2px 8px; border-radius: 6px; background: {{c.bg}}; color: {{c.fg}}; font-size: 12px; white-space: nowrap">{{c.label}} <strong>{{c.count}}</strong></span></sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1640,"height":2600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const len = (s) => [...s].length;
+    let ok = 0, over = 0;
+    const chip = (label, limit, prefix) => {
+      const n = len(label), bad = n > limit; bad ? over++ : ok++;
+      return { label: (prefix || '') + label, count: n + '/' + limit, bg: bad ? '#FDECEA' : '#EEF1EC', fg: bad ? '#B42318' : '#111511' };
+    };
+    const B = (xs) => xs.map((x) => chip(x, 20));
+    const L = (btn, rows) => [chip(btn, 20, 'List: ')].concat(...rows.map(([t, d]) => d ? [chip(t, 24, 'Row: '), chip(d, 72, '↳ ')] : [chip(t, 24, 'Row: ')]));
+    const R = (id, block, text, chips) => ({ id, block, text, chips: chips || [] });
+    const rows = [
+      R('hello', 'buttons', 'Hi! I’m {operator}’s booking assistant. I can show you our tours and book one for you here in the chat.', B(['See tours', 'Talk to a person'])),
+      R('tours', 'list', 'Here are our {count} tours. Prices are per adult and include VAT.', L('Choose a tour', [['Heritage Walk', 'from ₦25,000 · daily 09:00 · 3 h on foot'], ['Street Food Crawl', 'from ₦35,000 · Thu–Sat 18:30 · 3 h 30 min'], ['Lekki Nature & Craft', 'from ₦45,000 · Wed, Sat 08:00 · pickup included'], ['Tarkwa Bay Beach Day', 'from ₦40,000 · Sat, Sun 10:00 · by boat'], ['Badagry Day Trip', 'from ₦65,000 · Sat 07:00 · 30% deposit possible']])),
+      R('tour', 'list', '*{tour}*\n{summary}\n{duration} · from {price} per adult\nFree cancellation up to 48 hours before.\n\nAll the details: {tour_url}', L('Choose a date', [['Thu 3 Dec · 18:30', 'Only 2 left'], ['Fri 4 Dec · 18:30', 'Sold out'], ['Sat 5 Dec · 18:30', '8 left'], ['Later dates', 'See dates after Sat 5 Dec']])),
+      R('sold_out_pick', 'list', 'Sorry, {date} is sold out. Please choose another date.', L('Choose a date', [])),
+      R('no_dates', 'buttons', 'There are no dates for the {tour} in the next 3 months.', B(['See other tours', 'Talk to a person'])),
+      R('adults', 'buttons', '{date} at {time}. {seats} seats left.\n\nHow many adults (13 or over)?', B(['1', '2', '3 or more'])),
+      R('type_number', 'text', 'Please type a number, like 4.'),
+      R('group_limit', 'buttons', 'For groups over 20 the team plans it with you directly.', B(['Talk to a person', 'Change the number'])),
+      R('under13', 'buttons', 'Anyone under 13 coming too?', B(['No', 'Yes'])),
+      R('under13_count', 'buttons', 'How many under 13? Children must travel with an adult.', B(['1', '2', '3 or more'])),
+      R('child_age', 'text', 'How old is the {first|second|…} child? Type the age in years, 0 for a baby.'),
+      R('travellers_ok', 'text', 'Got it:\n{lines, e.g. 1 child (8) · ₦20,000; 1 infant (1) · free, needs a seat}'),
+      R('no_adult', 'text', 'Children must travel with an adult. How many adults (13 or over)?'),
+      R('extras', 'list', 'Would you like an extra? They’re served at the stops.', L('See extras', [['Extra tasting plate', '+₦5,000 each · one more plate at every stop · {stock} left'], ['Palm wine sampler', '+₦4,000 each · three small cups · {stock} left'], ['No extras', 'Continue without extras']])),
+      R('extra_qty', 'buttons', 'How many {extra}s? {price} each, {stock} left tonight.', B(['1', '2', '3 or more'])),
+      R('extra_more', 'buttons', 'Added. Anything else?', B(['Add another extra', 'No, that’s all'])),
+      R('pickup', 'list', 'Where should the van pick you up? Pickup is included.', L('Choose pickup point', [['Victoria Island', 'Eko Hotel main gate · 07:15'], ['Ikoyi', 'Falomo roundabout · 07:30'], ['Lekki Phase 1', 'Admiralty Way gate · 07:45']])),
+      R('name', 'text', 'What name should the booking be under?'),
+      R('email', 'buttons', 'Thanks, {first_name}. An email for your receipt? Type it, or tap Skip.', B(['Skip'])),
+      R('seats_short', 'buttons', 'Sorry, someone booked while we were chatting. Only {n} seat(s) left on {date} now, and you asked for {asked}.', B(['Book 1 seat', 'Choose another date', 'Talk to a person'])),
+      R('summary', 'buttons', '*Your booking*\n{tour}\n{date} · {time}\nMeet at {meeting_point}\n\n{lines}\nTotal {total} (includes {vat} VAT)\n\nFree cancellation until {free_until}.\nI’m holding your {n} seats until {hold_until} (30 minutes).\n\nBy tapping Pay you accept the booking terms: {terms_url}', B(['Pay ₦74,000', 'Change something', 'Cancel'])),
+      R('summary_deposit', 'buttons', 'Same as summary, plus: Pay in full now, or pay a 30% deposit now and the rest ({balance}) by {due}. Deposits are non-refundable.', B(['Pay in full ₦65,000', 'Pay 30% · ₦19,500', 'Change something'])),
+      R('change', 'list', 'What would you like to change?', L('Choose what', [['Date'], ['Travellers'], ['Extras'], ['Pickup point'], ['Name or email']])),
+      R('pay_link', 'text + link', 'Here’s your secure payment link. Pay by card or bank transfer.\n{pay_url}\n\nThe link works while your seats are held, until {hold_until}. I’ll message you here as soon as the payment arrives.'),
+      R('declined', 'buttons', 'Your payment didn’t go through, so no money was taken. Your seats are still held until {hold_until}.', B(['Try again', 'Talk to a person'])),
+      R('hold_expired', 'buttons', 'Your 30 minutes are up, so the seats were released. They’re still free, and I can hold them again with the same details.', B(['Hold them again', 'Choose another date', 'Cancel'])),
+      R('held_again', 'text + link', 'Done. Your {n} seats are held until {hold_until}. Here’s a fresh link for {amount}.\n{pay_url}'),
+      R('confirmed', 'text', '*✓ Booking confirmed*\nBooking {ref}\n{tour}\n{date} · {time}\nMeet at {meeting_point}\n{travellers}\nPaid {amount} {or: Deposit paid {deposit} · balance {balance} due by {due}}'),
+      R('ticket', 'image', 'Caption: Your ticket. Show it to the guide at the start.'),
+      R('trip_link', 'text + link', 'Your trip page has the map, what to bring and this ticket:\n{trip_url}'),
+      R('after', 'buttons', 'Tell us about allergies any time by replying here. Enjoy the trip!', B(['Book another tour', 'Talk to a person'])),
+      R('help', 'buttons', 'I can show you our tours and book one for you here. Tap a button, or type:\n• menu  • start again  • cancel  • person', B(['See tours', 'Talk to a person'])),
+      R('not_understood', 'buttons', 'Sorry, I didn’t catch that. I work best with the buttons. For advice, the {operator} team can help.', B(['See tours', 'Talk to a person'])),
+      R('start_again', 'buttons', 'Starting again. Nothing was booked.', B(['See tours', 'Talk to a person'])),
+      R('cancel_confirm', 'buttons', 'Stop this booking? Your held seats will be released.', B(['Yes, stop', 'No, carry on'])),
+      R('cancelled_chat', 'text', 'Stopped. Nothing was booked or paid. Type menu any time to start again.'),
+      R('handover', 'text', 'I’ve asked the {operator} team to join. They usually reply within a few minutes, {hours}. Your seats stay held until {hold_until}. Until they reply, you can still type menu.'),
+      R('team_away', 'text', 'The team is away now and back at {opens}. I’ve passed on your message.'),
+      R('handback', 'buttons', 'Welcome back, {first_name}. Here’s where we were: {state_summary}', B(['Pay ₦74,000', 'Change something', 'Cancel']))
+    ];
+    return { rows, okCount: ok, overCount: over, overBg: over ? '#FDECEA' : '#EEF1EC', overFg: over ? '#B42318' : '#4F584F' };
+  }
+}
+</script>
+</body>
+</html>

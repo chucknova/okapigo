@@ -238,6 +238,9 @@ model Product {
   // A short word or two about HOW the tour runs: "Walking", "Boat", "Van, pickup" (stage 12b,
   // shown on tour cards and pages). Optional.
   activityLabel   String? @map("activity_label")
+  // A short name for tight spaces, like WhatsApp's 24-character list rows ("Heritage Walk").
+  // Optional: the title is used when empty (stage 13c).
+  shortTitle      String? @map("short_title")
   // "Arrive by 08:50": how many minutes before the start guests should be at the meeting
   // point (trip hub, stage 12f). Optional: without it the line hides. CHECK: 0–120.
   arriveMinutesEarly Int? @map("arrive_minutes_early")

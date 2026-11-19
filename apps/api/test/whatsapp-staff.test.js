@@ -11,7 +11,7 @@ import { chatHelpers } from './whatsapp-chat.js';
 const ctx = createTestContext();
 afterEach(() => ctx.cleanup());
 afterAll(() => ctx.close());
-const { guest, words } = chatHelpers(ctx);
+const { guest, words, options, toSummary } = chatHelpers(ctx);
 
 /** @param {string} token */
 function as(token) {
@@ -26,16 +26,19 @@ async function seen(/** @type {any} */ g) {
   return /** @type {any[]} */ (res.body.messages);
 }
 
-describe('taking over a chat', () => {
+describe('taking over a chat (design: talk to a person, then back to the bot)', () => {
   it('who needs a person comes first; take over → reply → hand back, and the guest sees it all', async () => {
     const { operator, manager } = await ctx.seedOperator();
     const staff = as(await ctx.tokenFor(manager.id));
+    const first = manager.name.trim().split(/\s+/)[0];
 
     const browsing = guest(operator.slug, '0803 000 0001');
     await browsing.say('Hi');
     const asking = guest(operator.slug, '0803 000 0002');
-    await asking.say('Hi');
-    await asking.say('Can I talk to a person?');
+    await toSummary(asking, { tour: 'lagos-island-heritage-walk' });
+    expect(words(await asking.tap('person'))).toMatch(
+      /^I’ve asked the Ìrìn team to join\. They usually reply within a few minutes, 08:00–20:00\. Your seats stay held until \d\d:\d\d\. Until they reply, you can still type menu\.$|^The team is away now and back at 08:00\. I’ve passed on your message\. Your seats stay held until \d\d:\d\d; after that I can hold them again\.$/,
+    );
     await browsing.tap('tours'); // the browsing guest wrote LAST, but isn't waiting
 
     const list = (await staff.get('/api/conversations')).body.conversations;
@@ -45,56 +48,71 @@ describe('taking over a chat', () => {
     ]);
     expect(list[0]).toMatchObject({ handledBy: 'bot', needsPersonSince: expect.any(String) });
     expect(list[1].needsPersonSince).toBeNull();
-    expect(list[0].lastMessage.body.text).toContain('team to join');
 
-    // Take over: the guest is told who joined; the chat is no longer waiting.
+    // Take over: an event line, not a message ("the assistant is paused").
     const id = list[0].id;
     const taken = await staff.post(`/api/conversations/${id}/take-over`);
     expect(taken.status).toBe(200);
     expect(taken.body.conversation).toMatchObject({ handledBy: 'staff', needsPersonSince: null });
-    expect((await seen(asking)).at(-1).body.text).toMatch(
-      / from the Ìrìn team has joined the chat\.$/,
-    );
-    // Twice is harmless: no second "has joined".
+    expect((await asking.chat()).at(-1).body).toEqual({
+      kind: 'notice',
+      text: `${first} from Ìrìn joined · the assistant is paused`,
+    });
+    // Twice is harmless: no second "joined".
     await staff.post(`/api/conversations/${id}/take-over`);
-    expect((await seen(asking)).filter((m) => /has joined/.test(m.body.text ?? ''))).toHaveLength(
-      1,
-    );
+    expect((await asking.chat()).filter((m) => /joined/.test(m.body.text ?? ''))).toHaveLength(1);
 
     // While staff answer, the bot stays quiet, even for "menu".
-    expect(await asking.say('Is there parking at the start?')).toEqual([]);
+    expect(await asking.say('Can you do a vegetarian version?')).toEqual([]);
     expect(await asking.say('menu')).toEqual([]);
     const reply = await staff
       .post(`/api/conversations/${id}/messages`)
-      .send({ text: 'Yes, at Tafawa Balewa Square.' });
+      .send({ text: 'Yes, every stop. Shall I note it on your booking?' });
     expect(reply.status).toBe(201);
     expect(reply.body.message).toMatchObject({ author: 'staff', authorUserId: manager.id });
-    expect((await seen(asking)).at(-1)).toMatchObject({
+    // The guest sees a first name only ("Tolu · Ìrìn team").
+    expect((await asking.chat()).at(-1)).toMatchObject({
       author: 'staff',
-      body: { kind: 'text', text: 'Yes, at Tafawa Balewa Square.' },
+      authorName: first,
+      body: { kind: 'text', text: 'Yes, every stop. Shall I note it on your booking?' },
     });
 
-    // Hand back: the bot says so, and answers again.
+    // Hand back: an event line, then where we were, with the summary's buttons.
     const back = await staff.post(`/api/conversations/${id}/hand-back`);
     expect(back.body.conversation.handledBy).toBe('bot');
-    expect((await seen(asking)).at(-1).body.text).toContain("I'm here if you need anything else");
-    expect(words(await asking.tap('tours'))).toContain('Here are our tours');
-
-    // The whole chat, for staff, oldest first.
-    const chat = (await staff.get(`/api/conversations/${id}`)).body.conversation;
-    expect(chat.messages.map((/** @type {any} */ m) => m.author)).toEqual([
-      'guest',
-      'bot', // Hi
-      'guest',
-      'bot', // a person please
-      'bot', // has joined
-      'guest',
-      'guest', // parking? menu (no answer from the bot)
-      'staff',
-      'bot', // handed back
-      'guest',
-      'bot', // tours
+    const [left, welcome] = (await asking.chat()).slice(-2).map((m) => m.body);
+    expect(left).toEqual({ kind: 'notice', text: `${first} handed back to the assistant` });
+    expect(welcome.text).toMatch(
+      /^Welcome back, Adaeze\. Here’s where we were: 2 seats on \w{3} \d+ \w{3} held until \d\d:\d\d, total ₦50,000\.$/,
+    );
+    expect(welcome.buttons.map((/** @type {any} */ b) => b.title)).toEqual([
+      'Pay ₦50,000',
+      'Change something',
+      'Cancel',
     ]);
+    expect(words(await asking.tap('pay'))).toContain('Here’s your secure payment link.');
+
+    // For staff: the whole chat oldest first, staff messages with their full name.
+    const chat = (await staff.get(`/api/conversations/${id}`)).body.conversation;
+    const mine = chat.messages.find((/** @type {any} */ m) => m.author === 'staff');
+    expect(mine.authorName).toBe(manager.name);
+  });
+
+  it('handed back mid-booking: “Here’s where we were:” and the question the guest was on', async () => {
+    const { operator, manager } = await ctx.seedOperator();
+    const staff = as(await ctx.tokenFor(manager.id));
+    const g = guest(operator.slug);
+    await g.say('Hi');
+    await g.tap('tours');
+    const dates = await g.tap('tour:lagos-island-heritage-walk');
+    await g.tap(options(dates)[0].id);
+    await g.tap('person');
+    const [c] = (await staff.get('/api/conversations')).body.conversations;
+    await staff.post(`/api/conversations/${c.id}/take-over`);
+    await staff.post(`/api/conversations/${c.id}/hand-back`);
+    const [where, question] = (await g.chat()).slice(-2).map((m) => m.body.text);
+    expect(where).toBe('Welcome back, Adaeze. Here’s where we were:');
+    expect(question).toMatch(/How many adults \(13 or over\)\?$/);
   });
 
   it('staff reply only after taking over (one voice at a time)', async () => {
@@ -153,5 +171,20 @@ describe('taking over a chat', () => {
     const staff = as(await ctx.tokenFor(manager.id));
     const chat = (await staff.get(`/api/conversations/${c.id}`)).body.conversation;
     expect(texts(chat.messages)).toEqual(['first', 'second']);
+  });
+});
+
+describe('the simulator’s own limit', () => {
+  it('more messages a minute than allowed from one address: 429', async () => {
+    const { buildApp } = await import('./helpers.js');
+    const app = buildApp({ prisma: ctx.prisma, simulatorLimit: 2 });
+    const { operator } = await ctx.seedOperator();
+    const send = () =>
+      request(app)
+        .post(`/simulator/whatsapp/${operator.slug}/messages`)
+        .send({ phone: '0803 123 4567', text: 'hi' });
+    expect((await send()).status).toBe(201);
+    expect((await send()).status).toBe(201);
+    expect((await send()).status).toBe(429);
   });
 });

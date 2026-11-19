@@ -34,6 +34,33 @@ const NEW_TOUR = {
 const ADULT = { key: 'adult', name: 'Adult', minAge: 13, maxAge: null, amountKobo: 1_500_000 };
 const CHILD = { key: 'child', name: 'Child', minAge: 3, maxAge: 12, amountKobo: 800_000 };
 
+describe('the short name (stage 13c: WhatsApp list rows, 24 characters)', () => {
+  it('is optional, at most 24 characters, and null clears it; the database refuses spaces around it', async () => {
+    const { owner, operator } = await ctx.seedOperator();
+    const staff = as(await ctx.tokenFor(owner.id));
+    const created = await staff.post('/api/products').send(NEW_TOUR);
+    expect(created.status).toBe(201);
+    expect(created.body.product.shortTitle).toBeNull();
+    const id = created.body.product.id;
+
+    expect(
+      (await staff.patch(`/api/products/${id}`).send({ shortTitle: 'x'.repeat(25) })).status,
+    ).toBe(400);
+    const set = await staff.patch(`/api/products/${id}`).send({ shortTitle: '  Lagoon Sunset  ' });
+    expect(set.body.product.shortTitle).toBe('Lagoon Sunset'); // trimmed
+    const cleared = await staff.patch(`/api/products/${id}`).send({ shortTitle: null });
+    expect(cleared.body.product.shortTitle).toBeNull();
+
+    await expect(
+      ctx.prisma.product.update({ where: { id }, data: { shortTitle: ' Sunset' } }),
+    ).rejects.toThrow(/products_short_title_valid/);
+    const walk = await ctx.prisma.product.findFirstOrThrow({
+      where: { operatorId: operator.id, slug: 'lagos-island-heritage-walk' },
+    });
+    expect(walk.shortTitle).toBe('Heritage Walk'); // seeded
+  });
+});
+
 describe('reading the catalogue', () => {
   it("returns Ìrìn's five tours with prices in kobo, to anyone with products: view", async () => {
     const { guides } = await ctx.seedOperator();

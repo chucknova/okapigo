@@ -19,17 +19,23 @@ import { requirePermission } from '../middleware/auth.js';
 import { validate, IdParamsSchema } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { say, text } from '../whatsapp/messages.js';
+import { welcomeBack } from '../whatsapp/engine.js';
+import { readState } from '../whatsapp/state.js';
 
 const ReplyBody = z.object({ text: z.string().trim().min(1).max(4096) });
 
 /**
  * @param {{
  *   prisma: import('@prisma/client').PrismaClient,
+ *   quotes: any,
+ *   jobs: any,
+ *   webPublicUrl: string,
  *   channels: Record<string, { send: Function }>,
  * }} deps
  */
-export function conversationsRouter({ prisma, channels }) {
+export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels }) {
   const router = Router();
+  const engineDeps = { prisma, quotes, jobs, webPublicUrl };
   /** @returns {import('../middleware/auth.js').AuthContext} */
   // @ts-ignore: req.auth is set by requireAuth
   const authOf = (req) => req.auth;
@@ -68,8 +74,26 @@ export function conversationsRouter({ prisma, channels }) {
         },
       });
       if (!c) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found.');
+      const ids = [...new Set(c.messages.map((m) => m.authorUserId).filter(Boolean))];
+      const names = new Map(
+        (
+          await prisma.user.findMany({
+            where: {
+              id: { in: /** @type {string[]} */ (ids) },
+              operatorId: authOf(req).operatorId,
+            },
+            select: { id: true, name: true },
+          })
+        ).map((u) => [u.id, u.name]),
+      );
       res.json({
-        conversation: { ...summaryOf(c), messages: c.messages.reverse().map(messageOf) },
+        conversation: {
+          ...summaryOf(c),
+          messages: c.messages.reverse().map((m) => ({
+            ...messageOf(m),
+            authorName: m.authorUserId ? (names.get(m.authorUserId) ?? null) : null,
+          })),
+        },
       });
     },
   );
@@ -123,19 +147,24 @@ export function conversationsRouter({ prisma, channels }) {
     requirePermission('bookings', 'edit'),
     validate({ params: IdParamsSchema }),
     async (req, res) => {
-      const { operatorId } = authOf(req);
-      const result = await change(req.params.id, operatorId, async (tx, c) => {
+      const { operatorId, userId } = authOf(req);
+      const result = await change(req.params.id, operatorId, async (tx, c, operator) => {
         if (c.handledBy === 'bot') return { conversation: c, out: [] };
-        const out = [say.handBack()];
+        const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+        // The bot picks up where the guest was (catalogue: handback). It reads with its own
+        // connection; this transaction holds the conversation's lock and writes.
+        const turn = await welcomeBack(
+          { deps: { ...engineDeps, log: req.log }, operator, conversation: c },
+          readState(c.state),
+        );
+        const out = [say.staffLeft(user.name), ...turn.replies];
         await store(tx, c, out, 'bot');
-        // The bot starts from the top (staff may have changed anything meanwhile), but keeps
-        // the booking it was holding, so "menu" still gives those seats back as before.
-        const held = /** @type {any} */ (c.state)?.bookingId;
         const conversation = await tx.conversation.update({
           where: { id: c.id },
           data: {
             handledBy: 'bot',
-            state: { step: 'hello', ...(held && { bookingId: held }) },
+            state: turn.state,
+            ...(turn.bookingId !== undefined && { bookingId: turn.bookingId }),
             lastMessageAt: new Date(),
           },
         });

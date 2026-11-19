@@ -61,6 +61,8 @@ const productFields = {
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Use lowercase letters, numbers and hyphens')
     .refine((s) => !RESERVED_TOUR_SLUGS.has(s), 'That word is reserved for booking pages'),
   title: text(120),
+  // For WhatsApp's list rows (24 characters): "Heritage Walk". null = use the title.
+  shortTitle: z.string().trim().min(1).max(24, 'Keep it to 24 characters.').nullable(),
   summary: text(300),
   description: text(10_000),
   status: z.enum(PRODUCT_STATUSES),
@@ -100,6 +102,7 @@ export const CreateProductSchema = z.object({
   cancellationPolicyId: productFields.cancellationPolicyId.default(null),
   depositBasisPoints: productFields.depositBasisPoints.default(null),
   activityLabel: productFields.activityLabel.default(null),
+  shortTitle: productFields.shortTitle.default(null),
 });
 
 /** PATCH /api/products/:id. Any subset of fields; lists are replaced as a whole. */

@@ -176,3 +176,20 @@ a state machine on the server, using the same quote, hold, booking and payment-l
 website; the ticket sent when the payment settles; the take-over API; and an adapter interface so
 the simulator and the real WhatsApp Cloud API are two plugs into the same engine. It'll be tested
 with scripted chats. Your wording replaces my drafts in one place.
+
+## Decided (2026-11-19): your designs (`docs/designs/06-whatsapp/`)
+
+The **message catalogue** is the source of the bot's wording. Where the pages differ, the
+catalogue wins (e.g. "Enjoy the trip!", not "Enjoy the food!"). Your answers to the gaps:
+
+1. **Short tour names:** a new optional field on tours (24 characters at most), used in the
+   WhatsApp list; the full title when it's empty.
+2. **Pickup times and opening hours:** each pickup point gets a time; the business gets opening
+   hours (one range for every day). Staff API now, screens with the operator app.
+3. **The simulator's own parts** (choose the guest, new chat, "typing…", a failed message, the
+   desktop view): I make simple versions in the style of your chat; you restyle later.
+4. **After paying, anything the guest types goes to the team:** "passed on", and the chat goes to
+   the top of the staff list.
+
+The stages of 13c: **13c-1** the conversation as designed (server); **13c-2** the simulator app
+and journey 2 in the browser; **13c-3** the real WhatsApp Cloud API connection.

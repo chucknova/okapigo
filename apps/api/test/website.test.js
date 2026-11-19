@@ -142,6 +142,28 @@ describe('the business details (stage 12g-2)', () => {
     expect((await staff.get('/api/website')).body.website.site).toEqual(IRIN_SITE);
   });
 
+  it('opening hours (stage 13c): when the team answers chats; closing after opening', async () => {
+    const { owner, operator } = await ctx.seedOperator();
+    const staff = as(await ctx.tokenFor(owner.id));
+    expect((await staff.get('/api/website')).body.website.site.hours).toEqual({
+      opens: '08:00',
+      closes: '20:00',
+    });
+    for (const hours of [
+      { opens: '20:00', closes: '08:00' }, // overnight isn't supported
+      { opens: '8am', closes: '20:00' },
+      { opens: '08:00' },
+    ]) {
+      expect((await staff.patch('/api/website').send({ site: { hours } })).status).toBe(400);
+    }
+    const res = await staff
+      .patch('/api/website')
+      .send({ site: { hours: { opens: '09:00', closes: '17:30' } } });
+    expect(res.status).toBe(200);
+    const pub = (await request(ctx.app).get(`/public/${operator.slug}`)).body.site;
+    expect(pub.hours).toEqual({ opens: '09:00', closes: '17:30' });
+  });
+
   it('a page title like "><script> is text, never HTML, on the site’s own page', async () => {
     const { owner, operator } = await ctx.seedOperator();
     await as(await ctx.tokenFor(owner.id))

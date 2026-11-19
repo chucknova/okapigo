@@ -12,8 +12,9 @@ MVP will replace the **token values**, not the screens' logic.
 | `03-booking-widget.html`                | 03                                    | Inline widget (one tour, all tours) on light and dark host sites, the Book now button, overlay (desktop, phone), loading, domain not approved, sold out, the Paystack notice |
 | `04-operator-website.html`              | 04                                    | One-page site, phone and desktop; **Lagoon, Classic, Earth** × light and dark; no tours; missing optional content                        |
 | `05-trip-hub.html`                      | 05                                    | Trip hub upcoming and trip day; 9 banners (balance due, overdue, after, cancelled ×2, refunded, request open, offline); cancel yourself (3 steps); ask Ìrìn (form, sent) |
+| `06-whatsapp/` (4 pages)                | 06                                    | The WhatsApp conversation: happy path (Street Food, paid by transfer, the ticket), branches (pickup, deposit, few seats, seats ran out, declined, hold expired), typed words / cancel / talking to a person, and the **message catalogue** with character checks (the source of the bot's wording) |
 
-**Viewing them:** they're bundled pages that draw themselves with JavaScript, so open them in a
+**Viewing them:** the `06-whatsapp/` pages share one viewer runtime (`support.js`, `vendor/`). The others are bundled pages that draw themselves with JavaScript, so open them in a
 browser, or run the `design-files` preview (`.claude/launch.json`, port 4890).
 
 ## How session 12 is staged

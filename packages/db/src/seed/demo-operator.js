@@ -42,6 +42,8 @@ const STAFF = [
  */
 export const IRIN_SITE = {
   kind: 'City and food tours',
+  // When the team answers chats (WhatsApp, stage 13c): the designs' "08:00–20:00".
+  hours: { opens: '08:00', closes: '20:00' },
   tagline: 'Walk Lagos with people who love it',
   intro: 'Small groups, local guides, free cancellation up to 48 hours before.',
   about:

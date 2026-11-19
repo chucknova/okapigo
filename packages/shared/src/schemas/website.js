@@ -12,6 +12,8 @@
  *   faqs      { question, answer }              "Questions" (each tour has its own FAQs too)
  *   email, address, socials                     "Get in touch" (phone and WhatsApp are
  *                                               their own fields, used by the trip hub too)
+ *   hours     { opens: '08:00', closes: '20:00' } when the team answers chats (stage 13c),
+ *                                               the same every day, local time
  *
  * Stored as ONE JSON value (operators.site): read as a whole, never queried field by field.
  */
@@ -34,6 +36,8 @@ export const SOCIAL_NETWORKS = /** @type {const} */ ([
   'tiktok',
   'youtube',
 ]);
+
+const HHMM = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/, 'Use a time like 08:00');
 
 export const SiteSchema = z.object({
   kind: text(60).optional(),
@@ -81,6 +85,12 @@ export const SiteSchema = z.object({
       }),
     )
     .max(SOCIAL_NETWORKS.length)
+    .optional(),
+  hours: z
+    .object({ opens: HHMM, closes: HHMM })
+    // 'HH:MM' strings compare correctly as text. (Overnight hours aren't supported.)
+    .refine((h) => h.opens < h.closes, 'Closing time must be after opening time.')
+    .nullable()
     .optional(),
 });
 
