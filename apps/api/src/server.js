@@ -23,6 +23,7 @@ import { createPaymentProvider, redisStore } from '@okapigo/payments';
 import { createApp } from './app.js';
 import { sendChatNotices } from './whatsapp/notices.js';
 import { sendGuestMessages } from './messages/send.js';
+import { createMailer } from './messages/mailers.js';
 import { createChannels } from './whatsapp/channels.js';
 
 const simulatorDist = new URL('../../simulators/dist', import.meta.url).pathname;
@@ -106,6 +107,9 @@ const channels = createChannels({
       }
     : null,
 });
+// Email (stage 14b): Mailpit in development, Resend for real, or none.
+const mailer = createMailer(config);
+logger.info({ email: mailer?.name ?? 'none' }, 'email ready');
 const NOTICES_EVERY_MS = 5_000;
 let noticesRunning = false;
 const notices = setInterval(async () => {
@@ -118,6 +122,8 @@ const notices = setInterval(async () => {
       apiPublicUrl: config.API_PUBLIC_URL,
       webPublicUrl: config.WEB_PUBLIC_URL ?? config.API_PUBLIC_URL,
       channels,
+      mailer,
+      emailFrom: config.EMAIL_FROM,
       log: logger,
     };
     const sent = await sendChatNotices(deps);

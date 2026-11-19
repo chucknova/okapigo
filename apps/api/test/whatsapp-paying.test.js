@@ -23,6 +23,18 @@ const ctx = createTestContext();
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 30_000 });
 afterEach(() => ctx.cleanup());
 afterAll(() => ctx.close());
+// Senders only look at THIS test's business: other test files run at the same time on the
+// same database, and their messages are theirs to send.
+/** @type {string | undefined} */
+let scope;
+afterEach(() => {
+  scope = undefined;
+});
+const seedOperator = async () => {
+  const seeded = await ctx.seedOperator();
+  scope ??= seeded.operator.id;
+  return seeded;
+};
 const { guest, options, words, toSummary } = chatHelpers(ctx);
 
 /** The /pay/<token> in the bot's replies. @param {any[]} replies */
@@ -31,6 +43,7 @@ const linkIn = (replies) => words(replies).match(/https?:\/\/\S+\/pay\/([\w-]+)/
 /** One pass of the dispatcher, as the API runs it every few seconds. */
 const notices = () =>
   sendChatNotices({
+    operatorId: scope,
     prisma: ctx.prisma,
     authSecret: TEST_AUTH_SECRET,
     apiPublicUrl: 'http://localhost:4000',
@@ -65,7 +78,7 @@ async function expire(operatorId) {
 
 describe('Pay: the link', () => {
   it('no deposit on this tour: the whole price, with a preview and the hold time', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     const replies = await g.tap('pay');
@@ -92,7 +105,7 @@ describe('Pay: the link', () => {
   });
 
   it('a deposit tour far enough away: the summary offers both; the deposit link says when the rest is due', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     const summary = await toSummary(g, {
       tour: 'badagry-heritage-day-trip',
@@ -116,7 +129,7 @@ describe('Pay: the link', () => {
   });
 
   it('out of time before tapping Pay: no link; hold again, another date, or cancel', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     const b = await expire(operator.id);
@@ -133,7 +146,7 @@ describe('Pay: the link', () => {
 
 describe('the clock, not just the expiry job', () => {
   it('Pay after 30 minutes, before the expiry job ran: still no link', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     const b = await ctx.prisma.booking.findFirstOrThrow({ where: { operatorId: operator.id } });
@@ -149,7 +162,7 @@ describe('the clock, not just the expiry job', () => {
   });
 
   it('"Yes, stop" after a link was sent: the link stops working', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     const token = /** @type {string} */ (linkIn(await g.tap('pay')));
@@ -163,7 +176,7 @@ describe('the clock, not just the expiry job', () => {
 
 describe('paid: the ticket (design: happy path 9)', () => {
   it('confirmed, the ticket image, the trip link, "Tell us about allergies"; once', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, {
       tour: 'lagos-street-food-crawl',
@@ -232,7 +245,7 @@ describe('paid: the ticket (design: happy path 9)', () => {
   });
 
   it('a deposit paid: "Deposit paid … · balance … due by …"', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'badagry-heritage-day-trip', adults: 1, pickDate: (r) => r.at(-1) });
     await onCheckout(/** @type {string} */ (linkIn(await g.tap('pay_deposit'))));
@@ -242,7 +255,7 @@ describe('paid: the ticket (design: happy path 9)', () => {
   });
 
   it('two dispatchers at once (two API processes) still send the ticket once', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     await onCheckout(/** @type {string} */ (linkIn(await g.tap('pay'))));
@@ -255,7 +268,7 @@ describe('paid: the ticket (design: happy path 9)', () => {
   });
 
   it('"menu" after the link was sent keeps the seats held; the ticket still arrives', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     const token = /** @type {string} */ (linkIn(await g.tap('pay')));
@@ -269,7 +282,7 @@ describe('paid: the ticket (design: happy path 9)', () => {
   });
 
   it('"menu" before any link gives the seats back', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     await g.say('menu');
@@ -280,7 +293,7 @@ describe('paid: the ticket (design: happy path 9)', () => {
   });
 
   it('no ticket image for a booking that isn’t paid', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     await toSummary(guest(operator.slug), { tour: 'lagos-island-heritage-walk' });
     const booking = await ctx.prisma.booking.findFirstOrThrow({
       where: { operatorId: operator.id },
@@ -294,7 +307,7 @@ describe('paid: the ticket (design: happy path 9)', () => {
 
 describe('payment didn’t go through (design: branches)', () => {
   it('says so once, seats still held; "Try again" sends a new link and the old one stops working', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     const oldToken = /** @type {string} */ (linkIn(await g.tap('pay')));
@@ -326,7 +339,7 @@ describe('payment didn’t go through (design: branches)', () => {
 
 describe('declined, then out of time', () => {
   it('a failed payment after the hold ran out: no "Try again" (nothing is held)', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     await onCheckout(/** @type {string} */ (linkIn(await g.tap('pay'))), 'decline');
@@ -342,7 +355,7 @@ describe('declined, then out of time', () => {
 
 describe('out of time (design: hold expired)', () => {
   it('"Your 30 minutes are up", once; "Hold them again" holds the same seats with a fresh link', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     const first = await expire(operator.id);
@@ -372,7 +385,7 @@ describe('out of time (design: hold expired)', () => {
   });
 
   it('if the seats have gone meanwhile: "Choose another date" instead', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     const b = await expire(operator.id);
@@ -390,7 +403,7 @@ describe('out of time (design: hold expired)', () => {
   });
 
   it('a hold that runs out after the guest moved on gets no message', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     await g.tap('pay'); // a link: "menu" now keeps the seats…
@@ -402,7 +415,7 @@ describe('out of time (design: hold expired)', () => {
   });
 
   it('a hold the guest gave back themselves gets no message', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const g = guest(operator.slug);
     await toSummary(g, { tour: 'lagos-island-heritage-walk' });
     await g.tap('cancel');

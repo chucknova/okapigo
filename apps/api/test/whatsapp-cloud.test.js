@@ -23,6 +23,18 @@ const ctx = createTestContext();
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 30_000 });
 afterEach(() => ctx.cleanup());
 afterAll(() => ctx.close());
+// Senders only look at THIS test's business: other test files run at the same time on the
+// same database, and their messages are theirs to send.
+/** @type {string | undefined} */
+let scope;
+afterEach(() => {
+  scope = undefined;
+});
+const seedOperator = async () => {
+  const seeded = await ctx.seedOperator();
+  scope ??= seeded.operator.id;
+  return seeded;
+};
 
 const APP_SECRET = 'meta-app-secret-for-tests-only';
 const VERIFY = 'my-own-verify-token-123456';
@@ -52,7 +64,7 @@ async function setup() {
     fetch: /** @type {any} */ (meta.fetch),
   };
   const app = buildApp({ prisma: ctx.prisma, whatsapp });
-  const seeded = await ctx.seedOperator();
+  const seeded = await seedOperator();
   const phoneNumberId = String(randomInt(10 ** 9, 10 ** 10)); // unique per test
   const operator = await ctx.prisma.operator.update({
     where: { id: seeded.operator.id },
@@ -404,6 +416,7 @@ describe('staff, and the 24-hour rule', () => {
     const before = meta.sent.length;
     const { TEST_AUTH_SECRET } = await import('./helpers.js');
     const sent = await sendChatNotices({
+      operatorId: scope,
       prisma: ctx.prisma,
       authSecret: TEST_AUTH_SECRET,
       apiPublicUrl: 'http://localhost:4000',
@@ -442,7 +455,7 @@ describe('the business’s WhatsApp number (staff API)', () => {
     );
     expect((await patch({ phoneNumberId: null })).body.whatsapp.phoneNumberId).toBeNull();
 
-    const other = await ctx.seedOperator();
+    const other = await seedOperator();
     await ctx.prisma.operator.update({
       where: { id: other.operator.id },
       data: { whatsappPhoneNumberId: '5550001112' },

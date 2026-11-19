@@ -119,5 +119,9 @@ export async function compose(deps, booking, message) {
   );
   const t = await templateFor(deps.prisma, booking.operatorId, kind);
   const values = messageValues(deps, booking, message);
-  return { subject: renderTemplate(t.subject, values), body: renderTemplate(t.body, values) };
+  return {
+    subject: renderTemplate(t.subject, values),
+    body: renderTemplate(t.body, values),
+    values,
+  };
 }

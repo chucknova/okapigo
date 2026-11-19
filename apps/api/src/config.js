@@ -84,11 +84,29 @@ const EnvSchema = z
       .regex(/^v\d+\.\d$/)
       .default('v23.0'),
 
+    // --- Email (stage 14b) -------------------------------------------------------------
+    // none: no email (tests, CI). mailpit: a local mailbox in Docker, http://localhost:8025:
+    // nothing leaves your laptop. resend: real email, through Resend.
+    EMAIL_PROVIDER: z.enum(['none', 'mailpit', 'resend']).default('none'),
+    MAILPIT_URL: z.url().default('http://localhost:8025'),
+    // Resend → API Keys. Kept secret like a payment key.
+    RESEND_API_KEY: optional(
+      z.string().regex(/^re_[A-Za-z0-9_]+$/, 'must be a Resend API key (re_…)'),
+    ),
+    // The address emails come from (the business's name is shown as the sender). Without a
+    // domain of your own, Resend allows only onboarding@resend.dev, which delivers ONLY to
+    // your own Resend account's email: a safe way to try it.
+    EMAIL_FROM: z.email().default('onboarding@resend.dev'),
+
     // The API's public address: where Paystack sends the guest back, and simulator pages live.
     API_PUBLIC_URL: z.url().default('http://localhost:4000'),
     // Where GUESTS see booking links (okapigo.app/irin-lagos-tours). Used in link previews.
     // Unset = the same as API_PUBLIC_URL (today the API serves those pages itself).
     WEB_PUBLIC_URL: optional(z.url()),
+  })
+  .refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY, {
+    message: 'EMAIL_PROVIDER=resend needs RESEND_API_KEY',
+    path: ['RESEND_API_KEY'],
   })
   // Half a WhatsApp set-up would only fail later, on a guest's first message.
   .refine(

@@ -24,12 +24,25 @@ import { createChannels } from '../src/whatsapp/channels.js';
 const ctx = createTestContext();
 afterEach(() => ctx.cleanup());
 afterAll(() => ctx.close());
+// Senders only look at THIS test's business: other test files run at the same time on the
+// same database, and their messages are theirs to send.
+/** @type {string | undefined} */
+let scope;
+afterEach(() => {
+  scope = undefined;
+});
+const seedOperator = async () => {
+  const seeded = await ctx.seedOperator();
+  scope ??= seeded.operator.id;
+  return seeded;
+};
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 30_000 });
 
 const TZ = 'Africa/Lagos';
 const today = () => localDate(new Date(), TZ);
 const send = (now) =>
   sendGuestMessages({
+    operatorId: scope,
     prisma: ctx.prisma,
     authSecret: TEST_AUTH_SECRET,
     webPublicUrl: 'http://localhost:4000',
@@ -108,7 +121,7 @@ async function chat(/** @type {string} */ operatorId, phone = '+2348031234567') 
 
 describe('paid in full: the confirmation (design file 02)', () => {
   it('decided with the payment, one row per channel; sent to the chat once, in your words', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const { token, bookingId } = await book(operator.slug);
     expect(await outbox(bookingId)).toEqual([]); // held: nothing yet
 
@@ -143,7 +156,7 @@ describe('paid in full: the confirmation (design file 02)', () => {
   });
 
   it('two senders at once (two API processes) still send it once', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const { token } = await book(operator.slug);
     await pay(token);
     const runs = await Promise.all([send(), send(), send()]);
@@ -152,7 +165,7 @@ describe('paid in full: the confirmation (design file 02)', () => {
   });
 
   it('a phone only: WhatsApp only; an email only: email only', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const a = await book(operator.slug, {
       lead: { name: 'Tunde Bakare', phone: '0802 555 0101', acceptTerms: true },
     });
@@ -166,7 +179,7 @@ describe('paid in full: the confirmation (design file 02)', () => {
   });
 
   it('a hold that runs out, or is given back, isn’t a booking: no message', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const { token, bookingId } = await book(operator.slug);
     await request(ctx.app).post(`/public/bookings/${token}/release`);
     expect(await outbox(bookingId)).toEqual([]);
@@ -175,7 +188,7 @@ describe('paid in full: the confirmation (design file 02)', () => {
 
 describe('a deposit (design: deposit received)', () => {
   it('the deposit paid, the balance, its due date and the pay link', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const { token, bookingId } = await book(operator.slug, {
       tour: 'badagry-heritage-day-trip',
       daysAhead: 15,
@@ -195,7 +208,7 @@ describe('a deposit (design: deposit received)', () => {
 
 describe('cancelled, then refunded (design: cancellation, refund sent)', () => {
   it('the policy’s refund in the cancellation; "refund sent" in Ìrìn’s own words', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const { token, bookingId } = await book(operator.slug, { daysAhead: 6 });
     await pay(token);
     await send();
@@ -237,7 +250,7 @@ describe('cancelled, then refunded (design: cancellation, refund sent)', () => {
 
 describe('staff send a payment link (design: payment link)', () => {
   it('the amount, what it’s for, until when, the link; the outbox forgets the link once sent', async () => {
-    const { operator, manager } = await ctx.seedOperator();
+    const { operator, manager } = await seedOperator();
     const { token, bookingId } = await book(operator.slug, {
       tour: 'badagry-heritage-day-trip',
       daysAhead: 15,
@@ -266,7 +279,7 @@ describe('staff send a payment link (design: payment link)', () => {
 
 describe('balance reminders (stage 11d’s outbox, now sent)', () => {
   it('7 days before the due date: the amount, the due date, the pay link', async () => {
-    const { operator, manager } = await ctx.seedOperator();
+    const { operator, manager } = await seedOperator();
     const staff = as(await ctx.tokenFor(manager.id));
     const walk = await ctx.prisma.product.findFirstOrThrow({
       where: { operatorId: operator.id, slug: 'lagos-island-heritage-walk' },
@@ -327,7 +340,7 @@ describe('WhatsApp bookings', () => {
 
 describe('sending: what can go wrong', () => {
   it('a message nobody could send for 3 days is dropped, not sent late', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     const { token, bookingId } = await book(operator.slug);
     await pay(token);
     const later = new Date(Date.now() + 4 * 86_400_000);
@@ -336,7 +349,7 @@ describe('sending: what can go wrong', () => {
   });
 
   it('the channel refuses it (WhatsApp, 24 hours of silence): failed, with why', async () => {
-    const { operator } = await ctx.seedOperator();
+    const { operator } = await seedOperator();
     // The guest chatted on real WhatsApp long ago.
     const c = await ctx.prisma.conversation.create({
       data: { operatorId: operator.id, channel: 'whatsapp', guestPhone: '+2348031234567' },
@@ -362,7 +375,7 @@ describe('sending: what can go wrong', () => {
 
 describe('the templates (staff API)', () => {
   it('lists all six with the default and the business’s own; an edit is used; reset goes back', async () => {
-    const { operator, owner } = await ctx.seedOperator();
+    const { operator, owner } = await seedOperator();
     const staff = as(await ctx.tokenFor(owner.id));
     const list = (await staff.get('/api/message-templates')).body.templates;
     expect(list.map((/** @type {any} */ t) => t.kind)).toHaveLength(6);
@@ -394,7 +407,7 @@ describe('the templates (staff API)', () => {
   });
 
   it('refuses an edit that would drop the link or use the wrong placeholder; preview shows the words', async () => {
-    const { owner } = await ctx.seedOperator();
+    const { owner } = await seedOperator();
     const staff = as(await ctx.tokenFor(owner.id));
     const bad = await staff
       .put('/api/message-templates/balance_reminder')
@@ -422,7 +435,7 @@ describe('the templates (staff API)', () => {
   });
 
   it('the owner edits; a manager and a guide can’t (settings)', async () => {
-    const { manager, guides } = await ctx.seedOperator();
+    const { manager, guides } = await seedOperator();
     for (const user of [manager, guides[0]]) {
       const staff = as(await ctx.tokenFor(user.id));
       expect((await staff.get('/api/message-templates')).status).toBe(403);

@@ -1,4 +1,5 @@
-# Local infrastructure for development: PostgreSQL (our database) and Redis (job queue).
+# Local infrastructure for development: PostgreSQL (our database), Redis (job queue) and
+# Mailpit (a local mailbox: every email the app sends in development lands here, stage 14b).
 #
 #   pnpm services:up      start both and wait until they are healthy
 #   pnpm services:down    stop them (data is kept in the named volumes below)
@@ -36,6 +37,21 @@ services:
       - redis-data:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    environment:
+      # Keep the newest 500 emails; older ones are dropped.
+      MP_MAX_MESSAGES: 500
+    ports:
+      # On this machine only: the mailbox has no password.
+      - '127.0.0.1:8025:8025' # the mailbox in your browser, and the API the app sends through
+      - '127.0.0.1:1025:1025' # SMTP, for anything else that wants to send a test email
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
       interval: 2s
       timeout: 3s
       retries: 20

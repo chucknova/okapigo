@@ -51,6 +51,7 @@ const BOOKING_INCLUDE = /** @type {const} */ ({
  *   channels: Record<string, import('./channels.js').Channel>,
  *   log?: { warn: Function },
  *   now?: () => Date,
+ *   operatorId?: string,   one business only (tests, manual re-runs); the API's timer does all
  * }} NoticeDeps
  * @typedef {'chat_ticket' | 'chat_hold_over' | 'chat_declined'} Kind
  */
@@ -71,6 +72,7 @@ export async function sendChatNotices(deps) {
   const bookings = await prisma.booking.findMany({
     where: {
       channel: 'whatsapp',
+      operatorId: deps.operatorId,
       updatedAt: { gte: since },
       OR: [
         { status: { in: TICKET_STATUSES } },
@@ -91,7 +93,7 @@ export async function sendChatNotices(deps) {
     where: {
       status: 'failed',
       updatedAt: { gte: since },
-      booking: { channel: 'whatsapp', status: 'held' },
+      booking: { channel: 'whatsapp', status: 'held', operatorId: deps.operatorId },
     },
     include: { booking: { include: { ...BOOKING_INCLUDE, notifications: true } } },
     orderBy: { updatedAt: 'asc' },

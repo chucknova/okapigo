@@ -12,7 +12,8 @@
  *                  written), then delivered like any message (channels.js: the simulator
  *                  shows it; real WhatsApp gets it, inside its 24-hour rule: 14c adds the
  *                  templates WhatsApp allows outside it)
- *        email     stage 14b (until then, emails wait, and are dropped after 3 days)
+ *        email     your layout (email.js), through the mailer: Mailpit in development, Resend
+ *                  for real (mailers.js). With no mailer, emails wait (dropped after 3 days)
  *   4. if the channel refused it: status "failed", with why, for staff
  *
  * Messages older than 3 days that never went are cancelled: "your booking is confirmed",
@@ -20,6 +21,9 @@
  */
 import { compose } from './compose.js';
 import { deliver } from '../whatsapp/channels.js';
+import { renderEmail } from './email.js';
+import { MailError } from './mailers.js';
+import { readSite } from '@okapigo/shared/schemas/website';
 
 const STALE_MS = 3 * 24 * 60 * 60 * 1000;
 const BATCH = 50;
@@ -30,6 +34,9 @@ const BATCH = 50;
  *   authSecret: string,
  *   webPublicUrl: string,
  *   channels: Record<string, import('../whatsapp/channels.js').Channel>,
+ *   mailer?: import('./mailers.js').Mailer | null,   email (14b); none = emails wait
+ *   emailFrom?: string,
+ *   operatorId?: string,   one business only (tests, manual re-runs); the API's timer does all
  *   log?: { warn: Function },
  *   now?: () => Date,
  * }} SendDeps
@@ -43,12 +50,13 @@ export async function sendGuestMessages(deps) {
   const { prisma } = deps;
   const now = (deps.now ?? (() => new Date()))();
   // The channels this server can send on right now (email joins in 14b).
-  const channels = ['whatsapp'];
+  const channels = ['whatsapp', ...(deps.mailer ? ['email'] : [])];
 
   const { count: stale } = await prisma.notification.updateMany({
     where: {
       audience: 'guest',
       status: 'pending',
+      operatorId: deps.operatorId,
       channel: { not: null },
       createdAt: { lt: new Date(now.getTime() - STALE_MS) },
     },
@@ -56,12 +64,22 @@ export async function sendGuestMessages(deps) {
   });
 
   const waiting = await prisma.notification.findMany({
-    where: { audience: 'guest', status: 'pending', channel: { in: channels } },
+    where: {
+      audience: 'guest',
+      status: 'pending',
+      channel: { in: channels },
+      operatorId: deps.operatorId,
+    },
     orderBy: { createdAt: 'asc' },
     take: BATCH,
     include: {
       booking: {
-        include: { product: { include: { operator: true } }, departure: true, travellers: true },
+        include: {
+          product: { include: { operator: true, priceCategories: true } },
+          departure: true,
+          travellers: true,
+          policyVersion: true,
+        },
       },
     },
   });
@@ -78,8 +96,14 @@ export async function sendGuestMessages(deps) {
     try {
       const words = await compose(deps, n.booking, n);
       if (n.channel === 'whatsapp') error = await toChat(deps, n.booking, words.body, now);
+      if (n.channel === 'email') {
+        const id = await toEmail(deps, n.booking, n, words);
+        n.data = { .../** @type {object} */ (n.data ?? {}), emailId: id };
+      }
     } catch (err) {
-      error = `ERROR: ${/** @type {Error} */ (err).message}`;
+      // A mailer's refusal says why in its own words; anything else is our bug.
+      error =
+        err instanceof MailError ? err.message : `ERROR: ${/** @type {Error} */ (err).message}`;
       deps.log?.warn({ err, notificationId: n.id }, 'guest message failed');
     }
     // 4. What happened; and a payment link's address isn't kept once it's been sent.
@@ -153,4 +177,30 @@ async function toChat(deps, booking, body, now) {
   });
   const after = await prisma.chatMessage.findUniqueOrThrow({ where: { id: stored.id } });
   return after.delivery === 'failed' ? (after.deliveryError ?? 'failed') : null;
+}
+
+/**
+ * As an email, in your layout. From the business (its name, our sending address); replies go
+ * to the business's own email when it has one. Returns the mailer's id; throws why not.
+ * @param {SendDeps} deps @param {any} booking @param {any} n
+ * @param {{ subject: string, body: string, values: any }} words
+ */
+async function toEmail(deps, booking, n, words) {
+  const operator = booking.product.operator;
+  const email = renderEmail({
+    kind: n.kind,
+    subject: words.subject,
+    body: words.body,
+    values: words.values,
+    booking,
+    data: n.data,
+    webPublicUrl: deps.webPublicUrl,
+  });
+  const sent = await /** @type {import('./mailers.js').Mailer} */ (deps.mailer).send({
+    from: { name: operator.name, email: deps.emailFrom ?? 'onboarding@resend.dev' },
+    to: { name: booking.leadName ?? '', email: booking.leadEmail },
+    replyTo: readSite(operator.site).email ?? null,
+    ...email,
+  });
+  return sent.id;
 }
