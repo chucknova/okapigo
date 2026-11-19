@@ -1,11 +1,10 @@
 /**
- * Shared set-up for the screen tests.
+ * Shared set-up for the operator app's screen tests.
  *
- * More patience than the defaults (1 s per findBy…, 5 s per test). `pnpm test` runs every
- * package at once, and while the database suites run the screen tests can take a few seconds
- * to render, which made DIFFERENT tests time out on each full run (stage 12f). A thing that
- * never appears still fails, just after 4 s instead of 1 s.
+ * Patience: a full `pnpm test` runs every package at once (the database suites too), and on a
+ * busy machine (load 25–45 seen in 15d) drawing a screen in jsdom can take seconds. A thing
+ * that never appears still fails, just after 10 s instead of 1.
  */
 import { configure } from '@testing-library/react';
 
-configure({ asyncUtilTimeout: 4_000 });
+configure({ asyncUtilTimeout: 10_000 });

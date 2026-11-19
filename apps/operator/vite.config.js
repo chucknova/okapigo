@@ -48,6 +48,8 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['test/**/*.test.{js,jsx}'],
     setupFiles: ['./test/setup.js'],
-    testTimeout: 20_000,
+    // A whole screen journey (render, scan, record, undo) on a busy machine: up to a minute,
+    // as the WhatsApp tests have (seen timing out at 20 s with load 25–45, stage 15d).
+    testTimeout: 60_000,
   },
 });

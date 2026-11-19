@@ -38,6 +38,8 @@ import {
 
 /** How long the note after a check-in stays (designs: 6 seconds). */
 const NOTE_MS = 6_000;
+/** Tests may lengthen it (a slow test machine can outlast 6 seconds); the app never does. */
+export const SCAN_TIMING = { noteMs: NOTE_MS };
 
 export function Scan() {
   const { id } = useParams();
@@ -60,7 +62,7 @@ export function Scan() {
   // The note after a check-in goes after 6 seconds.
   useEffect(() => {
     if (!note) return;
-    const t = setTimeout(() => setNote(null), NOTE_MS);
+    const t = setTimeout(() => setNote(null), SCAN_TIMING.noteMs);
     return () => clearTimeout(t);
   }, [note]);
 

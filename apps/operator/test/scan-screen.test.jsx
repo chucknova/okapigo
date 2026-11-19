@@ -17,6 +17,10 @@ import { createSyncEngine } from '../src/lib/sync.js';
 import { createMemoryStore } from '../src/lib/store.js';
 import { request } from '../src/lib/api.js';
 import { makePackage } from './fixtures.js';
+import { SCAN_TIMING } from '../src/screens/Scan.jsx';
+
+// The note after a check-in stays 6 s in the app; here, long enough for a slow machine.
+SCAN_TIMING.noteMs = 60_000;
 
 const cam = vi.hoisted(() => ({
   codes: /** @type {string[]} */ ([]),
@@ -84,19 +88,18 @@ describe('Scan (O4)', () => {
     fireEvent.click(screen.getByLabelText(/Kamsi Okafor/));
     expect(screen.getByText('stays “Not yet”')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Check in 2 of 3' }));
-    await waitFor(() => expect(engine.getState().outbox).toHaveLength(1));
+    // The note (and its Undo) stays 6 seconds, by design: read it and tap Undo straight away,
+    // then check the rest (a slow test run could otherwise outlast it).
+    const note = await screen.findByRole('status');
+    expect(note.textContent).toContain('2 checked in · Okafor · Kamsi not yet');
+    expect(screen.getByText('Next ticket')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(engine.getState().outbox).toHaveLength(2));
     expect(engine.getState().outbox[0]).toMatchObject({
       bookingId: 'b-okafor',
       travellerIds: ['t-adaeze', 't-chidi'],
       status: 'present',
     });
-    expect((await screen.findByRole('status')).textContent).toContain(
-      '2 checked in · Okafor · Kamsi not yet',
-    );
-    expect(screen.getByText('Next ticket')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(engine.getState().outbox).toHaveLength(2));
     expect(engine.getState().outbox[1]).toMatchObject({
       travellerIds: ['t-adaeze', 't-chidi'],
       status: 'pending',
