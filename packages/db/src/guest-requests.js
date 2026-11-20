@@ -5,12 +5,14 @@
  *   createGuestRequest   the guest asks: change the date · cancel · something else
  *   listGuestRequests    staff: the open ones, oldest first, with what's needed to reply
  *   answerGuestRequest   staff replied (by WhatsApp or email): mark it answered
+ *   replyGuestRequest    staff reply from the inbox (16d-2): sent, kept, shown on the trip page
  *
  * Asking changes NOTHING about the booking. Staff do whatever they agree with the guest with
  * the tools they already have (cancel with a chosen refund, payment links…), then mark the
  * request answered. Each step is on the booking's timeline.
  */
 import { BookingError } from './booking-lifecycle.js';
+import { planGuestMessage } from './guest-messages.js';
 
 /** At most this many open requests per booking: enough for "and one more thing", not spam. */
 export const MAX_OPEN_REQUESTS = 3;
@@ -102,5 +104,58 @@ export async function answerGuestRequest(
       },
     });
     return request;
+  });
+}
+
+/**
+ * The office replies (designs: "Reply to Adaeze (WhatsApp and email)"): the words go to the
+ * guest as the business's own message (kind staff_message), are kept on the request, and show
+ * on their trip page instead of "Your request was sent". "Mark answered when sent" closes it.
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ operatorId: string, requestId: string, userId: string, text: string, markAnswered?: boolean, now?: Date }} r
+ */
+export function replyGuestRequest(
+  prisma,
+  { operatorId, requestId, userId, text, markAnswered = true, now = new Date() },
+) {
+  return prisma.$transaction(async (tx) => {
+    const request = await tx.guestRequest.findFirst({
+      where: { id: requestId, operatorId },
+      include: { booking: { include: { product: true, departure: true } } },
+    });
+    if (!request) throw new BookingError('NOT_FOUND', 'Request not found.');
+    const words = text.trim();
+    if (!words) throw new BookingError('EMPTY_REPLY', 'Write the reply first.');
+    const b = request.booking;
+    if (!b.leadPhone && !b.leadEmail)
+      throw new BookingError('NO_CONTACT', 'There’s no phone or email for this guest.');
+    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+    await planGuestMessage(tx, {
+      booking: b,
+      kind: 'staff_message',
+      key: `staff_message:request:${requestId}:${now.getTime()}`,
+      data: { text: words, staffName: user.name, requestId },
+    });
+    const answer = markAnswered && request.status === 'open';
+    const updated = await tx.guestRequest.update({
+      where: { id: requestId },
+      data: {
+        reply: words,
+        repliedAt: now,
+        repliedById: userId,
+        ...(answer && { status: 'answered', answeredAt: now, answeredById: userId }),
+      },
+    });
+    await tx.bookingEvent.create({
+      data: {
+        operatorId,
+        bookingId: b.id,
+        type: answer ? 'guest_request_answered' : 'guest_request_replied',
+        actorType: 'user',
+        actorUserId: userId,
+        data: { requestId, replied: true },
+      },
+    });
+    return updated;
   });
 }

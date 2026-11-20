@@ -321,3 +321,5 @@ brief didn't have. Decided:
 
 - Outside WhatsApp's 24 hours: a new approved message, "Can we help you finish booking?".
 - Only whoever took a chat over replies; a colleague takes over on purpose.
+- **16d-2:** moving a booking keeps the booked price and needs seats on the new date; the guest
+  gets a new message, "Date changed". A request's reply shows on the guest's trip page.

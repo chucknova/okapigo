@@ -11,7 +11,7 @@
  * Pure: no database, so the API, the preview and the tests all use exactly the same rules.
  */
 
-/** @typedef {'booking_confirmed' | 'deposit_received' | 'balance_reminder' | 'payment_link' | 'booking_cancelled' | 'refund_sent'} MessageKind */
+/** @typedef {'booking_confirmed' | 'deposit_received' | 'balance_reminder' | 'payment_link' | 'booking_cancelled' | 'refund_sent' | 'booking_moved'} MessageKind */
 
 /** Every placeholder, and what it becomes ("Sat 5 Dec"). */
 export const PLACEHOLDERS = /** @type {const} */ ({
@@ -36,6 +36,7 @@ export const PLACEHOLDERS = /** @type {const} */ ({
   refund_line:
     'The refund, worked out by the policy: “Refund: ₦31,250 (50%, cancelled 30 hours before).…”',
   refund: 'The refund sent: “₦31,250”',
+  from_date: 'The day a moved booking was on before: “Sat 5 Dec”',
 });
 
 /** @typedef {keyof typeof PLACEHOLDERS} Placeholder */
@@ -51,7 +52,7 @@ const COMMON = /** @type {Placeholder[]} */ ([
 ]);
 
 /**
- * The six messages: when each goes, what it may say, what it MUST say (the brief's "must
+ * The seven messages (the seventh, "Date changed", since 16d-2): when each goes, what it may say, what it MUST say (the brief's "must
  * include", so an edit can't drop the link or the amount), and your default wording.
  * @type {Record<MessageKind, {
  *   name: string, when: string,
@@ -109,6 +110,14 @@ export const MESSAGES = {
     // Your design ends "We hope to walk Lagos with you another time.": that's Ìrìn's own
     // line, so it's Ìrìn's template (the seed); everyone else starts with this.
     body: 'Hi {first_name}, your refund of {refund} for {reference} has been sent.\n\nIt may take 5–10 working days to show in your account, depending on your bank.\n\nWe hope to see you again soon.',
+  },
+  booking_moved: {
+    name: 'Date changed',
+    when: 'when a member of staff moves a booking to another date',
+    placeholders: [...COMMON, 'from_date', 'meeting_point', 'travellers', 'trip_url'],
+    required: ['date', 'time', 'trip_url'],
+    subject: 'New date: {tour_short}, {date} ({reference})',
+    body: 'Hi {first_name}, your booking {reference} has moved.\n\n{tour}\nNow on {date}, {time} (was {from_date})\nMeet at {meeting_point}\n\nYour ticket and trip page have the new date:\n{trip_url}',
   },
 };
 

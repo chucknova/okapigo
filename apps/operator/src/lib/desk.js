@@ -69,6 +69,7 @@ export function actionButtons(a) {
   return [
     { key: 'paymentLink', label: 'Send payment link', built: true, ...a.paymentLink },
     { key: 'changeTravellers', label: 'Change travellers', built: true, ...a.changeTravellers },
+    { key: 'move', label: 'Move to another date', built: Boolean(a.move), ...a.move },
     { key: 'addNote', label: 'Add note', built: true, ...a.addNote },
     { key: 'noShow', label: 'Mark no-show', built: true, ...a.noShow },
     { key: 'cancel', label: 'Cancel booking', built: true, danger: true, ...a.cancel },

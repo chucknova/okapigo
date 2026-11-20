@@ -136,6 +136,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts     | `9c97f5a`           | 16c-2          |
 | 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | `105242e`           | 16c-3          |
 | 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | `a18ebab`           | 16d-1          |
+| 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                            | (this commit)       | 16d-2          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -218,16 +219,22 @@ message, **"Can we help you finish booking?"** (`okapigo_chat_followup`; for rea
 submit it in Meta once). Only whoever took a chat over replies; a colleague takes over on
 purpose. A failed chat message can be retried or emailed (kind `staff_message`).
 
+**With 16d-2 (2026-11-21):** moving a booking keeps the booked price, needs the seats on the
+new date (both departures locked in id order), resets check-ins, and tells the guest with a
+**seventh guest message, "Date changed"** (`booking_moved`, editable; WhatsApp template
+`okapigo_booking_moved`). A request's reply is kept and shown on the trip page.
+
 ## 7. Where we are
 
-- **Last done:** 16d-1, the inbox's chats, committed `a18ebab`. 16c-3 pushed.
-- **Next:** **16d-2**, guest requests (designs: "O9 Inbox — requests and alerts", "Inbox gaps"):
-  the Requests tab (open, Done), reply by WhatsApp and email + mark answered, mark answered
-  without replying (a note), the trip page's banner showing the reply, and **moving a booking to
-  another date** (same tour, seats must fit, the booked price; from the request and the booking's
-  page; the guest told). Then **16d-3** alerts, then **16e** settings.
-- **For real WhatsApp:** submit the new template `okapigo_chat_followup` in Meta (text in
-  `apps/api/src/whatsapp/templates.js`).
+- **Last done:** 16d-2, guest requests and moving dates (commit: see §9). 16d-1 pushed.
+- **Next:** **16d-3**, the Alerts tab (designs: "O9 Inbox — requests and alerts"): what needs
+  dealing with (cash to confirm, a refund failed or to send, a balance overdue, a departure
+  without a guide, cash not received), each with its action; clearing by itself when the cause
+  is fixed (no dismiss for money); "Done this week" with who dealt with it and when. Then **16e**
+  settings (which lists the two new WhatsApp templates read-only and lets "Date changed" be
+  edited).
+- **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta (texts
+  in `apps/api/src/whatsapp/templates.js`).
 - A payment link for ₦45,500 was sent to Funmi Adeyemi (dev data) as Tunde at 21:27 on 20 Nov,
   to the simulator only; it may have come from my 16c-3 browser check (unconfirmed).
 - **E2E stays local**: `pnpm e2e` every stage; re-run a timed-out test alone before calling it
@@ -277,6 +284,7 @@ purpose. A failed chat message can be retried or emailed (kind `staff_message`).
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16d-2 requests and moving dates.
 - 2026-11-21 · 16d-1 inbox chats.
 - 2026-11-21 · 16c-3 change travellers (bookings desk done).
 - 2026-11-21 · 16c-2 desk money: links, cancel + refund, cash confirm, bank-transfer refunds.

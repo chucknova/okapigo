@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { LiveFrame } from '../components/LiveFrame.jsx';
 import { Sheet } from '../components/Sheet.jsx';
+import { MoveSheet } from '../components/MoveSheet.jsx';
 import { useLive } from '../lib/live.js';
 import { useNow } from '../lib/now.js';
 import { useEngine, useSync } from '../lib/engine.jsx';
@@ -27,74 +28,109 @@ import {
   boldParts,
   chatActions,
   chatsTab,
+  movedReply,
+  replyLabel,
+  requestsTab,
   deliveryWord,
   firstName,
   takeOverQuestion,
 } from '../lib/inbox.js';
 
-export function Inbox() {
-  const { id } = useParams();
+/** @param {{ tab?: 'chats' | 'requests' }} props */
+export function Inbox({ tab = 'chats' }) {
+  const { id, rid } = useParams();
   const s = useSync();
   const tz = s.me?.operator?.timeZone ?? 'Africa/Lagos';
   const list = useLive('/api/inbox/chats', { every: LIST_EVERY_MS });
+  const asked = useLive('/api/inbox/requests?tab=open', { every: LIST_EVERY_MS });
+  const open = tab === 'chats' ? id : rid;
   return (
-    <main className={`page desk inbox${id ? ' desk--open' : ''}`}>
+    <main className={`page desk inbox${open ? ' desk--open' : ''}`}>
       <section className="desk-list" aria-label="Inbox">
         <div className="desk-list-head">
           <h1 className="h-xl">Inbox</h1>
-          <div role="tablist" aria-label="Inbox" className="filters">
-            <span role="tab" aria-selected="true" className="filter" aria-pressed="true">
+          <nav aria-label="Inbox" className="filters">
+            <Link
+              href="/inbox"
+              className="filter"
+              aria-current={tab === 'chats' ? 'page' : undefined}
+            >
               {chatsTab(list.entry.data?.chats?.needsCount ?? 0)}
-            </span>
-          </div>
+            </Link>
+            <Link
+              href="/inbox/requests"
+              className="filter"
+              aria-current={tab === 'requests' ? 'page' : undefined}
+            >
+              {requestsTab(asked.entry.data?.requests?.openCount ?? 0)}
+            </Link>
+          </nav>
         </div>
-        <LiveFrame live={list} what="The chats" tz={tz}>
-          {({ chats }) =>
-            chats.needs.length === 0 && chats.bot.length === 0 ? (
-              <p className="desk-none muted">No chats this week.</p>
-            ) : (
-              <>
-                <h2 className="eyebrow inbox-h">Needs a person</h2>
-                {chats.needs.length === 0 ? (
-                  <div className="desk-none">
-                    <p className="strong">Nothing needs you right now</p>
-                    <p className="small muted">
-                      The bot is handling {chats.bot.length}{' '}
-                      {chats.bot.length === 1 ? 'chat' : 'chats'}.
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="desk-rows">
-                    {chats.needs.map((/** @type {any} */ c) => (
-                      <li key={c.id}>
-                        <ChatRow c={c} open={c.id === id} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {chats.bot.length > 0 && (
-                  <>
-                    <h2 className="eyebrow inbox-h">With the bot</h2>
-                    <ul className="desk-rows">
-                      {chats.bot.map((/** @type {any} */ c) => (
-                        <li key={c.id}>
-                          <ChatRow c={c} open={c.id === id} />
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </>
-            )
-          }
-        </LiveFrame>
+        {tab === 'chats' ? (
+          <ChatList list={list} id={id} tz={tz} />
+        ) : (
+          <RequestList rid={rid} tz={tz} />
+        )}
       </section>
-      {id ? (
-        <ChatPane id={id} tz={tz} />
-      ) : (
-        <p className="desk-pick wide-only muted">Choose a chat to see it here.</p>
-      )}
+      {tab === 'chats' &&
+        (id ? (
+          <ChatPane id={id} tz={tz} />
+        ) : (
+          <p className="desk-pick wide-only muted">Choose a chat to see it here.</p>
+        ))}
+      {tab === 'requests' &&
+        (rid ? (
+          <RequestPane rid={rid} tz={tz} />
+        ) : (
+          <p className="desk-pick wide-only muted">Choose a request to see it here.</p>
+        ))}
     </main>
+  );
+}
+
+/** The chats: needs a person, then with the bot. @param {{ list: any, id: string | undefined, tz: string }} props */
+function ChatList({ list, id, tz }) {
+  return (
+    <LiveFrame live={list} what="The chats" tz={tz}>
+      {({ chats }) =>
+        chats.needs.length === 0 && chats.bot.length === 0 ? (
+          <p className="desk-none muted">No chats this week.</p>
+        ) : (
+          <>
+            <h2 className="eyebrow inbox-h">Needs a person</h2>
+            {chats.needs.length === 0 ? (
+              <div className="desk-none">
+                <p className="strong">Nothing needs you right now</p>
+                <p className="small muted">
+                  The bot is handling {chats.bot.length} {chats.bot.length === 1 ? 'chat' : 'chats'}
+                  .
+                </p>
+              </div>
+            ) : (
+              <ul className="desk-rows">
+                {chats.needs.map((/** @type {any} */ c) => (
+                  <li key={c.id}>
+                    <ChatRow c={c} open={c.id === id} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {chats.bot.length > 0 && (
+              <>
+                <h2 className="eyebrow inbox-h">With the bot</h2>
+                <ul className="desk-rows">
+                  {chats.bot.map((/** @type {any} */ c) => (
+                    <li key={c.id}>
+                      <ChatRow c={c} open={c.id === id} />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </>
+        )
+      }
+    </LiveFrame>
   );
 }
 
@@ -450,6 +486,299 @@ function NoteOnBooking({ booking, onClose, onSave }) {
         </label>
         <button type="submit" className="btn btn--dark" disabled={!text.trim()}>
           Save note
+        </button>
+      </form>
+    </Sheet>
+  );
+}
+
+// --- Requests (16d-2) ------------------------------------------------------------------------
+
+/** Open requests (oldest first) or Done. @param {{ rid: string | undefined, tz: string }} props */
+function RequestList({ rid, tz }) {
+  const [view, setView] = useState(/** @type {'open' | 'done'} */ ('open'));
+  const live = useLive(`/api/inbox/requests?tab=${view}`, { every: LIST_EVERY_MS });
+  return (
+    <>
+      <div role="group" aria-label="Requests" className="filters inbox-h">
+        {[
+          { key: 'open', label: 'Open' },
+          { key: 'done', label: 'Done' },
+        ].map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            className="filter"
+            aria-pressed={view === f.key}
+            onClick={() => setView(/** @type {any} */ (f.key))}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      <LiveFrame live={live} what="The requests" tz={tz}>
+        {({ requests }) =>
+          requests.rows.length === 0 ? (
+            <p className="desk-none muted">
+              {view === 'open'
+                ? 'No open requests. Guests ask from their trip page.'
+                : 'Nothing answered yet.'}
+            </p>
+          ) : (
+            <ul className="desk-rows">
+              {requests.rows.map((/** @type {any} */ r) => (
+                <li key={r.id}>
+                  <Link
+                    href={`/inbox/requests/${r.id}`}
+                    className={`desk-row${r.id === rid ? ' is-open' : ''}`}
+                    aria-current={r.id === rid ? 'page' : undefined}
+                  >
+                    <span className="row-between">
+                      <strong>{r.lead}</strong>
+                      <span
+                        className={`small ${view === 'open' ? 'tone--urgent strong' : 'muted'}`}
+                      >
+                        {view === 'open' ? r.waiting : 'ANSWERED'}
+                      </span>
+                    </span>
+                    <span className="small strong">{r.kindLabel}</span>
+                    <span className="small muted one-line">
+                      {view === 'open' ? r.message : r.done}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </LiveFrame>
+    </>
+  );
+}
+
+/** One request, found in the open or the done list. @param {{ rid: string, tz: string }} props */
+function RequestPane({ rid, tz }) {
+  const open = useLive('/api/inbox/requests?tab=open', { every: LIST_EVERY_MS });
+  const done = useLive('/api/inbox/requests?tab=done', { every: LIST_EVERY_MS });
+  const r =
+    open.entry.data?.requests.rows.find((/** @type {any} */ x) => x.id === rid) ??
+    done.entry.data?.requests.rows.find((/** @type {any} */ x) => x.id === rid) ??
+    null;
+  return (
+    <section className="desk-page" aria-label="Request">
+      <Link href="/inbox/requests" className="back-link narrow-only">
+        ‹ Requests
+      </Link>
+      <LiveFrame live={open} what="This request" tz={tz}>
+        {() =>
+          r ? (
+            <RequestCard key={r.id} r={r} />
+          ) : (
+            <p className="muted">
+              {done.entry.data ? 'This request isn’t here any more.' : 'Loading…'}
+            </p>
+          )
+        }
+      </LiveFrame>
+    </section>
+  );
+}
+
+/** @param {{ r: any }} props */
+function RequestCard({ r }) {
+  const engine = useEngine();
+  const isOpen = !r.done;
+  const [text, setText] = useState('');
+  const [markAnswered, setMarkAnswered] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(/** @type {string | null} */ (null));
+  const [done, setDone] = useState(/** @type {string | null} */ (null));
+  const [sheet, setSheet] = useState(/** @type {'move' | 'note' | null} */ (null));
+  const first = firstName(r.lead);
+
+  /** @param {string} path @param {any} body @param {string} said */
+  const send = async (path, body, said) => {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    const res = await act(engine, path, { method: 'POST', body });
+    setBusy(false);
+    if (!res.ok) {
+      setError(actionError(res.error));
+      return false;
+    }
+    setDone(said);
+    return true;
+  };
+
+  return (
+    <article className="stack-md">
+      <header>
+        <div className="eyebrow">{r.kindLabel}</div>
+        <div className="row-between row-start">
+          <h2 className="h-xl">{r.lead}</h2>
+          {isOpen && <span className="small tone--urgent strong">{r.waiting}</span>}
+        </div>
+        {isOpen && <div className="small muted">{r.sent}</div>}
+        {!isOpen && <div className="small muted">{r.done}</div>}
+      </header>
+      <blockquote className="request-quote">“{r.message}”</blockquote>
+      {done && (
+        <p role="status" className="done-note">
+          {done}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="field-error">
+          {error}
+        </p>
+      )}
+
+      <section className="panel panel--pad stack-xs" aria-label="The booking">
+        <div className="row-between">
+          <strong>
+            {r.booking.reference} · {r.booking.tour}
+          </strong>
+          <span className={`status-chip status-chip--${r.booking.chip.tone}`}>
+            {r.booking.chip.text}
+          </span>
+        </div>
+        <div className="small muted">
+          {r.booking.when} · {r.booking.people} · {r.booking.paid}
+        </div>
+        <div className="row-gap">
+          {isOpen && r.booking.canMove && (
+            <button
+              type="button"
+              className="btn btn--dark btn--compact"
+              onClick={() => setSheet('move')}
+            >
+              Move to another date…
+            </button>
+          )}
+          {isOpen && (
+            <Link href={`/bookings/${r.booking.id}`} className="btn btn--outline btn--compact">
+              Cancel with a refund…
+            </Link>
+          )}
+          <Link href={`/bookings/${r.booking.id}`} className="btn btn--outline btn--compact">
+            Open booking
+          </Link>
+        </div>
+      </section>
+
+      {isOpen && r.replied && (
+        <p className="small muted">
+          You replied {r.replied.at}: “{r.replied.text}”
+        </p>
+      )}
+      {isOpen && (
+        <form
+          className="stack-sm"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const ok = await send(
+              `/api/guest-requests/${r.id}/reply`,
+              { text: text.trim(), markAnswered },
+              markAnswered ? 'Sent, and marked answered.' : 'Sent.',
+            );
+            if (ok) setText('');
+          }}
+        >
+          <label className="field">
+            Reply to {first} ({r.reach})
+            <textarea
+              className="textarea"
+              rows={3}
+              maxLength={2000}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <span className="small muted plain">Their trip page shows your reply too.</span>
+          </label>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={markAnswered}
+              onChange={(e) => setMarkAnswered(e.target.checked)}
+            />
+            Mark answered when sent
+          </label>
+          <div className="row-gap">
+            <button
+              type="submit"
+              className="btn btn--dark btn--compact"
+              disabled={busy || !text.trim() || !r.reach}
+            >
+              {replyLabel(markAnswered)}
+            </button>
+            <button type="button" className="text-link" onClick={() => setSheet('note')}>
+              Mark answered without replying
+            </button>
+          </div>
+        </form>
+      )}
+
+      {sheet === 'move' && (
+        <MoveSheet
+          bookingId={r.booking.id}
+          reference={r.booking.reference}
+          error={error}
+          onClose={() => setSheet(null)}
+          onMove={async (departureId, when) => {
+            const ok = await send(
+              `/api/bookings/${r.booking.id}/move`,
+              { departureId, requestId: r.id },
+              `Moved to ${when}. ${first} is told by WhatsApp and email.`,
+            );
+            if (ok) {
+              setSheet(null);
+              setText(movedReply(when));
+            }
+            return ok;
+          }}
+        />
+      )}
+      {sheet === 'note' && (
+        <AnsweredNote
+          lead={first}
+          onClose={() => setSheet(null)}
+          onSave={async (note) => {
+            if (await send(`/api/guest-requests/${r.id}/answer`, { note }, 'Marked answered.'))
+              setSheet(null);
+          }}
+        />
+      )}
+    </article>
+  );
+}
+
+/** "Mark answered without replying" asks for a short note (designs: Inbox gaps). @param {{ lead: string, onClose: () => void, onSave: (note: string) => Promise<void> }} props */
+function AnsweredNote({ lead, onClose, onSave }) {
+  const [note, setNote] = useState('');
+  return (
+    <Sheet title="Mark answered" onClose={onClose}>
+      <form
+        className="dialog"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await onSave(note.trim());
+        }}
+      >
+        <h2 className="h-lg">Answered another way?</h2>
+        <label className="field">
+          What happened
+          <input
+            className="input"
+            type="text"
+            maxLength={300}
+            placeholder={`e.g. Called ${lead}, told them about the side street.`}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </label>
+        <button type="submit" className="btn btn--dark" disabled={note.trim().length < 3}>
+          Mark answered
         </button>
       </form>
     </Sheet>

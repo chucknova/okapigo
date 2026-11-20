@@ -119,6 +119,8 @@ export function messageValues(deps, booking, message) {
       reason: data.reason ?? null,
     }),
     refund: data.refundKobo !== undefined ? formatNaira(data.refundKobo) : '',
+    // "Sat 5 Dec": where a moved booking was before (16d-2).
+    from_date: data.fromDate ? formatLocalDay(data.fromDate) : '',
   };
 }
 

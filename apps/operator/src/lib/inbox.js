@@ -56,3 +56,16 @@ export function boldParts(text) {
   if (at < text.length) parts.push({ bold: false, text: text.slice(at) });
   return parts;
 }
+
+// --- Requests (16d-2) ----------------------------------------------------------------------
+
+/** The tab's label: "Requests · 1". @param {number} n */
+export const requestsTab = (n) => (n > 0 ? `Requests · ${n}` : 'Requests');
+
+/** What the reply box says, after moving (designs: "Done! You're now booked for…"). @param {string} to */
+export const movedReply = (to) =>
+  `Done! You’re now booked for ${to}, same meeting point. Your trip page has the new date.`;
+
+/** The send button: "Send and mark answered" / "Send reply". @param {boolean} markAnswered */
+export const replyLabel = (markAnswered) =>
+  markAnswered ? 'Send and mark answered' : 'Send reply';

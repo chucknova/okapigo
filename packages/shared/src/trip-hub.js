@@ -186,3 +186,22 @@ function cancelledFacts(b, tz) {
         : null,
   };
 }
+
+/**
+ * The request banner on the trip page (12f-2, 16d-2): the office's reply once there is one,
+ * else "Your request was sent"; whichever is newer, so a new question after a reply shows as
+ * sent. Null with neither.
+ * @param {{ openRequests?: Array<{ message: string, createdAt: string | Date }>, lastReply?: { message: string, reply: string, repliedAt: string | Date } | null }} b
+ * @returns {null | { kind: 'sent', message: string, at: Date } | { kind: 'reply', message: string, reply: string, at: Date }}
+ */
+export function requestNotice(b) {
+  const open = b.openRequests?.[0];
+  const reply = b.lastReply ?? null;
+  const openAt = open ? new Date(open.createdAt) : null;
+  const replyAt = reply ? new Date(reply.repliedAt) : null;
+  if (reply && replyAt && (!openAt || replyAt >= openAt)) {
+    return { kind: 'reply', message: reply.message, reply: reply.reply, at: replyAt };
+  }
+  if (open && openAt) return { kind: 'sent', message: open.message, at: openAt };
+  return null;
+}

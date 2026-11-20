@@ -82,6 +82,7 @@ export {
   listGuestRequests,
   answerGuestRequest,
   MAX_OPEN_REQUESTS,
+  replyGuestRequest,
 } from './guest-requests.js';
 
 export { planGuestMessage, planForTransition } from './guest-messages.js';
@@ -107,3 +108,4 @@ export {
 export * from './desk.js';
 export * from './desk-money.js';
 export * from './traveller-change.js';
+export * from './move-booking.js';

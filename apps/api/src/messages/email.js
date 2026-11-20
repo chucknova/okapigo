@@ -76,6 +76,15 @@ const MIDDLE = {
     button: null,
     notes: [],
   }),
+  // The office moved the booking (16d-2).
+  booking_moved: (v) => ({
+    eyebrow: 'Date changed',
+    colour: C.success,
+    headline: `See you on ${v.date}, ${v.first_name}!`,
+    money: null,
+    button: { label: 'Open your trip page', url: v.trip_url },
+    notes: [`Moved from ${v.from_date}. Your QR ticket stays the same.`],
+  }),
   // A staff member's message (16d-1): their words in the body, the trip page to hand.
   staff_message: (v) => ({
     eyebrow: 'A message for you',

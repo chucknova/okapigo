@@ -9,9 +9,17 @@
  *                                               24-hour window, the booking beside it
  *
  * Changing a chat is in conversations.js (take over, reply, hand back, follow up, retry, email).
+ *
+ * Guest requests (16d-2; designs: O9 requests, Inbox gaps):
+ *   GET  /api/inbox/requests?tab=open|done   bookings: edit   open oldest first; Done newest first,
+ *                                                              each saying who dealt with it and how
+ *   POST /api/guest-requests/:id/reply        bookings: edit   { text, markAnswered }: by WhatsApp
+ *                                                              and email, shown on the trip page
+ * ("Mark answered without replying" is POST /api/guest-requests/:id/answer { note }, 12f-2.)
  */
 import { Router } from 'express';
-import { deskStatus } from '@okapigo/db';
+import { z } from 'zod';
+import { deskStatus, replyGuestRequest } from '@okapigo/db';
 import { formatPhoneForDisplay } from '@okapigo/shared/contact';
 import { localDate, localTime } from '@okapigo/shared/time';
 import { formatAt } from '@okapigo/shared/tour-facts';
@@ -21,6 +29,18 @@ import { validate, IdParamsSchema } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { fillTemplate } from '../whatsapp/templates.js';
 import { bookingOfChat } from './conversations.js';
+import { toHttp } from './bookings.js';
+
+const KIND = /** @type {Record<string, string>} */ ({
+  change_date: 'Change the date',
+  cancel: 'Cancel',
+  other: 'A question',
+});
+const RequestsQuery = z.object({ tab: z.enum(['open', 'done']).default('open') });
+const ReplyBody = z.object({
+  text: z.string().trim().min(1).max(2000),
+  markAnswered: z.boolean().default(true),
+});
 
 const DAY = 24 * 3_600_000;
 const BOT_DAYS = 7; // "with the bot": the last week's chats
@@ -252,6 +272,131 @@ export function inboxRouter({ prisma }) {
             : null,
         },
       });
+    },
+  );
+
+  router.get(
+    '/inbox/requests',
+    requirePermission('bookings', 'edit'),
+    validate({ query: RequestsQuery }),
+    async (req, res) => {
+      const { operatorId, timeZone: tz } = authOf(req);
+      const tab = /** @type {any} */ (req.query).tab;
+      const now = new Date();
+      const rows = await prisma.guestRequest.findMany({
+        where: { operatorId, status: tab === 'open' ? 'open' : 'answered' },
+        orderBy: tab === 'open' ? { createdAt: 'asc' } : { answeredAt: 'desc' },
+        take: 100,
+        include: {
+          booking: {
+            include: {
+              product: true,
+              departure: true,
+              hold: true,
+              refunds: { select: { status: true, amountKobo: true } },
+              cashReports: { select: { status: true } },
+              _count: { select: { travellers: true } },
+            },
+          },
+        },
+      });
+      const openCount = await prisma.guestRequest.count({ where: { operatorId, status: 'open' } });
+      const ids = [
+        ...new Set(rows.flatMap((r) => [r.answeredById, r.repliedById]).filter((x) => x !== null)),
+      ];
+      const names = new Map(
+        (
+          await prisma.user.findMany({
+            where: { operatorId, id: { in: /** @type {string[]} */ (ids) } },
+          })
+        ).map((u) => [u.id, u.name]),
+      );
+      fresh(res).json({
+        requests: {
+          tab,
+          openCount,
+          rows: rows.map((r) => {
+            const b = r.booking;
+            const chip = deskStatus(b);
+            const base = {
+              id: r.id,
+              kind: r.kind,
+              kindLabel: KIND[r.kind] ?? 'A request',
+              lead: b.leadName,
+              message: r.message,
+              booking: {
+                id: b.id,
+                reference: b.reference,
+                tour: b.product.shortTitle || b.product.title,
+                when: formatAt(b.departure.startsAt.getTime(), tz),
+                people: `${b._count.travellers} ${b._count.travellers === 1 ? 'traveller' : 'travellers'}`,
+                paid:
+                  b.amountPaidKobo > 0 ? `Paid ${formatNaira(b.amountPaidKobo)}` : 'Nothing paid',
+                chip: { ...chip, expiresAt: chip.expiresAt?.toISOString() ?? null },
+                canMove:
+                  ['confirmed', 'part_paid', 'paid', 'amended'].includes(b.status) &&
+                  b.departure.startsAt > now,
+              },
+            };
+            if (tab === 'open') {
+              return {
+                ...base,
+                sent: [
+                  `Sent ${formatAt(r.createdAt.getTime(), tz)} from their trip page`,
+                  b.leadPhone ? formatPhoneForDisplay(b.leadPhone) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
+                waiting: `waiting ${waited(now.getTime() - r.createdAt.getTime())}`,
+                reach: [b.leadPhone ? 'WhatsApp' : null, b.leadEmail ? 'email' : null]
+                  .filter(Boolean)
+                  .join(' and '),
+                replied: r.reply
+                  ? { text: r.reply, at: formatAt(/** @type {Date} */ (r.repliedAt).getTime(), tz) }
+                  : null,
+              };
+            }
+            const who = names.get(r.answeredById ?? '') ?? 'Someone';
+            return {
+              ...base,
+              // "Kunle · Tue 1 Dec · moved to Sun 6 Dec · replied by WhatsApp and email"
+              done: [
+                first(who),
+                r.answeredAt ? whenShort(r.answeredAt, now, tz) : null,
+                r.staffNote && /^Moved to /.test(r.staffNote)
+                  ? r.staffNote.replace(/^Moved/, 'moved')
+                  : null,
+                r.staffNote && !/^Moved to /.test(r.staffNote) ? `note: “${r.staffNote}”` : null,
+                r.reply ? 'replied by WhatsApp and email' : null,
+              ]
+                .filter(Boolean)
+                .join(' · '),
+            };
+          }),
+        },
+      });
+    },
+  );
+
+  router.post(
+    '/guest-requests/:id/reply',
+    requirePermission('bookings', 'edit'),
+    validate({ params: IdParamsSchema, body: ReplyBody }),
+    async (req, res) => {
+      const { operatorId, userId } = authOf(req);
+      let r;
+      try {
+        r = await replyGuestRequest(prisma, {
+          operatorId,
+          requestId: req.params.id,
+          userId,
+          text: req.body.text,
+          markAnswered: req.body.markAnswered,
+        });
+      } catch (err) {
+        throw toHttp(err);
+      }
+      res.status(201).json({ request: { id: r.id, status: r.status } });
     },
   );
 

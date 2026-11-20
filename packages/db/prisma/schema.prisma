@@ -1056,6 +1056,10 @@ model GuestRequest {
   staffNote    String?   @map("staff_note")
   answeredAt   DateTime? @map("answered_at") @db.Timestamptz(3)
   answeredById String?   @map("answered_by_id") @db.Uuid
+  // The office's reply, sent by WhatsApp and email and shown on the trip page (16d-2).
+  reply        String?
+  repliedAt    DateTime? @map("replied_at") @db.Timestamptz(3)
+  repliedById  String?   @map("replied_by_id") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 

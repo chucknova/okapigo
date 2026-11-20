@@ -186,11 +186,21 @@ function guestView(b, { secret, now = new Date() }) {
       : null,
     // "Your request was sent on Tue 1 Dec" (stage 12f-2): the guest's open requests, newest
     // first. Staff's notes stay on the staff side.
-    openRequests: (b.guestRequests ?? []).map((/** @type {any} */ r) => ({
-      kind: r.kind,
-      message: r.message,
-      createdAt: r.createdAt,
-    })),
+    openRequests: (b.guestRequests ?? [])
+      .filter((/** @type {any} */ r) => r.status === 'open')
+      .map((/** @type {any} */ r) => ({
+        kind: r.kind,
+        message: r.message,
+        createdAt: r.createdAt,
+      })),
+    // The office's latest reply (16d-2): shown instead of "Your request was sent", until the
+    // guest asks something newer.
+    lastReply: (() => {
+      const r = [...(b.guestRequests ?? [])]
+        .filter((/** @type {any} */ x) => x.reply && x.repliedAt)
+        .sort((/** @type {any} */ x, /** @type {any} */ y) => y.repliedAt - x.repliedAt)[0];
+      return r ? { message: r.message, reply: r.reply, repliedAt: r.repliedAt } : null;
+    })(),
     // Money confirmed back with the guest ("Refunded ₦62,500 on Thu 26 Nov").
     refunds: (b.refunds ?? [])
       .filter((/** @type {any} */ r) => r.status === 'processed' && r.processedAt)
@@ -228,8 +238,14 @@ const GUEST_INCLUDE = {
     take: 1,
   },
   refunds: true,
+  // Open requests, and ones the office replied to in the last month (16d-2).
   guestRequests: {
-    where: { status: 'open' },
+    where: {
+      OR: [
+        { status: 'open' },
+        { reply: { not: null }, repliedAt: { gte: new Date(Date.now() - 30 * 86_400_000) } },
+      ],
+    },
     orderBy: { createdAt: /** @type {const} */ ('desc') },
   },
 };

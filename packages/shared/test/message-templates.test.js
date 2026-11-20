@@ -9,7 +9,7 @@ import {
 } from '../src/message-templates.js';
 
 describe('the defaults (design file 02)', () => {
-  it('six messages; each default passes its own checks and uses only known placeholders', () => {
+  it('seven messages ("Date changed" since 16d-2); each default passes its own checks and uses only known placeholders', () => {
     expect(MESSAGE_KINDS).toEqual([
       'booking_confirmed',
       'deposit_received',
@@ -17,6 +17,7 @@ describe('the defaults (design file 02)', () => {
       'payment_link',
       'booking_cancelled',
       'refund_sent',
+      'booking_moved',
     ]);
     for (const kind of MESSAGE_KINDS) {
       expect(checkTemplate(kind, MESSAGES[kind]), kind).toEqual([]);

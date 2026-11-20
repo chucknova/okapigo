@@ -318,6 +318,10 @@ export function eventText(e, names) {
       return `cash ${money(d.amountKobo)} not received from ${d.guide ? firstName(d.guide) : 'the guide'}${who ? ` · marked by ${firstName(who)}` : ''} · the owner was alerted`;
     case 'refund_by_transfer':
       return `refund of ${money(d.amountKobo)} paid by bank transfer (ref ${d.reference})${who ? ` · recorded by ${firstName(who)}` : ''}`;
+    case 'moved':
+      return `moved from ${d.from} to ${d.to}${who ? ` by ${firstName(who)}` : ''}`;
+    case 'guest_request_replied':
+      return `replied to the guest’s request${who ? ` (${firstName(who)})` : ''}`;
     case 'travellers_changed': {
       const parts = [
         d.added?.length ? `added ${d.added.join(', ')}` : '',
@@ -398,6 +402,14 @@ export function deskActions(b, { started, owed, tripDay }) {
   return {
     paymentLink: why(notBooked ?? gone ?? (owed <= 0 ? 'Nothing is owed' : null)),
     changeTravellers: why(
+      notBooked ??
+        gone ??
+        (b.status === 'no_show' || b.status === 'completed' || started
+          ? 'The trip has started'
+          : null),
+    ),
+    // Another date of the same tour (16d-2).
+    move: why(
       notBooked ??
         gone ??
         (b.status === 'no_show' || b.status === 'completed' || started

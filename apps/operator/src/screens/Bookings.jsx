@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { LiveFrame } from '../components/LiveFrame.jsx';
 import { Sheet } from '../components/Sheet.jsx';
+import { MoveSheet } from '../components/MoveSheet.jsx';
 import { useLive } from '../lib/live.js';
 import { useNow } from '../lib/now.js';
 import { useEngine, useSync } from '../lib/engine.jsx';
@@ -180,7 +181,7 @@ function BookingPane({ id, tz }) {
 function BookingPage({ b }) {
   const engine = useEngine();
   const [sheet, setSheet] = useState(
-    /** @type {'note' | 'noShow' | 'link' | 'cancel' | 'cashAmount' | 'transfer' | 'travellers' | null} */ (
+    /** @type {'note' | 'noShow' | 'link' | 'cancel' | 'cashAmount' | 'transfer' | 'travellers' | 'move' | null} */ (
       null
     ),
   );
@@ -212,6 +213,7 @@ function BookingPage({ b }) {
     paymentLink: 'link',
     cancel: 'cancel',
     changeTravellers: 'travellers',
+    move: 'move',
   });
   const refundBack = () =>
     change(
@@ -484,6 +486,21 @@ function BookingPage({ b }) {
               `/api/bookings/${b.id}/refunds/bank-transfer`,
               { method: 'POST', body },
               `Refund of ${formatNaira(body.amountKobo)} recorded. The guest is told it was sent.`,
+            )
+          }
+        />
+      )}
+      {sheet === 'move' && (
+        <MoveSheet
+          bookingId={b.id}
+          reference={b.reference}
+          error={error}
+          onClose={() => setSheet(null)}
+          onMove={(departureId, when) =>
+            change(
+              `/api/bookings/${b.id}/move`,
+              { method: 'POST', body: { departureId } },
+              `Moved to ${when}. The guest is told by WhatsApp and email.`,
             )
           }
         />

@@ -20,7 +20,7 @@
 /** @typedef {import('@okapigo/shared/message-templates').Placeholder} Placeholder */
 
 /**
- * The six guest messages, and one the inbox sends (16d-1, decided 2026-11-21): "Can we help you
+ * The seven guest messages ("Date changed" since 16d-2), and one the inbox sends (16d-1, decided 2026-11-21): "Can we help you
  * finish booking?", for a guest who last wrote over 24 hours ago. It only ever goes OUTSIDE the
  * window, so it has no editable wording: Meta's approved text is the message.
  * @type {Record<MessageKind | 'chat_followup', { name: string, text: string, params: Placeholder[] }>}
@@ -60,6 +60,20 @@ export const WHATSAPP_TEMPLATES = {
     name: 'okapigo_booking_cancelled',
     text: 'Hi {{1}}, your booking {{2}} ({{3}}, {{4}}) is cancelled.\n\n{{5}}\n\nReply here if you have any questions.',
     params: ['first_name', 'reference', 'tour_short', 'date', 'refund_line'],
+  },
+  booking_moved: {
+    name: 'okapigo_booking_moved',
+    text: 'Hi {{1}}, your booking {{2}} has moved.\n\n{{3}}\nNow on {{4}}, {{5}} (was {{6}})\nMeet at {{7}}\n\nYour ticket and trip page have the new date:\n{{8}}\n\nSee you then!',
+    params: [
+      'first_name',
+      'reference',
+      'tour',
+      'date',
+      'time',
+      'from_date',
+      'meeting_point',
+      'trip_url',
+    ],
   },
   chat_followup: {
     name: 'okapigo_chat_followup',

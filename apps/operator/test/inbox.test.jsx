@@ -14,6 +14,9 @@ import { createMemoryStore } from '../src/lib/store.js';
 import { request } from '../src/lib/api.js';
 import { clearLive } from '../src/lib/live.js';
 import {
+  movedReply,
+  replyLabel,
+  requestsTab,
   boldParts,
   chatActions,
   chatsTab,
@@ -382,5 +385,146 @@ describe('the inbox', () => {
     await show('/inbox/c1');
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Send by email' })).toBeNull();
+  });
+});
+
+describe('requests (16d-2)', () => {
+  const OPEN = {
+    tab: 'open',
+    openCount: 1,
+    rows: [
+      {
+        id: 'r1',
+        kind: 'change_date',
+        kindLabel: 'Change the date',
+        lead: 'Adaeze Okafor',
+        message: 'Can we move to Sun 6 Dec?',
+        sent: 'Sent Tue 1 Dec, 14:20 from their trip page · 0803 123 4567',
+        waiting: 'waiting 2 h',
+        reach: 'WhatsApp and email',
+        replied: null,
+        booking: {
+          id: 'b7',
+          reference: 'ILT-7K4Q2M',
+          tour: 'Heritage Walk',
+          when: 'Sat 5 Dec, 09:00',
+          people: '3 travellers',
+          paid: 'Paid ₦62,500',
+          chip: { key: 'paid', text: 'Paid', tone: 'ok' },
+          canMove: true,
+        },
+      },
+    ],
+  };
+  const DONE = { tab: 'done', openCount: 1, rows: [] };
+  const OPTIONS = {
+    from: 'Sat 5 Dec, 09:00',
+    travellers: 3,
+    dates: [
+      { id: 'd6', when: 'Sun 6 Dec, 09:00', free: 4, fits: true, text: '4 seats free' },
+      { id: 'd7', when: 'Mon 7 Dec, 09:00', free: 1, fits: false, text: 'Only 1 free' },
+    ],
+  };
+  const routes = (/** @type {any} */ extra = {}) => ({
+    'GET /api/inbox/chats': () => [200, { chats: LIST }],
+    'GET /api/inbox/requests?tab=open': () => [200, { requests: OPEN }],
+    'GET /api/inbox/requests?tab=done': () => [200, { requests: DONE }],
+    ...extra,
+  });
+
+  it('the words', () => {
+    expect(requestsTab(1)).toBe('Requests · 1');
+    expect(requestsTab(0)).toBe('Requests');
+    expect(movedReply('Sun 6 Dec, 09:00')).toBe(
+      'Done! You’re now booked for Sun 6 Dec, 09:00, same meeting point. Your trip page has the new date.',
+    );
+    expect(replyLabel(true)).toBe('Send and mark answered');
+    expect(replyLabel(false)).toBe('Send reply');
+  });
+
+  it('the tab, a request; moved (the reply ready), then the reply sent', async () => {
+    const sent = fakeFetch(
+      routes({
+        'GET /api/bookings/b7/move-options': () => [200, { options: OPTIONS }],
+        'POST /api/bookings/b7/move': () => [200, { moved: {} }],
+        'POST /api/guest-requests/r1/reply': () => [201, { request: {} }],
+      }),
+    );
+    await show('/inbox/requests/r1');
+    expect(await screen.findByRole('link', { name: 'Requests · 1' })).toBeTruthy();
+    expect(await screen.findByText('“Can we move to Sun 6 Dec?”')).toBeTruthy();
+    expect(
+      screen.getByText('Sent Tue 1 Dec, 14:20 from their trip page · 0803 123 4567'),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move to another date…' }));
+    // A date that doesn't fit can't be chosen.
+    expect(await screen.findByRole('radio', { name: /Mon 7 Dec/ })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    fireEvent.click(screen.getByRole('radio', { name: /Sun 6 Dec/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move to Sun 6 Dec, 09:00' }));
+    expect((await screen.findByRole('status')).textContent).toBe(
+      'Moved to Sun 6 Dec, 09:00. Adaeze is told by WhatsApp and email.',
+    );
+    expect(sent.find((x) => x.path.endsWith('/move'))?.body).toEqual({
+      departureId: 'd6',
+      requestId: 'r1',
+    });
+    const box = screen.getByRole('textbox', { name: /^Reply to Adaeze \(WhatsApp and email\)/ });
+    expect(box).toHaveProperty('value', movedReply('Sun 6 Dec, 09:00'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send and mark answered' }));
+    expect((await screen.findByRole('status')).textContent).toBe('Sent, and marked answered.');
+    expect(sent.find((x) => x.path.endsWith('/reply'))?.body).toEqual({
+      text: movedReply('Sun 6 Dec, 09:00'),
+      markAnswered: true,
+    });
+  });
+
+  it('a reply without marking answered; or answered with a note', async () => {
+    const sent = fakeFetch(
+      routes({
+        'POST /api/guest-requests/r1/reply': () => [201, { request: {} }],
+        'POST /api/guest-requests/r1/answer': () => [200, { request: {} }],
+      }),
+    );
+    await show('/inbox/requests/r1');
+    fireEvent.change(await screen.findByRole('textbox', { name: /^Reply to Adaeze/ }), {
+      target: { value: 'Checking with the guide.' },
+    });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mark answered when sent' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send reply' }));
+    expect((await screen.findByRole('status')).textContent).toBe('Sent.');
+    expect(sent.find((x) => x.path.endsWith('/reply'))?.body).toEqual({
+      text: 'Checking with the guide.',
+      markAnswered: false,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark answered without replying' }));
+    const mark = screen.getByRole('button', { name: 'Mark answered' });
+    expect(mark).toHaveProperty('disabled', true);
+    fireEvent.change(screen.getByRole('textbox', { name: 'What happened' }), {
+      target: { value: 'Called her.' },
+    });
+    fireEvent.click(mark);
+    expect((await screen.findByRole('status')).textContent).toBe('Marked answered.');
+    expect(sent.find((x) => x.path.endsWith('/answer'))?.body).toEqual({ note: 'Called her.' });
+  });
+
+  it('no open requests: where they come from', async () => {
+    fakeFetch(
+      routes({
+        'GET /api/inbox/requests?tab=open': () => [
+          200,
+          { requests: { ...OPEN, openCount: 0, rows: [] } },
+        ],
+      }),
+    );
+    await show('/inbox/requests');
+    expect(
+      await screen.findByText('No open requests. Guests ask from their trip page.'),
+    ).toBeTruthy();
   });
 });

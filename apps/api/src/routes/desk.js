@@ -9,6 +9,9 @@
  *   POST /api/cash-reports/:id/confirm   payments: edit   cash handed in (or another amount) (16c-2)
  *   POST /api/cash-reports/:id/not-received  payments: edit   not handed in: the owner is alerted
  *   POST /api/bookings/:id/refunds/bank-transfer  payments: edit   a refund the business sent itself
+ *   GET  /api/bookings/:id/move-options       bookings: edit   the tour's other dates, seats free (16d-2)
+ *   POST /api/bookings/:id/move               bookings: edit   { departureId, requestId? }: moved,
+ *                                                               the guest told ("Date changed")
  *   POST /api/bookings/:id/travellers/preview  bookings: edit   what a change would do (16c-3)
  *   POST /api/bookings/:id/travellers/change   bookings: edit   do it; send a link for the extra,
  *                                                               or start the policy's refund
@@ -30,6 +33,8 @@ import {
   requestBookingRefund,
   createPaymentLink,
   planGuestMessage,
+  moveOptions,
+  moveBooking,
   DESK_FILTERS,
 } from '@okapigo/db';
 import { zonedTimeToUtc } from '@okapigo/shared/time';
@@ -69,6 +74,7 @@ const SaveChangeBody = ChangeBody.extend({
   // "Save and send a link for ₦35,000": the extra, to the guest (WhatsApp and email).
   sendLink: z.boolean().default(true),
 });
+const MoveBody = z.object({ departureId: z.uuid(), requestId: z.uuid().optional() });
 const NoteBody = z.object({
   text: z.string().trim().min(1).max(1000),
   onManifest: z.boolean().default(false),
@@ -182,6 +188,37 @@ export function deskRouter({ prisma, provider, webPublicUrl = '' }) {
         }),
       );
       res.status(201).json({ refund: result });
+    },
+  );
+
+  router.get(
+    '/bookings/:id/move-options',
+    requirePermission('bookings', 'edit'),
+    validate({ params: IdParamsSchema }),
+    async (req, res) => {
+      const options = await domain(() =>
+        moveOptions(prisma, { operatorId: authOf(req).operatorId, bookingId: req.params.id }),
+      );
+      fresh(res).json({ options });
+    },
+  );
+
+  router.post(
+    '/bookings/:id/move',
+    requirePermission('bookings', 'edit'),
+    validate({ params: IdParamsSchema, body: MoveBody }),
+    async (req, res) => {
+      const { operatorId, userId } = authOf(req);
+      const moved = await domain(() =>
+        moveBooking(prisma, {
+          operatorId,
+          bookingId: req.params.id,
+          departureId: req.body.departureId,
+          requestId: req.body.requestId,
+          userId,
+        }),
+      );
+      res.json({ moved });
     },
   );
 

@@ -23,7 +23,7 @@ import { formatNaira } from '@okapigo/shared/money';
 import { formatDuration, formatLocalDay } from '@okapigo/shared/preview';
 import { describePolicy, formatAt } from '@okapigo/shared/tour-facts';
 import { localDate, localTime } from '@okapigo/shared/time';
-import { tripSituation } from '@okapigo/shared/trip-hub';
+import { tripSituation, requestNotice } from '@okapigo/shared/trip-hub';
 import { useApi } from '../../lib/data.js';
 import { ApiError } from '../../lib/api.js';
 import { rememberTrip } from '../../lib/trips.js';
@@ -126,7 +126,7 @@ export function TripHub({ params }) {
         {s.phase === 'today' && s.balance && (
           <BalanceBanner b={b} balance={s.balance} token={token} op={op} offline={offline} />
         )}
-        {onTrip && b.openRequests?.length > 0 && <RequestBanner b={b} op={op} />}
+        {onTrip && requestNotice(b) && <RequestBanner b={b} op={op} />}
 
         <div className={`okg-trip__body${ended ? ' okg-trip__body--ended' : ''}`}>
           {s.phase !== 'today' && <TripHeading b={b} s={s} />}
@@ -248,7 +248,7 @@ function SituationBanner({ b, s, token, op, offline }) {
   const day = formatLocalDay(b.departure.localDate);
   if (s.phase === 'upcoming') {
     // An open request has its own banner ("Your request was sent…"), shown instead.
-    if (!s.balance && b.openRequests?.length > 0) return null;
+    if (!s.balance && requestNotice(b)) return null;
     return s.balance ? (
       <BalanceBanner b={b} balance={s.balance} token={token} op={op} offline={offline} />
     ) : (
@@ -345,8 +345,16 @@ function SituationBanner({ b, s, token, op, offline }) {
  * @param {{ b: any, op: string }} props
  */
 function RequestBanner({ b, op }) {
-  const r = b.openRequests[0];
-  const on = formatLocalDay(localDate(new Date(r.createdAt), b.operator.timeZone));
+  const r = /** @type {NonNullable<ReturnType<typeof requestNotice>>} */ (requestNotice(b));
+  const on = formatLocalDay(localDate(r.at, b.operator.timeZone));
+  // The office replied (16d-2): their words, instead of "sent".
+  if (r.kind === 'reply') {
+    return (
+      <Banner tone="good" title={`${op} replied on ${on}`}>
+        {r.reply}
+      </Banner>
+    );
+  }
   return (
     <Banner tone="good" title={`Your request was sent on ${on}`}>
       “{r.message}” {op} will reply by WhatsApp or email. Your booking stays as it is until then.
