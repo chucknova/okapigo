@@ -134,7 +134,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                         | `d293b30`           | 16b            |
 | 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                   | `bf4d0d7`           | 16c-1          |
 | 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts     | `9c97f5a`           | 16c-2          |
-| 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | (this commit)       | 16c-3          |
+| 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | `105242e`           | 16c-3          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -213,7 +213,7 @@ saving; more: paid → **amended**, and a link for the extra is sent. The lead a
 
 ## 7. Where we are
 
-- **Last done:** 16c-3, changing travellers, which finishes the bookings desk (commit: see §9).
+- **Last done:** 16c-3, changing travellers, which finishes the bookings desk, committed `105242e`.
   16c-2 pushed.
 - **Next:** **16d**, the inbox (O9; designs: "O9 Inbox — chats", "requests and alerts", "phone
   and states", "Inbox gaps"): chats (needs a person first; take over, reply, hand back: API
