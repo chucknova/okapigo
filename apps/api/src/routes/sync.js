@@ -86,6 +86,23 @@ export function syncRouter({ prisma, authSecret, webPublicUrl = '' }) {
   const authOf = (req) => req.auth;
   /** May act on any departure, and see everyone's conflicts. @param {any} req */
   const everyone = (req) => hasAccess(authOf(req).permissions.bookings, 'edit');
+  /**
+   * This person's phone just synced: when, and how many changes it says are still waiting
+   * (the X-Outbox-Waiting header; 16a, the manager's "Guides’ phones").
+   * @param {any} req
+   */
+  const noteSync = (req) => {
+    const waiting = Number.parseInt(String(req.get('X-Outbox-Waiting') ?? ''), 10);
+    return prisma.user.update({
+      where: { id: authOf(req).userId },
+      data: {
+        lastSyncedAt: new Date(),
+        ...(Number.isFinite(waiting) && waiting >= 0 && waiting < 100_000
+          ? { outboxWaiting: waiting }
+          : {}),
+      },
+    });
+  };
   /** @param {() => Promise<any>} fn */
   const domain = async (fn) => {
     try {
@@ -97,6 +114,7 @@ export function syncRouter({ prisma, authSecret, webPublicUrl = '' }) {
 
   router.get('/sync/package', requirePermission('operations', 'view'), async (req, res) => {
     const { operatorId, userId } = authOf(req);
+    await noteSync(req);
     const pkg = await offlinePackage(prisma, {
       operatorId,
       userId,

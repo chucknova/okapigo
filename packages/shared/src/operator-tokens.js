@@ -63,6 +63,11 @@ export const OPERATOR = {
     'mark-text': '#C6F432',
     'scanner-bg': '#1C201C',
     'scanner-muted': '#C9D1C8',
+    // The menu down the side on a wide screen (designs: "Desktop · sidebar", 16a).
+    'side-bg': '#111511',
+    'side-text': '#EEF2EC',
+    'side-muted': '#A9B3A8',
+    'side-active': '#2E362E',
     // Behind a sheet or dialog.
     scrim: 'rgba(17, 21, 17, 0.55)',
   }),

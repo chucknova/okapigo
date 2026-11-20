@@ -1186,3 +1186,373 @@
 .stop-note {
   padding: 0 14px 12px;
 }
+
+/* --- The office (16a): the menu by role, wide screens, Today, the staff states ------------- */
+.tabs--5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.tabs--5 .tab {
+  font-size: 12px;
+}
+.sidenav {
+  display: none;
+}
+.wide-only {
+  display: none;
+}
+.narrow-only {
+  display: inline;
+}
+.app-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .app {
+    max-width: none;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    min-height: 100dvh;
+  }
+  .tabs {
+    display: none;
+  }
+  .app-body {
+    padding-bottom: 24px;
+  }
+  .wide-only {
+    display: block;
+  }
+  span.wide-only,
+  strong.wide-only {
+    display: inline;
+  }
+  .narrow-only {
+    display: none;
+  }
+  .sidenav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 20px 14px;
+    background: var(--color-side-bg);
+    color: var(--color-side-text);
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+  }
+  .sidenav-brand {
+    font-weight: 900;
+    color: var(--color-mark-text);
+    font-size: var(--text-action);
+    padding: 0 10px 2px;
+  }
+  .sidenav-who {
+    font-size: var(--text-2xs);
+    color: var(--color-side-muted);
+    padding: 0 10px 16px;
+  }
+  .sidenav-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 10px;
+    border-radius: 10px;
+    color: var(--color-side-text);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .sidenav-item[aria-current='page'] {
+    background: var(--color-side-active);
+  }
+  .sidenav-badge {
+    font-size: var(--text-2xs);
+    color: var(--color-mark-text);
+  }
+  .page.office-today {
+    padding: 20px 24px;
+    gap: 18px;
+    max-width: 1400px;
+  }
+  .office-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+  }
+  .needs {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .need {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .need-action {
+    margin-top: auto;
+  }
+  .office-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 18px;
+    align-items: start;
+  }
+  .dep-row {
+    grid-template-columns: 70px minmax(0, 1fr) 190px 150px;
+    padding: 12px 16px;
+  }
+}
+
+.h-md {
+  font-size: var(--text-md);
+  margin-bottom: 10px;
+}
+.needs {
+  display: grid;
+  gap: 10px;
+}
+.need {
+  display: flex;
+  align-items: center;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border: 2px solid var(--need);
+  border-radius: var(--radius-button);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.need--urgent {
+  --need: var(--color-danger);
+}
+.need--soon {
+  --need: var(--color-warning);
+}
+.need--info {
+  --need: var(--color-info);
+}
+.need-key {
+  display: block;
+  width: 100%;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--need);
+}
+.need-title {
+  flex: 1;
+  font-size: var(--text-base);
+  line-height: 1.25;
+}
+.need-detail {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  width: 100%;
+}
+.need-action {
+  font-weight: 800;
+  color: var(--color-primary-ink);
+  font-size: var(--text-sm);
+}
+.office-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.panel-h {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: var(--text-md);
+  border-bottom: 1px solid var(--color-border);
+}
+.panel-empty,
+.panel-note {
+  margin: 0;
+  padding: 12px 16px;
+}
+.dep-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-state-pending);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.dep-row:last-child {
+  border-bottom: 0;
+}
+.dep-time {
+  font-size: var(--text-action);
+}
+.dep-what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dep-guide {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+.dep-guide.urgent {
+  color: var(--color-danger);
+}
+.bar {
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-state-pending);
+  margin-top: 4px;
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--color-state-present);
+}
+.dep-state,
+.phone-status {
+  font-size: var(--text-2xs);
+  font-weight: 800;
+}
+.tone--ok {
+  color: var(--color-success);
+}
+.tone--urgent {
+  color: var(--color-danger);
+}
+.tone--warning {
+  color: var(--color-warning);
+}
+.tone--muted {
+  color: var(--color-text-muted);
+}
+.phone-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-state-pending);
+}
+.phone-status {
+  text-align: right;
+}
+
+/* The staff states (designs: Staff screens — states). */
+.panel-state {
+  align-items: center;
+  text-align: center;
+  padding-top: 64px;
+}
+.panel-state .muted {
+  max-width: 380px;
+}
+.badge-circle--danger {
+  width: 48px;
+  height: 48px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.badge-circle--muted {
+  width: 48px;
+  height: 48px;
+  background: var(--color-state-pending);
+  color: var(--color-text-soft);
+}
+.sk {
+  border-radius: 8px;
+  background: var(--color-disabled-bg);
+  animation: sk 1.4s infinite;
+}
+.sk--title {
+  height: 26px;
+  width: 45%;
+}
+.sk--card {
+  height: 90px;
+  border-radius: var(--radius-input);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+.sk--tall {
+  height: 140px;
+}
+@keyframes sk {
+  0% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.55;
+  }
+}
+.slow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.stale-note {
+  padding: 8px var(--size-gutter);
+  background: var(--color-sync-offline);
+  color: #ffffff;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+}
+.stale {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+.list-link {
+  color: var(--color-text);
+  text-decoration: none;
+}
+.chevron {
+  transform: rotate(180deg);
+  color: var(--color-text-muted);
+}
+
+/* Wide screens, again: after the base rules above, so these win (16a). */
+@media (min-width: 1024px) {
+  /* The sidebar's dark reaches the bottom on a long page too. */
+  .app {
+    background: linear-gradient(to right, var(--color-side-bg) 220px, var(--color-bg) 220px);
+  }
+  .office-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 18px;
+    align-items: start;
+  }
+  .dep-row {
+    grid-template-columns: 70px minmax(0, 1fr) 190px 150px;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  .need {
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    padding: 14px;
+  }
+  .need-title {
+    flex: none;
+  }
+}

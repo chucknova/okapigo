@@ -156,6 +156,10 @@ model User {
   sessions Session[]
   // The departures this person guides (stage 15a).
   guiding  Departure[]
+  // When this person's phone last synced, and how many changes it said were waiting
+  // (16a: the manager's "Guides’ phones"). Null until their phone first syncs.
+  lastSyncedAt  DateTime? @map("last_synced_at") @db.Timestamptz(3)
+  outboxWaiting Int?      @map("outbox_waiting")
   // Changes this person's phone sent from its offline outbox (stage 15b).
   syncChanges SyncChange[]
   // Cash this person took from guests on tour day (stage 15c-4).

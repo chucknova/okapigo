@@ -31,6 +31,8 @@ function fakeServer() {
     dismissed: [],
     /** @type {Record<string, string>} */
     outcomes: {},
+    /** @type {string | undefined} what the phone said is waiting (X-Outbox-Waiting) */
+    waitingSaid: undefined,
   };
   /** @type {typeof import('../src/lib/api.js').request} */
   const request = async (path, o = {}) => {
@@ -59,6 +61,14 @@ function fakeServer() {
         },
       };
     }
+    if (path === '/api/me') {
+      server.waitingSaid = o.headers?.['X-Outbox-Waiting'] ?? server.waitingSaid;
+      return {
+        status: 200,
+        etag: null,
+        body: { user: { name: 'Femi' }, permissions: { operations: 'edit' } },
+      };
+    }
     if (path === '/api/sync/conflicts')
       return { status: 200, etag: null, body: { conflicts: server.conflicts } };
     if (path.startsWith('/api/sync/conflicts/')) {
@@ -66,6 +76,7 @@ function fakeServer() {
       return { status: 204, etag: null, body: null };
     }
     if (path === '/api/sync/package') {
+      server.waitingSaid = o.headers?.['X-Outbox-Waiting'];
       if (o.etag === server.etag) return { status: 304, etag: server.etag, body: null };
       return { status: 200, etag: server.etag, body: { package: server.pkg } };
     }
@@ -140,7 +151,12 @@ describe('record: saved first, sent by itself', () => {
       'POST /api/sync/changes',
       'GET /api/sync/conflicts',
       'GET /api/sync/package',
+      'GET /api/me',
     ]);
+    // The phone says how many changes are still waiting (none: all sent), and who it is.
+    expect(s.server.waitingSaid).toBe('0');
+    expect(s.engine.getState().me).toMatchObject({ user: { name: 'Femi' } });
+    expect(await s.store.get('me')).toMatchObject({ user: { name: 'Femi' } });
     expect(await s.store.get('package')).toEqual({
       data: s.server.pkg,
       etag: 'W/"v1"',

@@ -15,6 +15,20 @@ const PATHS = {
       <path d="M3.5 10h17M8 3v4M16 3v4" />
     </>
   ),
+  calendar: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15" rx="2" />
+      <path d="M3.5 10h17M8 3v4M16 3v4M8 14h3M8 17h6" />
+    </>
+  ),
+  list: <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />,
+  inbox: (
+    <>
+      <path d="M3 13l3-8h12l3 8v6H3z" />
+      <path d="M3 13h5l1 2h6l1-2h5" />
+    </>
+  ),
+  more: <path d="M5 12h.01M12 12h.01M19 12h.01" />,
   scan: (
     <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10" />
   ),

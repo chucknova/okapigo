@@ -4,8 +4,7 @@
  *
  *   not signed in on this phone   → Sign in (O1)
  *   signed in, first time here    → First run (install · saving · ready)
- *   otherwise                     → the connection strip, the screen, the tabs
- *                                   Today (O2) · a manifest (O3) · Scan (O4) · Sync (O5)
+ *   otherwise                     → the connection strip, the screen, the tabs (Shell, below)
  *
  * The sign-in running out (30 days) while offline doesn't stop anything: the app works as
  * normal, and once there's signal a sheet asks to sign in again to send the changes.
@@ -13,7 +12,12 @@
 import { useEffect, useState } from 'react';
 import { Route, Router, Switch } from 'wouter';
 import { ConnectionStrip } from './components/ConnectionStrip.jsx';
-import { TabBar } from './components/TabBar.jsx';
+import { TabBar, SideNav } from './components/TabBar.jsx';
+import { NotAllowed } from './components/LiveFrame.jsx';
+import { useLive } from './lib/live.js';
+import { isOffice } from './lib/roles.js';
+import { ManagerToday } from './screens/ManagerToday.jsx';
+import { More } from './screens/More.jsx';
 import { Sheet } from './components/Sheet.jsx';
 import { useEngine, useSync } from './lib/engine.jsx';
 import { REFRESH_EVERY_MS } from './lib/sync.js';
@@ -51,25 +55,93 @@ export function App({ base = '/app' }) {
   if (!s.ready) return null;
   if (!s.session) return <SignIn />;
   if (!s.firstRunDone) return <FirstRun />;
-  const tz = s.pkg?.operator?.timeZone ?? 'Africa/Lagos';
   return (
     <Router base={base}>
-      <div className="app">
+      <Shell />
+    </Router>
+  );
+}
+
+/**
+ * The signed-in app: the connection strip, the screen, and the tabs (a phone) or the menu
+ * down the side (a wide screen). Which screens depends on the person's role (16a):
+ *   the office   Today (theirs) · Schedule · Bookings · Inbox · More   (+ Scan and Sync)
+ *   a guide      Today (theirs) · Scan · Sync
+ * A guide opening an office link gets "This page is for managers".
+ */
+function Shell() {
+  const s = useSync();
+  const office = isOffice(s.me, s.session);
+  const tz = s.me?.operator?.timeZone ?? s.pkg?.operator?.timeZone ?? 'Africa/Lagos';
+  // The menu's badges come from the manager's Today (the same fetch the screen uses).
+  const live = useLive(office ? '/api/today' : null);
+  const badges = live.entry.data?.today?.badges ?? {};
+  /** An office screen: the office sees it; anyone else, "This page is for managers". */
+  const officeOnly = (/** @type {() => import('react').ReactNode} */ screen) => () =>
+    office ? screen() : <NotAllowed forWhom="managers" />;
+  return (
+    <div className="app">
+      <SideNav badges={badges} />
+      <div className="app-main">
         <ConnectionStrip timeZone={tz} />
         <div className="app-body">
           <Switch>
-            <Route path="/" component={Today} />
+            <Route path="/">{() => (office ? <ManagerToday /> : <Today />)}</Route>
             <Route path="/sync" component={Sync} />
             <Route path="/scan" component={Scan} />
             <Route path="/scan/:id" component={Scan} />
-            <Route path="/departures/:id" component={Manifest} />
+            <Route path="/departures/:id">
+              {(p) =>
+                office &&
+                !s.pkg?.departures?.some((/** @type {any} */ d) => d.departure.id === p.id) ? (
+                  <Later
+                    title="Departure"
+                    what="A departure’s page for the office"
+                    stage="16b"
+                    back
+                  />
+                ) : (
+                  <Manifest />
+                )
+              }
+            </Route>
+            <Route path="/schedule">
+              {officeOnly(() => (
+                <Later title="Schedule" what="The schedule" stage="16b" />
+              ))}
+            </Route>
+            <Route path="/bookings">
+              {officeOnly(() => (
+                <Later title="Bookings" what="The bookings desk" stage="16c" />
+              ))}
+            </Route>
+            <Route path="/bookings/:id">
+              {officeOnly(() => (
+                <Later title="Booking" what="A booking’s page" stage="16c" back />
+              ))}
+            </Route>
+            <Route path="/inbox">
+              {officeOnly(() => (
+                <Later title="Inbox" what="The inbox" stage="16d" />
+              ))}
+            </Route>
+            <Route path="/settings">
+              {officeOnly(() => (
+                <Later title="Settings" what="Settings" stage="16e" />
+              ))}
+            </Route>
+            <Route path="/more">
+              {officeOnly(() => (
+                <More />
+              ))}
+            </Route>
             <Route>{() => <Later title="Not found" what="This page" stage="" back />}</Route>
           </Switch>
         </div>
-        <TabBar />
-        <SignInAgain />
       </div>
-    </Router>
+      <TabBar badges={badges} />
+      <SignInAgain />
+    </div>
   );
 }
 

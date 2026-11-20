@@ -19,6 +19,10 @@ export function meRouter({ prisma }) {
       where: { id: userId },
       include: { role: true, operator: true },
     });
+    const owner = await prisma.user.findFirst({
+      where: { operatorId: user.operatorId, isActive: true, role: { key: 'owner' } },
+      orderBy: { createdAt: 'asc' },
+    });
 
     res.json({
       user: serializeUser(user),
@@ -30,6 +34,8 @@ export function meRouter({ prisma }) {
         timeZone: user.operator.timeZone,
       },
       permissions,
+      // "Ask Bisola if you need access" (a page your role can't open, 16a).
+      owner: owner ? { name: owner.name } : null,
     });
   });
 

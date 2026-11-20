@@ -49,6 +49,7 @@ const KEEP_SENT = 20;
  *   connection: Connection,
  *   retryAt: string | null,
  *   firstRunDone: boolean,        // "You're ready for no signal" has been seen
+ *   me: any,                      // /api/me: user, operator, permissions, owner (16a)
  * }} SyncState
  */
 
@@ -87,6 +88,7 @@ export function createSyncEngine({
     connection: online() ? 'online' : 'offline',
     retryAt: null,
     firstRunDone: false,
+    me: null,
   };
   /** @type {Set<() => void>} */
   const listeners = new Set();
@@ -106,13 +108,14 @@ export function createSyncEngine({
   const call = (path, o = {}) => request(path, { token: token(), online, ...o });
 
   async function load() {
-    const [session, saved, outbox, conflicts, sent, meta] = await Promise.all([
+    const [session, saved, outbox, conflicts, sent, meta, me] = await Promise.all([
       store.get('session'),
       store.get('package'),
       store.get('outbox'),
       store.get('conflicts'),
       store.get('sent'),
       store.get('meta'),
+      store.get('me'),
     ]);
     set({
       ready: true,
@@ -126,6 +129,7 @@ export function createSyncEngine({
       sent: sent ?? [],
       lastSentAt: meta?.lastSentAt ?? null,
       firstRunDone: Boolean(meta?.firstRunDone),
+      me: me ?? null,
     });
   }
 
@@ -181,6 +185,7 @@ export function createSyncEngine({
       await sendOutbox();
       await fetchConflicts();
       await refreshPackage();
+      await refreshMe();
       set({ connection: 'online' });
     } catch (err) {
       failed(err);
@@ -229,8 +234,22 @@ export function createSyncEngine({
     set({ conflicts: body.conflicts });
   }
 
+  /**
+   * Who's signed in, their role's permissions, and the business's owner (16a): which screens
+   * this person may open. Saved, so the right tabs show offline too.
+   */
+  async function refreshMe() {
+    const { body } = await call('/api/me');
+    await store.set('me', body);
+    set({ me: body });
+  }
+
   async function refreshPackage() {
-    const res = await call('/api/sync/package', { etag: state.etag });
+    // The phone says how many changes are still waiting (the manager's "Guides’ phones", 16a).
+    const res = await call('/api/sync/package', {
+      etag: state.etag,
+      headers: { 'X-Outbox-Waiting': String(state.outbox.length) },
+    });
     const savedAt = now().toISOString();
     if (res.status === 304) {
       // Nothing changed since our copy: it's confirmed up to date as of now.

@@ -92,6 +92,7 @@ export {
   noShow,
   nameTraveller,
 } from './operations.js';
+export { managerToday } from './today.js';
 export {
   offlinePackage,
   applyChanges,

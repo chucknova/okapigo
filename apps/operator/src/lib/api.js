@@ -18,14 +18,16 @@ export class ApiError extends Error {
   /**
    * @param {'offline' | 'unreachable' | 'server' | 'signed-out' | 'api'} kind
    * @param {string} message
-   * @param {{ status?: number, code?: string, details?: Record<string, unknown> }} [extra]
+   * @param {{ status?: number, code?: string, details?: Record<string, unknown>, requestId?: string | null }} [extra]
    */
-  constructor(kind, message, { status, code, details } = {}) {
+  constructor(kind, message, { status, code, details, requestId } = {}) {
     super(message);
     this.kind = kind;
     this.status = status;
     this.code = code;
     this.details = details ?? {};
+    // The server's id for this request (X-Request-Id): "quote 5F2A-07:41" finds its logs.
+    this.requestId = requestId ?? null;
   }
 }
 
@@ -38,6 +40,7 @@ export const DEFAULT_TIMEOUT_MS = 20_000;
  *   body?: unknown,
  *   token?: string | null,
  *   etag?: string | null,          // If-None-Match: "I have this version"
+ *   headers?: Record<string, string>,
  *   timeoutMs?: number,
  *   fetchImpl?: typeof fetch,      // tests pass a fake
  *   online?: () => boolean,        // tests pass a fake; default navigator.onLine
@@ -55,6 +58,7 @@ export async function request(path, options = {}) {
     body,
     token,
     etag,
+    headers: extraHeaders = {},
     timeoutMs = DEFAULT_TIMEOUT_MS,
     fetchImpl = globalThis.fetch.bind(globalThis),
     online = () => globalThis.navigator?.onLine ?? true,
@@ -64,7 +68,7 @@ export async function request(path, options = {}) {
   if (!online()) throw new ApiError('offline', 'Offline');
 
   /** @type {Record<string, string>} */
-  const headers = {};
+  const headers = { ...extraHeaders };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
   if (etag) headers['If-None-Match'] = etag;
@@ -89,6 +93,7 @@ export async function request(path, options = {}) {
   }
 
   const tag = res.headers.get('ETag');
+  const requestId = res.headers.get('X-Request-Id');
   if (res.status === 304) return { status: 304, body: null, etag: tag ?? etag ?? null };
   if (res.status === 204) return { status: 204, body: null, etag: tag };
   const json = await res.json().catch(() => undefined);
@@ -101,9 +106,9 @@ export async function request(path, options = {}) {
     throw new ApiError('signed-out', 'Sign in again', { status: 401 });
   }
   if (res.status >= 500 || !json?.error) {
-    throw new ApiError('server', 'OkapiGo is having trouble', { status: res.status });
+    throw new ApiError('server', 'OkapiGo is having trouble', { status: res.status, requestId });
   }
   // The API's error shape: { error: { code, message, ...details } } (middleware/errors.js).
   const { code, message, ...details } = json.error;
-  throw new ApiError('api', message, { status: res.status, code, details });
+  throw new ApiError('api', message, { status: res.status, code, details, requestId });
 }

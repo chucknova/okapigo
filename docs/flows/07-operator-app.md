@@ -270,3 +270,13 @@ brief didn't have. Decided:
 | 15c-3 | Scan (O4) and its problem states                                                                                                      |
 | 15c-4 | money on the day (QR, cash), pickup stops, the A4 printed manifest                                                                    |
 | 15d   | journey 6 end to end with the network off                                                                                             |
+
+## Session 16, in five stages (decided 2026-11-20)
+
+| Stage | Builds                                                                                                                             |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 16a   | the manager's shell (five tabs on a phone, a sidebar on desktop), staff screen states, the manager's Today with the guides' phones |
+| 16b   | Schedule (O6) and a departure (O7): assigning guides and vans, cancelling for weather                                              |
+| 16c   | the bookings desk (O8): every status, booking actions, refunds, payment links, confirming a guide's cash                           |
+| 16d   | the inbox (O9): chats, requests, alerts                                                                                            |
+| 16e   | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                                   |

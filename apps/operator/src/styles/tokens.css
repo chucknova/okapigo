@@ -38,6 +38,10 @@
   --color-mark-text: #C6F432;
   --color-scanner-bg: #1C201C;
   --color-scanner-muted: #C9D1C8;
+  --color-side-bg: #111511;
+  --color-side-text: #EEF2EC;
+  --color-side-muted: #A9B3A8;
+  --color-side-active: #2E362E;
   --color-scrim: rgba(17, 21, 17, 0.55);
   --text-2xs: 13px;
   --text-xs: 14px;
