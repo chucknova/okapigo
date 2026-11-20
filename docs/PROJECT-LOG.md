@@ -131,7 +131,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 15d             | journey 6 end to end, network off                                                                                                                                     | `5bbb9ea`           | 15d            |
 | —               | tests get their own databases and queues                                                                                                                              | `21ad517`           | test-isolation |
 | 16a             | manager's shell (tabs/sidebar by role), staff states, manager's Today                                                                                                 | `07b04c9`           | 16a            |
-| 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                         | (this commit)       | 16b            |
+| 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                         | `d293b30`           | 16b            |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -194,7 +194,7 @@ transport** (on foot, van, boat) and only that kind can be assigned; cancelling 
 
 ## 7. Where we are
 
-- **Last done:** 16b, the schedule and a departure's page (commit: see §9). 16a's push
+- **Last done:** 16b, the schedule and a departure’s page, committed `d293b30`. 16a's push
   confirmed by the user.
 - **Next:** **16c**: the bookings desk (O8): every status, booking actions, refunds, payment
   links, **confirming a guide's cash**. Designs: "O8 Bookings".
