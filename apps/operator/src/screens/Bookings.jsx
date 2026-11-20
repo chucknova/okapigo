@@ -18,6 +18,7 @@ import { Link, useParams } from 'wouter';
 import { LiveFrame } from '../components/LiveFrame.jsx';
 import { Sheet } from '../components/Sheet.jsx';
 import { useLive } from '../lib/live.js';
+import { useNow } from '../lib/now.js';
 import { useEngine, useSync } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
 import { formatNaira } from '@okapigo/shared/money';
@@ -44,17 +45,6 @@ import {
   noShowLabel,
   resultsLine,
 } from '../lib/desk.js';
-
-/** The time now, every `ms` (the held countdown). @param {number} ms @param {boolean} on */
-function useNow(ms, on) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!on) return;
-    const t = setInterval(() => setNow(Date.now()), ms);
-    return () => clearInterval(t);
-  }, [ms, on]);
-  return now;
-}
 
 /** What was typed, once typing pauses (one request per search, not per letter). @param {string} value */
 function useSettled(value, ms = 300) {

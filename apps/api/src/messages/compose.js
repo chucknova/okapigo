@@ -128,6 +128,19 @@ export function messageValues(deps, booking, message) {
  * @param {any} booking @param {{ kind: string, data: any }} message
  */
 export async function compose(deps, booking, message) {
+  // A staff member's own words, sent by email when WhatsApp couldn't deliver them (16d-1):
+  // no template; the subject says who it's from.
+  if (message.kind === 'staff_message') {
+    const values = messageValues(deps, booking, message);
+    const who = String(message.data?.staffName ?? '')
+      .trim()
+      .split(/\s+/)[0];
+    return {
+      subject: `A message from ${who ? `${who} at ` : ''}${booking.product.operator.name}`,
+      body: String(message.data?.text ?? ''),
+      values,
+    };
+  }
   const kind = /** @type {import('@okapigo/shared/message-templates').MessageKind} */ (
     message.kind
   );

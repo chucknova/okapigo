@@ -310,3 +310,14 @@ brief didn't have. Decided:
 - **16c-3 (2026-11-21):** changing travellers keeps the booked price (today's for a kind the
   booking never had); the lead stays; fewer → the policy's refund, confirmed; more → a link for
   the extra.
+
+## The inbox in three parts (decided 2026-11-21)
+
+| Stage | Builds                                                                                    |
+| ----- | ----------------------------------------------------------------------------------------- |
+| 16d-1 | chats: take over, reply, hand back, a colleague's chat, the 24-hour rule, failed messages |
+| 16d-2 | guest requests (reply, mark answered, Done) and **moving a booking to another date**      |
+| 16d-3 | alerts: what needs dealing with, clearing by itself; "Done this week"                     |
+
+- Outside WhatsApp's 24 hours: a new approved message, "Can we help you finish booking?".
+- Only whoever took a chat over replies; a colleague takes over on purpose.

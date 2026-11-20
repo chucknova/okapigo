@@ -42,6 +42,7 @@ import { syncRouter } from './routes/sync.js';
 import { todayRouter } from './routes/today.js';
 import { boardRouter } from './routes/board.js';
 import { deskRouter } from './routes/desk.js';
+import { inboxRouter } from './routes/inbox.js';
 import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
@@ -288,6 +289,7 @@ export function createApp({
   api.use(todayRouter({ prisma })); // the manager's Today (16a)
   api.use(boardRouter({ prisma })); // the schedule and a departure's page (16b)
   api.use(deskRouter({ prisma, provider, webPublicUrl })); // the bookings desk (16c)
+  api.use(inboxRouter({ prisma })); // the inbox (16d)
   api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).

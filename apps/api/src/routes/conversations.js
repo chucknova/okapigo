@@ -9,6 +9,14 @@
  *   POST /api/conversations/:id/messages     bookings: edit   a staff reply { text }
  *   POST /api/conversations/:id/hand-back    bookings: edit   the bot answers again
  *
+ * The inbox (16d-1) adds:
+ *   - who has a chat: only they reply ("Only Ngozi can reply while she has this chat");
+ *     another takes over with { fromColleague: true } ("Take over from Ngozi?")
+ *   POST /api/conversations/:id/follow-up              "Can we help you finish booking?" (the
+ *                                                       approved message, outside 24 hours)
+ *   POST /api/conversations/:id/messages/:messageId/retry   send a failed message again
+ *   POST /api/conversations/:id/messages/:messageId/email   send it by email instead
+ *
  * Every change takes the SAME lock as a guest's message (whatsapp/conversations.js), so a
  * take-over can't land in the middle of the bot's turn, and the two never answer at once.
  * The guest sees what happened: "Tunde from the Ìrìn team has joined the chat."
@@ -22,8 +30,14 @@ import { say, text } from '../whatsapp/messages.js';
 import { welcomeBack } from '../whatsapp/engine.js';
 import { readState } from '../whatsapp/state.js';
 import { deliver, withinServiceWindow } from '../whatsapp/channels.js';
+import { fillTemplate } from '../whatsapp/templates.js';
+import { planGuestMessage } from '@okapigo/db';
 
 const ReplyBody = z.object({ text: z.string().trim().min(1).max(4096) });
+const TakeOverBody = z.object({ fromColleague: z.boolean().default(false) });
+const MessageParams = z.object({ id: z.uuid(), messageId: z.uuid() });
+/** "Adaeze" from "Adaeze Okafor". @param {string} name */
+const first = (name) => name.trim().split(/\s+/)[0] ?? name;
 
 /**
  * @param {{
@@ -102,16 +116,38 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
   router.post(
     '/conversations/:id/take-over',
     requirePermission('bookings', 'edit'),
-    validate({ params: IdParamsSchema }),
+    validate({ params: IdParamsSchema, body: TakeOverBody }),
     async (req, res) => {
       const { operatorId, userId } = authOf(req);
       const result = await change(req.params.id, operatorId, async (tx, c, operator) => {
-        if (c.handledBy === 'staff') return { conversation: c, out: [] }; // already: no repeat
+        const mine = c.handledBy === 'staff' && c.handledById === userId;
+        if (mine) return { conversation: c, out: [] }; // already: no repeat
+        // A colleague has it: only on purpose ("Take over from Ngozi?").
+        if (c.handledBy === 'staff' && c.handledById && !req.body.fromColleague) {
+          const holder = await tx.user.findUnique({ where: { id: c.handledById } });
+          throw new HttpError(
+            409,
+            'TAKEN_BY_COLLEAGUE',
+            `${first(holder?.name ?? 'Someone')} has this chat. Take it over from them?`,
+            { holder: holder?.name ?? null },
+          );
+        }
         const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-        const out = await store(tx, c, [say.staffJoined(user.name, operator.name)], 'bot');
+        // The guest heard "X joined" already when a colleague took it: no second notice.
+        const out =
+          c.handledBy === 'staff'
+            ? []
+            : await store(tx, c, [say.staffJoined(user.name, operator.name)], 'bot');
+        const now = new Date();
         const conversation = await tx.conversation.update({
           where: { id: c.id },
-          data: { handledBy: 'staff', needsPersonSince: null, lastMessageAt: new Date() },
+          data: {
+            handledBy: 'staff',
+            handledById: userId,
+            handledSince: now,
+            needsPersonSince: null,
+            lastMessageAt: now,
+          },
         });
         return { conversation, out };
       });
@@ -129,6 +165,10 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
         // One voice at a time: while the bot answers, staff take over first.
         if (c.handledBy !== 'staff') {
           throw new HttpError(409, 'NOT_TAKEN_OVER', 'Take over the chat before replying.');
+        }
+        // One person at a time, too (16d-1). (A chat taken over before 16d has no holder.)
+        if (c.handledById && c.handledById !== userId) {
+          throw new HttpError(409, 'NOT_YOURS', 'A colleague has this chat. Take it over first.');
         }
         // WhatsApp's rule: a free-form message only within 24 hours of the guest's last one.
         if (!(await withinServiceWindow(tx, c))) {
@@ -171,6 +211,8 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
           where: { id: c.id },
           data: {
             handledBy: 'bot',
+            handledById: null,
+            handledSince: null,
             state: turn.state,
             ...(turn.bookingId !== undefined && { bookingId: turn.bookingId }),
             lastMessageAt: new Date(),
@@ -179,6 +221,83 @@ export function conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channe
         return { conversation, out };
       });
       res.json({ conversation: summaryOf(result.conversation) });
+    },
+  );
+
+  // "Can we help you finish booking?": the approved message, for a guest who last wrote over
+  // 24 hours ago (designs: WhatsApp's 24-hour rule). Delivered as the template outside the
+  // window (channels.js), as plain words inside it.
+  router.post(
+    '/conversations/:id/follow-up',
+    requirePermission('bookings', 'edit'),
+    validate({ params: IdParamsSchema }),
+    async (req, res) => {
+      const { operatorId, userId } = authOf(req);
+      const result = await change(req.params.id, operatorId, async (tx, c, operator) => {
+        const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+        const template = fillTemplate('chat_followup', {
+          first_name: first(c.guestName) || 'there',
+          operator: operator.name,
+        });
+        const out = await store(
+          tx,
+          c,
+          [{ kind: 'text', text: template.text, template }],
+          'staff',
+          userId,
+          user.name,
+        );
+        await tx.conversation.update({ where: { id: c.id }, data: { lastMessageAt: new Date() } });
+        return { conversation: c, out, message: out[0] };
+      });
+      res.status(201).json({ message: messageOf(result.message) });
+    },
+  );
+
+  // A message WhatsApp couldn't deliver, sent again: a new attempt below it (the failed one
+  // stays, so the chat shows what happened).
+  router.post(
+    '/conversations/:id/messages/:messageId/retry',
+    requirePermission('bookings', 'edit'),
+    validate({ params: MessageParams }),
+    async (req, res) => {
+      const { operatorId, userId } = authOf(req);
+      const result = await change(req.params.id, operatorId, async (tx, c) => {
+        const failed = await failedMessage(tx, c.id, req.params.messageId);
+        const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+        const out = await store(tx, c, [failed.body], 'staff', userId, user.name);
+        await tx.conversation.update({ where: { id: c.id }, data: { lastMessageAt: new Date() } });
+        return { conversation: c, out, message: out[0] };
+      });
+      res.status(201).json({ message: messageOf(result.message) });
+    },
+  );
+
+  // …or by email, to the booking's lead (through the guest-message queue, in the business's
+  // email layout: kind "staff_message").
+  router.post(
+    '/conversations/:id/messages/:messageId/email',
+    requirePermission('bookings', 'edit'),
+    validate({ params: MessageParams }),
+    async (req, res) => {
+      const { operatorId, userId } = authOf(req);
+      const c = await prisma.conversation.findFirst({ where: { id: req.params.id, operatorId } });
+      if (!c) throw new HttpError(404, 'NOT_FOUND', 'Conversation not found.');
+      const failed = await failedMessage(prisma, c.id, req.params.messageId);
+      const booking = await bookingOfChat(prisma, c);
+      if (!booking?.leadEmail) {
+        throw new HttpError(409, 'NO_EMAIL', 'There’s no email for this guest. Call them instead.');
+      }
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+      const words = /** @type {any} */ (failed.body).text ?? '';
+      await planGuestMessage(prisma, {
+        booking,
+        kind: 'staff_message',
+        key: `staff_message:${failed.id}`,
+        data: { text: words, staffName: user.name },
+        only: ['email'],
+      });
+      res.status(202).json({ queued: true, to: booking.leadEmail });
     },
   );
 
@@ -236,6 +355,33 @@ async function store(tx, c, bodies, author, userId, staffName) {
     created.push({ ...row, staffName: staffName ?? null });
   }
   return created;
+}
+
+/**
+ * A message of ours that WhatsApp couldn't deliver (only those can be retried or emailed).
+ * @param {any} db @param {string} conversationId @param {string} messageId
+ */
+async function failedMessage(db, conversationId, messageId) {
+  const m = await db.chatMessage.findFirst({ where: { id: messageId, conversationId } });
+  if (!m) throw new HttpError(404, 'NOT_FOUND', 'Message not found.');
+  if (m.direction !== 'out' || m.delivery !== 'failed') {
+    throw new HttpError(409, 'NOT_FAILED', 'Only a message that failed to send can be sent again.');
+  }
+  return m;
+}
+
+/**
+ * The booking a chat is about: the one it made, else the guest's latest by phone.
+ * @param {any} db @param {any} c
+ */
+export async function bookingOfChat(db, c) {
+  const include = { product: { include: { operator: true } }, departure: true };
+  if (c.bookingId) return db.booking.findUnique({ where: { id: c.bookingId }, include });
+  return db.booking.findFirst({
+    where: { operatorId: c.operatorId, leadPhone: c.guestPhone },
+    orderBy: { createdAt: 'desc' },
+    include,
+  });
 }
 
 /** @param {any} c */

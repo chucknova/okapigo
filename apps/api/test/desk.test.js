@@ -20,6 +20,7 @@ import {
   searchTerms,
 } from '@okapigo/db';
 import { createTestContext, TEST_AUTH_SECRET } from './helpers.js';
+import { localDate, zonedTimeToUtc } from '@okapigo/shared/time';
 
 const ctx = createTestContext();
 afterEach(() => ctx.cleanup());
@@ -189,7 +190,13 @@ describe('finding a booking', () => {
       data: { status: 'part_paid', amountPaidKobo: 1_950_000 },
     });
     const now = await s.book(today, { name: 'Funmi Adeyemi', phone: '0805 987 6543' });
-    await s.moveTo(today, 2 * HOUR);
+    // Today in Lagos at noon: "today" at any hour the tests run ("2 hours from now" is
+    // tomorrow after 22:00).
+    const noon = zonedTimeToUtc(localDate(new Date(), 'Africa/Lagos'), '12:00', 'Africa/Lagos');
+    await ctx.prisma.departure.update({
+      where: { id: today.id },
+      data: { startsAt: noon, endsAt: new Date(noon.getTime() + 3 * HOUR) },
+    });
     const gone = await s.book(walk, { name: 'Bayo Adewale' });
     expect(
       (

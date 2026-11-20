@@ -30,45 +30,45 @@ datasource db {
 // Operator: the tenant (a tour company using OkapiGo)
 // ---------------------------------------------------------------------------
 model Operator {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String
+  id                    String   @id @default(uuid()) @db.Uuid
+  name                  String
   // Used in public URLs, e.g. okapigo.app/irin-lagos-tours. Unique across all operators.
-  slug         String   @unique
+  slug                  String   @unique
   // ISO 4217 currency code. NGN only in the MVP; USD/GBP arrive in v1.
-  currency     String   @default("NGN") @db.Char(3)
+  currency              String   @default("NGN") @db.Char(3)
   // IANA time zone. Departure times are shown in the operator's local time.
-  timeZone     String   @default("Africa/Lagos") @map("time_zone")
+  timeZone              String   @default("Africa/Lagos") @map("time_zone")
   // The look of every guest page (MKT-08, stage 12g): lagoon · classic · earth, and light ·
   // dark · auto (follow the guest's phone). Only the look: links and content never change.
-  websiteStyle String   @default("lagoon") @map("website_style")
-  websiteMode  String   @default("auto") @map("website_mode")
+  websiteStyle          String   @default("lagoon") @map("website_style")
+  websiteMode           String   @default("auto") @map("website_mode")
   // Tax and fee settings fed into the pricing pipeline (packages/shared/src/pricing.js).
   // Shape: { tax: { name, basisPoints, inclusive } | null, fees: [{ name, type, ... }] }
   // validated by OperatorPricingSchema. Default: prices INCLUDE 7.5% VAT, no extra fees.
   // (Illustrative: not tax advice.)
   // How long checkout holds keep seats while a guest pays (INV-23), in minutes.
-  holdMinutes  Int      @default(15) @map("hold_minutes")
+  holdMinutes           Int      @default(15) @map("hold_minutes")
   // Where the operator works, for headings like "Tours in Lagos" (stage 12b). Optional:
   // without it the catalogue says "Our tours". More business details arrive in stage 12g.
-  city         String?
+  city                  String?
   // How guests reach the operator, shown as "Call" and "WhatsApp" on the trip hub (stage 12f).
   // E.164 like the lead phone ("+2348031234567"). Optional: without them the buttons hide.
   // (The rest of the business details, tagline, about, email, socials, come in stage 12g.)
-  phone        String?
-  whatsapp     String?
+  phone                 String?
+  whatsapp              String?
   // The business's number on the WhatsApp Cloud API: Meta's "phone number ID" (stage 13c-3).
   // A guest's message arrives addressed to it, so this says which business it's for.
-  whatsappPhoneNumberId String? @unique @map("whatsapp_phone_number_id")
+  whatsappPhoneNumberId String?  @unique @map("whatsapp_phone_number_id")
   // The one-page website's business details (stage 12g-2): kind, tagline, intro, about,
   // whyUs, faqs, email, address, socials. Validated by SiteSchema
   // (packages/shared/src/schemas/website.js); read as a whole, so one JSON value.
-  site         Json     @default("{}")
+  site                  Json     @default("{}")
   // Websites allowed to show the booking widget (BKG-01, stage 12h): host names, with a
   // port only for local testing ("irinlagostours.com", "localhost:4200"). Empty = nowhere.
-  embedDomains String[] @default([]) @map("embed_domains")
-  pricing      Json     @default("{\"tax\": {\"name\": \"VAT\", \"basisPoints\": 750, \"inclusive\": true}, \"fees\": []}")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  embedDomains          String[] @default([]) @map("embed_domains")
+  pricing               Json     @default("{\"tax\": {\"name\": \"VAT\", \"basisPoints\": 750, \"inclusive\": true}, \"fees\": []}")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   roles                Role[]
   users                User[]
@@ -153,17 +153,18 @@ model User {
   // packages/db/test/schema.test.js. See HoldAddOn.addOn for why that matters.)
   role Role @relation(fields: [roleId, operatorId], references: [id, operatorId], onDelete: NoAction)
 
-  sessions Session[]
+  sessions      Session[]
   // The departures this person guides (stage 15a).
-  guiding  Departure[]
+  guiding       Departure[]
   // When this person's phone last synced, and how many changes it said were waiting
   // (16a: the manager's "Guides’ phones"). Null until their phone first syncs.
-  lastSyncedAt  DateTime? @map("last_synced_at") @db.Timestamptz(3)
-  outboxWaiting Int?      @map("outbox_waiting")
+  lastSyncedAt  DateTime?      @map("last_synced_at") @db.Timestamptz(3)
+  outboxWaiting Int?           @map("outbox_waiting")
   // Changes this person's phone sent from its offline outbox (stage 15b).
-  syncChanges SyncChange[]
+  syncChanges   SyncChange[]
   // Cash this person took from guests on tour day (stage 15c-4).
-  cashReports CashReport[]
+  cashReports   CashReport[]
+  handlingChats Conversation[] @relation("ChatHandler")
 
   // Lets departures reference (user id + operator id) together: a guide from another
   // business can't be assigned (tenant safety, like roles).
@@ -244,31 +245,31 @@ model Session {
 // Product: one tour (INV-01)
 // ---------------------------------------------------------------------------
 model Product {
-  id              String @id @default(uuid()) @db.Uuid
-  operatorId      String @map("operator_id") @db.Uuid
+  id                 String  @id @default(uuid()) @db.Uuid
+  operatorId         String  @map("operator_id") @db.Uuid
   // Unique per operator, used in booking links: /irin-lagos-tours/heritage-walk
-  slug            String
-  title           String
+  slug               String
+  title              String
   // One or two sentences for cards and link previews; `description` is the full story.
-  summary         String
-  description     String
+  summary            String
+  description        String
   // "draft" = being set up (not bookable), "published" = on sale, "archived" = retired.
-  status          String @default("draft")
-  durationMinutes Int    @map("duration_minutes")
+  status             String  @default("draft")
+  durationMinutes    Int     @map("duration_minutes")
   // A short word or two about HOW the tour runs: "Walking", "Boat", "Van, pickup" (stage 12b,
   // shown on tour cards and pages). Optional.
-  activityLabel   String? @map("activity_label")
+  activityLabel      String? @map("activity_label")
   // How it travels (16b, decided 2026-11-20): on_foot · van · boat. Only that kind of
   // vehicle can be assigned ("Boat · not for road trips"); on foot needs none.
-  transport       String  @default("on_foot")
+  transport          String  @default("on_foot")
   // A short name for tight spaces, like WhatsApp's 24-character list rows ("Heritage Walk").
   // Optional: the title is used when empty (stage 13c).
-  shortTitle      String? @map("short_title")
+  shortTitle         String? @map("short_title")
   // "Arrive by 08:50": how many minutes before the start guests should be at the meeting
   // point (trip hub, stage 12f). Optional: without it the line hides. CHECK: 0–120.
-  arriveMinutesEarly Int? @map("arrive_minutes_early")
+  arriveMinutesEarly Int?    @map("arrive_minutes_early")
   // Seats per departure unless a schedule says otherwise (session 5).
-  defaultCapacity Int    @map("default_capacity")
+  defaultCapacity    Int     @map("default_capacity")
 
   // JSONB: structured content validated by Zod in packages/shared/src/schemas/products.js.
   // These are read as a whole (for the website, trip hub and AI companion) and never
@@ -417,29 +418,29 @@ model Schedule {
 // CHECK constraint below is the last line of defence: the database refuses any write that
 // would put more people on a departure than it has seats.
 model Departure {
-  id         String   @id @default(uuid()) @db.Uuid
-  operatorId String   @map("operator_id") @db.Uuid
-  productId  String   @map("product_id") @db.Uuid
+  id           String   @id @default(uuid()) @db.Uuid
+  operatorId   String   @map("operator_id") @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
   // Set for departures generated from a schedule; null for one-off ("custom") departures.
-  scheduleId String?  @map("schedule_id") @db.Uuid
-  startsAt   DateTime @map("starts_at") @db.Timestamptz(3)
-  endsAt     DateTime @map("ends_at") @db.Timestamptz(3)
-  capacity   Int
-  seatsSold  Int      @default(0) @map("seats_sold")
-  seatsHeld  Int      @default(0) @map("seats_held")
+  scheduleId   String?  @map("schedule_id") @db.Uuid
+  startsAt     DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt       DateTime @map("ends_at") @db.Timestamptz(3)
+  capacity     Int
+  seatsSold    Int      @default(0) @map("seats_sold")
+  seatsHeld    Int      @default(0) @map("seats_held")
   // "scheduled" = running; "cancelled" = called off (e.g. weather at Tarkwa Bay).
-  status     String   @default("scheduled")
+  status       String   @default("scheduled")
   // Why it was called off, as guests were told ("the weather on the lagoon"; 16b).
-  cancelReason String? @map("cancel_reason")
+  cancelReason String?  @map("cancel_reason")
   // Who leads it, and the van or boat (OPS-01, stage 15a). Neither can be on two departures
   // whose times overlap: an exclusion constraint in the migration refuses it, even when two
   // managers assign at the same moment.
-  guideId    String?  @map("guide_id") @db.Uuid
-  resourceId String?  @map("resource_id") @db.Uuid
+  guideId      String?  @map("guide_id") @db.Uuid
+  resourceId   String?  @map("resource_id") @db.Uuid
   // For the guide: "Driver: Sola", "meet at the side gate today".
-  notes      String   @default("")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  notes        String   @default("")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   product  Product   @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
   // SetNull: if a schedule row were ever deleted, its departures (and their bookings) stay.
@@ -598,7 +599,7 @@ model Booking {
   addOns        BookingAddOn[]
   events        BookingEvent[]
   ledgerEntries LedgerEntry[]
-  cashReports CashReport[]
+  cashReports   CashReport[]
   payments      Payment[]
   paymentLinks  PaymentLink[]
   refunds       Refund[]
@@ -1034,7 +1035,6 @@ model Notification {
   @@map("notifications")
 }
 
-
 // ---------------------------------------------------------------------------
 // GuestRequest: "Ask Ìrìn" from the trip hub (stage 12f-2, decided 2026-11-17)
 // ---------------------------------------------------------------------------
@@ -1082,17 +1082,20 @@ model GuestRequest {
 //   channel:   simulator (the in-app chat, demos and tests) · whatsapp (the Cloud API, 13c)
 //   handledBy: bot · staff (a person took over; the bot stays quiet)
 model Conversation {
-  id         String   @id @default(uuid()) @db.Uuid
-  operatorId String   @map("operator_id") @db.Uuid
-  channel    String
+  id               String    @id @default(uuid()) @db.Uuid
+  operatorId       String    @map("operator_id") @db.Uuid
+  channel          String
   // The guest's number, E.164 ("+2348031234567"): on WhatsApp it IS who they are.
-  guestPhone String   @map("guest_phone")
+  guestPhone       String    @map("guest_phone")
   // Their WhatsApp profile name, until they tell us the name for a booking.
-  guestName  String   @default("") @map("guest_name")
-  handledBy  String   @default("bot") @map("handled_by")
-  state      Json     @default("{}")
+  guestName        String    @default("") @map("guest_name")
+  handledBy        String    @default("bot") @map("handled_by")
+  // Which member of staff has it taken over, and since when (16d-1). Null with the bot.
+  handledById      String?   @map("handled_by_id") @db.Uuid
+  handledSince     DateTime? @map("handled_since") @db.Timestamptz(3)
+  state            Json      @default("{}")
   // The booking this chat made most recently (to follow its payment, 13b).
-  bookingId  String?  @map("booking_id") @db.Uuid
+  bookingId        String?   @map("booking_id") @db.Uuid
   // When the guest asked for a person ("Talk to a person"), until staff answer (13b).
   needsPersonSince DateTime? @map("needs_person_since") @db.Timestamptz(3)
   lastMessageAt    DateTime  @default(now()) @map("last_message_at") @db.Timestamptz(3)
@@ -1101,6 +1104,7 @@ model Conversation {
 
   operator Operator      @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   booking  Booking?      @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  handler  User?         @relation("ChatHandler", fields: [handledById], references: [id], onDelete: SetNull)
   messages ChatMessage[]
 
   @@unique([operatorId, channel, guestPhone])
@@ -1117,26 +1121,26 @@ model Conversation {
 //   body:      { kind: text | buttons | list | image, text, … } (apps/api/src/whatsapp/messages.js),
 //              only WhatsApp's own building blocks, so every channel can show it
 model ChatMessage {
-  id             String   @id @default(uuid()) @db.Uuid
-  operatorId     String   @map("operator_id") @db.Uuid
-  conversationId String   @map("conversation_id") @db.Uuid
-  direction      String
-  author         String
+  id                String   @id @default(uuid()) @db.Uuid
+  operatorId        String   @map("operator_id") @db.Uuid
+  conversationId    String   @map("conversation_id") @db.Uuid
+  direction         String
+  author            String
   // The member of staff who wrote it (author "staff").
-  authorUserId   String?  @map("author_user_id") @db.Uuid
-  body           Json
+  authorUserId      String?  @map("author_user_id") @db.Uuid
+  body              Json
   // The channel's own id for the message (WhatsApp's "wamid…"), to match delivery receipts.
-  providerMessageId String? @map("provider_message_id")
+  providerMessageId String?  @map("provider_message_id")
   // Did it reach the guest? (WhatsApp only, stage 13c-3) sent · delivered · read · failed,
   // from Meta's delivery receipts; null for the simulator and for the guest's own messages.
   delivery          String?
   // Why it failed, in WhatsApp's words ("131047: Re-engagement message"), for staff.
-  deliveryError     String? @map("delivery_error")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  deliveryError     String?  @map("delivery_error")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   // The ORDER messages were written in (stage 13b). Not createdAt: Postgres' now() is the
   // transaction's start, so a guest's message and the bot's replies, written in one
   // transaction, share a timestamp and could be shown in any order.
-  seq            BigInt   @default(autoincrement())
+  seq               BigInt   @default(autoincrement())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 

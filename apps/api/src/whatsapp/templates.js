@@ -20,7 +20,10 @@
 /** @typedef {import('@okapigo/shared/message-templates').Placeholder} Placeholder */
 
 /**
- * @type {Record<MessageKind, { name: string, text: string, params: Placeholder[] }>}
+ * The six guest messages, and one the inbox sends (16d-1, decided 2026-11-21): "Can we help you
+ * finish booking?", for a guest who last wrote over 24 hours ago. It only ever goes OUTSIDE the
+ * window, so it has no editable wording: Meta's approved text is the message.
+ * @type {Record<MessageKind | 'chat_followup', { name: string, text: string, params: Placeholder[] }>}
  *   text: what Meta approves; params: which placeholder fills {{1}}, {{2}}…, in order
  */
 export const WHATSAPP_TEMPLATES = {
@@ -58,6 +61,11 @@ export const WHATSAPP_TEMPLATES = {
     text: 'Hi {{1}}, your booking {{2}} ({{3}}, {{4}}) is cancelled.\n\n{{5}}\n\nReply here if you have any questions.',
     params: ['first_name', 'reference', 'tour_short', 'date', 'refund_line'],
   },
+  chat_followup: {
+    name: 'okapigo_chat_followup',
+    text: 'Hi {{1}}, it’s {{2}} on WhatsApp. Can we help you finish booking?\n\nJust reply to this message and we’ll pick up where you left off.',
+    params: ['first_name', 'operator'],
+  },
   refund_sent: {
     name: 'okapigo_refund_sent',
     text: 'Hi {{1}}, your refund of {{2}} for {{3}} has been sent.\n\nIt may take 5–10 working days to show in your account, depending on your bank.',
@@ -79,7 +87,7 @@ export const blank = (value) =>
 /**
  * The template for one message, filled for this guest: what's stored in the chat (so staff
  * and the simulator see the words) and what's sent to Meta outside the window.
- * @param {MessageKind} kind @param {Partial<Record<Placeholder, string>>} values
+ * @param {MessageKind | 'chat_followup'} kind @param {Partial<Record<Placeholder, string>>} values
  * @returns {{ name: string, params: string[], text: string }}
  */
 export function fillTemplate(kind, values) {

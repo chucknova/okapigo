@@ -119,8 +119,9 @@ export function clearLive() {
 /**
  * A screen's live data: `{ state, data, at, error, reload }`.
  * @param {string | null} path  null: nothing to load (e.g. not allowed)
+ * @param {{ every?: number }} [o]  how often to look again (a chat: every few seconds, 16d)
  */
-export function useLive(path) {
+export function useLive(path, { every = REFRESH_MS } = {}) {
   const engine = useEngine();
   const key = path ?? '';
   const entry = useSyncExternalStore(
@@ -140,13 +141,13 @@ export function useLive(path) {
         online: () => globalThis.navigator?.onLine ?? true,
       });
     go();
-    const every = setInterval(go, REFRESH_MS);
+    const timer = setInterval(go, every);
     addEventListener('online', go);
     return () => {
-      clearInterval(every);
+      clearInterval(timer);
       removeEventListener('online', go);
     };
-  }, [path, engine]);
+  }, [path, engine, every]);
   return {
     entry,
     online: s.connection !== 'offline',

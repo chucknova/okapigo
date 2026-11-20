@@ -27,18 +27,19 @@ const SOLD = ['confirmed', 'part_paid', 'paid', 'amended'];
  * @param {import('@prisma/client').Prisma.TransactionClient | import('@prisma/client').PrismaClient} tx
  * @param {{
  *   booking: { id: string, operatorId: string, channel: string, leadPhone: string | null, leadEmail: string | null },
- *   kind: import('@okapigo/shared/message-templates').MessageKind,
+ *   kind: import('@okapigo/shared/message-templates').MessageKind | 'staff_message',
  *   key: string,
  *   data?: Record<string, unknown>,
- * }} m
+ *   only?: string[],
+ * }} m   only: just these channels (a staff message by email, 16d-1)
  */
-export async function planGuestMessage(tx, { booking, kind, key, data = {} }) {
+export async function planGuestMessage(tx, { booking, kind, key, data = {}, only }) {
   const chatHasIt =
     booking.channel === 'whatsapp' && (kind === 'booking_confirmed' || kind === 'deposit_received');
   const channels = [
     ...(booking.leadPhone && !chatHasIt ? ['whatsapp'] : []),
     ...(booking.leadEmail ? ['email'] : []),
-  ];
+  ].filter((c) => !only || only.includes(c)); // e.g. a staff message by email only (16d-1)
   if (channels.length === 0) return 0;
   const { count } = await tx.notification.createMany({
     data: channels.map((channel) => ({

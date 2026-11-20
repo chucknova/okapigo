@@ -250,6 +250,8 @@ function deliveryOf(n, chats) {
 
 /** "Balance reminder (7 days)" @param {any} n */
 function messageName(n) {
+  if (n.kind === 'staff_message')
+    return `Message from ${String(n.data?.staffName ?? 'the team').split(' ')[0]}`;
   const name = /** @type {any} */ (MESSAGES)[n.kind]?.name ?? n.kind.replace(/_/g, ' ');
   if (n.kind === 'balance_reminder' && n.data?.daysBefore)
     return `${name} (${n.data.daysBefore} ${n.data.daysBefore === 1 ? 'day' : 'days'})`;

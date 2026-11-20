@@ -76,6 +76,15 @@ const MIDDLE = {
     button: null,
     notes: [],
   }),
+  // A staff member's message (16d-1): their words in the body, the trip page to hand.
+  staff_message: (v) => ({
+    eyebrow: 'A message for you',
+    colour: C.success,
+    headline: `Hi ${v.first_name}`,
+    money: null,
+    button: { label: 'Open your trip page', url: v.trip_url },
+    notes: ['Reply to this email to answer.'],
+  }),
   refund_sent: (v) => ({
     eyebrow: 'Refund sent',
     colour: C.success,

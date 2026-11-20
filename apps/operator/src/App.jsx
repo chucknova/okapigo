@@ -21,6 +21,7 @@ import { More } from './screens/More.jsx';
 import { Schedule } from './screens/Schedule.jsx';
 import { Departure } from './screens/Departure.jsx';
 import { Bookings } from './screens/Bookings.jsx';
+import { Inbox } from './screens/Inbox.jsx';
 import { Sheet } from './components/Sheet.jsx';
 import { useEngine, useSync } from './lib/engine.jsx';
 import { REFRESH_EVERY_MS } from './lib/sync.js';
@@ -106,9 +107,9 @@ function Shell() {
                 <Bookings />
               ))}
             </Route>
-            <Route path="/inbox">
+            <Route path="/inbox/:id?">
               {officeOnly(() => (
-                <Later title="Inbox" what="The inbox" stage="16d" />
+                <Inbox />
               ))}
             </Route>
             <Route path="/settings">

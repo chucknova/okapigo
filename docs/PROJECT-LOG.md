@@ -135,6 +135,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                   | `bf4d0d7`           | 16c-1          |
 | 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts     | `9c97f5a`           | 16c-2          |
 | 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | `105242e`           | 16c-3          |
+| 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | (this commit)       | 16d-1          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -211,21 +212,27 @@ had pays today's ("(today's price)" on the sheet). A booking with a promo or a f
 repriced (refused). Fewer travellers: the policy's refund on the overpaid part, confirmed by
 saving; more: paid → **amended**, and a link for the extra is sent. The lead always stays.
 
+**With 16d (2026-11-21):** the inbox in **three parts** (16d-1 chats; 16d-2 requests + **moving
+a booking's date**, built now; 16d-3 alerts). The 24-hour rule gets a new approved WhatsApp
+message, **"Can we help you finish booking?"** (`okapigo_chat_followup`; for real WhatsApp,
+submit it in Meta once). Only whoever took a chat over replies; a colleague takes over on
+purpose. A failed chat message can be retried or emailed (kind `staff_message`).
+
 ## 7. Where we are
 
-- **Last done:** 16c-3, changing travellers, which finishes the bookings desk, committed `105242e`.
-  16c-2 pushed.
-- **Next:** **16d**, the inbox (O9; designs: "O9 Inbox — chats", "requests and alerts", "phone
-  and states", "Inbox gaps"): chats (needs a person first; take over, reply, hand back: API
-  since 13b), guest requests (mark answered + a note: 12f-2), alerts (overdue balances, refunds
-  needing a look, **cash not received** from 16c-2), WhatsApp's 24-hour rule, a message that
-  failed.
-- Then **16e** (settings).
-- **E2E stays local** (decided 2026-11-21): `pnpm e2e` every stage; under load, re-run a
-  timed-out test alone before calling it a failure.
-- **Kemi** (guide) is assigned to two of Ìrìn's departures on Fri 20 Nov in the dev database.
-- Your dev database has **no vans or boats** and no short tour names (seeded before 15a);
-  `pnpm db:reset` adds them.
+- **Last done:** 16d-1, the inbox's chats (commit: see §9). 16c-3 pushed.
+- **Next:** **16d-2**, guest requests (designs: "O9 Inbox — requests and alerts", "Inbox gaps"):
+  the Requests tab (open, Done), reply by WhatsApp and email + mark answered, mark answered
+  without replying (a note), the trip page's banner showing the reply, and **moving a booking to
+  another date** (same tour, seats must fit, the booked price; from the request and the booking's
+  page; the guest told). Then **16d-3** alerts, then **16e** settings.
+- **For real WhatsApp:** submit the new template `okapigo_chat_followup` in Meta (text in
+  `apps/api/src/whatsapp/templates.js`).
+- A payment link for ₦45,500 was sent to Funmi Adeyemi (dev data) as Tunde at 21:27 on 20 Nov,
+  to the simulator only; it may have come from my 16c-3 browser check (unconfirmed).
+- **E2E stays local**: `pnpm e2e` every stage; re-run a timed-out test alone before calling it
+  a failure.
+- Your dev database has **no vans or boats** and no short tour names; `pnpm db:reset` adds them.
 
 ## 8. Known traps and how they're handled
 
@@ -263,12 +270,14 @@ saving; more: paid → **amended**, and a link for the extra is sent. The lead a
   refunds payments with a `providerTransactionId`). Cash goes back by bank transfer.
 - **Tests that read the clock**: "2 h 20 min from now" is tomorrow after 21:40 in Lagos. The
   Today test assumed the same day and failed late in the evening (fixed 16c-3: it checks
-  Lagos's date). Write such tests so either day passes.
+  Lagos's date); so did the desk's "filters and search" (fixed 16d-1: the departure is pinned
+  to noon today in Lagos). Write such tests so either day passes.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16d-1 inbox chats.
 - 2026-11-21 · 16c-3 change travellers (bookings desk done).
 - 2026-11-21 · 16c-2 desk money: links, cancel + refund, cash confirm, bank-transfer refunds.
 - 2026-11-20 · 16c-1 bookings desk: find, a booking's page, notes, holds, desk no-shows.

@@ -1,0 +1,58 @@
+// @ts-check
+/**
+ * inbox.js — what the inbox (O9) shows around the server's words (apps/api/src/routes/inbox.js):
+ * which buttons a chat offers, the delivery tick, the take-over question. Stage 16d-1.
+ */
+
+/** How often an open chat looks for new messages (the list: every 15 s). */
+export const CHAT_EVERY_MS = 5_000;
+export const LIST_EVERY_MS = 15_000;
+
+/**
+ * What a chat lets you do now (designs: chats; phone and states; gaps).
+ * @param {any} chat
+ * @returns {{ takeOver: boolean, takeOverFrom: string | null, handBack: boolean, reply: boolean, followUp: boolean }}
+ */
+export function chatActions(chat) {
+  const mine = chat.mode === 'mine';
+  return {
+    takeOver: chat.mode === 'bot',
+    takeOverFrom: chat.mode === 'theirs' ? firstName(chat.holder ?? 'them') : null,
+    handBack: mine,
+    // The reply box: only yours, and only inside WhatsApp's 24 hours.
+    reply: mine && chat.window.open,
+    // Outside them: the approved "Can we help you finish booking?" (yours, or the bot's chat).
+    followUp: !chat.window.open && chat.mode !== 'theirs',
+  };
+}
+
+/** "Ngozi" @param {string} name */
+export const firstName = (name) => name.trim().split(/\s+/)[0] ?? name;
+
+/** The tick after a message of ours: "read", "delivered" (sent says nothing). @param {string | null} d */
+export const deliveryWord = (d) => (d === 'read' ? 'read' : d === 'delivered' ? 'delivered' : '');
+
+/** "Take over from Ngozi? She…": neutral (designs: "Ngozi will be told"). @param {string} holder */
+export const takeOverQuestion = (holder) =>
+  `Take over from ${firstName(holder)}? They’ll see you have the chat, and only you can reply.`;
+
+/** The tab's label: "Chats · 2". @param {number} n */
+export const chatsTab = (n) => (n > 0 ? `Chats · ${n}` : 'Chats');
+
+/**
+ * WhatsApp's *bold*, as parts to draw: "*Street Food Crawl* tonight" →
+ * [{ bold: true, text: 'Street Food Crawl' }, { bold: false, text: ' tonight' }].
+ * @param {string} text
+ */
+export function boldParts(text) {
+  /** @type {Array<{ bold: boolean, text: string }>} */
+  const parts = [];
+  let at = 0;
+  for (const m of text.matchAll(/\*([^*\n]+)\*/g)) {
+    if (m.index > at) parts.push({ bold: false, text: text.slice(at, m.index) });
+    parts.push({ bold: true, text: m[1] });
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) parts.push({ bold: false, text: text.slice(at) });
+  return parts;
+}
