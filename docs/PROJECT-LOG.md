@@ -135,7 +135,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                   | `bf4d0d7`           | 16c-1          |
 | 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts     | `9c97f5a`           | 16c-2          |
 | 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | `105242e`           | 16c-3          |
-| 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | (this commit)       | 16d-1          |
+| 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | `a18ebab`           | 16d-1          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -220,7 +220,7 @@ purpose. A failed chat message can be retried or emailed (kind `staff_message`).
 
 ## 7. Where we are
 
-- **Last done:** 16d-1, the inbox's chats (commit: see §9). 16c-3 pushed.
+- **Last done:** 16d-1, the inbox's chats, committed `a18ebab`. 16c-3 pushed.
 - **Next:** **16d-2**, guest requests (designs: "O9 Inbox — requests and alerts", "Inbox gaps"):
   the Requests tab (open, Done), reply by WhatsApp and email + mark answered, mark answered
   without replying (a note), the trip page's banner showing the reply, and **moving a booking to
