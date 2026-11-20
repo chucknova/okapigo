@@ -40,6 +40,17 @@ export function validate(schemas) {
       req.body = result.data;
     }
 
+    if (schemas.query) {
+      const result = schemas.query.safeParse(req.query ?? {});
+      if (!result.success) {
+        throw new HttpError(400, 'VALIDATION_ERROR', 'Some fields are invalid', {
+          issues: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+        });
+      }
+      // Express 5's req.query is a getter: replace it with the checked values (and defaults).
+      Object.defineProperty(req, 'query', { value: result.data, writable: true });
+    }
+
     next();
   };
 }

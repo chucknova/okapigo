@@ -331,6 +331,8 @@ export function printableManifest(m, now = new Date()) {
             ? b.addOns.map((/** @type {any} */ a) => `${a.quantity} × ${a.name}`).join(', ')
             : '',
           t.dietaryNeeds ? t.dietaryNeeds.toUpperCase() : '',
+          // The office's notes for the guide (16c), on the booking's first row.
+          ...(first ? (b.notes ?? []) : []),
         ]
           .filter(Boolean)
           .join(' · ');

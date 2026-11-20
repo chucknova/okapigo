@@ -20,6 +20,7 @@ import { ManagerToday } from './screens/ManagerToday.jsx';
 import { More } from './screens/More.jsx';
 import { Schedule } from './screens/Schedule.jsx';
 import { Departure } from './screens/Departure.jsx';
+import { Bookings } from './screens/Bookings.jsx';
 import { Sheet } from './components/Sheet.jsx';
 import { useEngine, useSync } from './lib/engine.jsx';
 import { REFRESH_EVERY_MS } from './lib/sync.js';
@@ -98,14 +99,11 @@ function Shell() {
                 <Schedule />
               ))}
             </Route>
-            <Route path="/bookings">
+            {/* One route for the list and an open booking: the search and filter are kept
+                while you open bookings one after another. */}
+            <Route path="/bookings/:id?">
               {officeOnly(() => (
-                <Later title="Bookings" what="The bookings desk" stage="16c" />
-              ))}
-            </Route>
-            <Route path="/bookings/:id">
-              {officeOnly(() => (
-                <Later title="Booking" what="A booking’s page" stage="16c" back />
+                <Bookings />
               ))}
             </Route>
             <Route path="/inbox">

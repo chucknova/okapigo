@@ -132,19 +132,20 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | —               | tests get their own databases and queues                                                                                                                              | `21ad517`           | test-isolation |
 | 16a             | manager's shell (tabs/sidebar by role), staff states, manager's Today                                                                                                 | `07b04c9`           | 16a            |
 | 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                         | `d293b30`           | 16b            |
+| 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                   | (this commit)       | 16c-1          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
 
-| Next    | What                                                                                           | PRD                       |
-| ------- | ---------------------------------------------------------------------------------------------- | ------------------------- |
-| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                 | OPS-01                    |
-| **16c** | bookings desk (O8): every status, actions, refunds, payment links, **confirming guides' cash** | —                         |
-| 16d     | inbox (O9): chats (take over), requests, alerts                                                | —                         |
-| 16e     | settings (O10): website, embed, messages, WhatsApp, staff, tours                               | —                         |
-| OCTO    | OCTO API + contract tests, channel manager, mock OTA (journey 3)                               | DST-01–03                 |
-| AI etc. | AI companion, posters, dashboard (journeys 7, 8)                                               | GST-16, MKT-01/02, RPT-01 |
-| Demo    | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                     | step 10                   |
+| Next    | What                                                                                                                                | PRD                       |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                                                      | OPS-01                    |
+| **16c** | bookings desk (O8) in three parts: ~~16c-1~~ find and read; **16c-2** money (links, cancel, cash, refunds); 16c-3 change travellers | —                         |
+| 16d     | inbox (O9): chats (take over), requests, alerts                                                                                     | —                         |
+| 16e     | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                                    | —                         |
+| OCTO    | OCTO API + contract tests, channel manager, mock OTA (journey 3)                                                                    | DST-01–03                 |
+| AI etc. | AI companion, posters, dashboard (journeys 7, 8)                                                                                    | GST-16, MKT-01/02, RPT-01 |
+| Demo    | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                                                          | step 10                   |
 
 ## 6. Decisions (dated)
 
@@ -192,17 +193,27 @@ lot); a van or boat **too small is refused**, and once assigned **sales stop at 
 transport** (on foot, van, boat) and only that kind can be assigned; cancelling a departure
 **starts every paid booking's refund** and keeps the reason.
 
+**With 16c (2026-11-20):** the bookings desk in **three parts** (16c-1 find and read; 16c-2 the
+money; 16c-3 change travellers); an **added traveller pays the price from when it was booked**;
+a booking cancelled with money owed back and no refund started shows **Refund to send** (red).
+
 ## 7. Where we are
 
-- **Last done:** 16b, the schedule and a departure’s page, committed `d293b30`. 16a's push
-  confirmed by the user.
-- **Next:** **16c**: the bookings desk (O8): every status, booking actions, refunds, payment
-  links, **confirming a guide's cash**. Designs: "O8 Bookings".
-- **Kemi** (guide) is assigned to two of Ìrìn's departures on Fri 20 Nov (Heritage Walk 09:00,
-  Street Food Crawl 18:30) in the dev database, from my 15c checks.
-- Your dev database has **no vans or boats** (seeded before 15a): the departure page says "No
-  vans or boats yet". `pnpm db:reset` adds them. Its tours have no short names either, so cards
-  show the long titles.
+- **Last done:** 16c-1, the bookings desk's list and a booking's page (commit: see §9). 16b
+  pushed.
+- **Next:** **16c-2**, the money on the desk (designs: "O8 Bookings — every status", "phone and
+  states", "Booking statuses — phone"): **Send payment link** (amount, for, expires; WhatsApp
+  or copy), **Cancel booking** (the policy's refund or another amount, with a reason; then start
+  the refund), **confirm a guide's cash** (received · a different amount · not received →
+  flagged to the owner), **Try the refund again**, **I refunded by bank transfer** (date and
+  reference; ledger; "Refund sent" message), and the actNote lines ("Cancelling now: the deposit
+  isn't refunded"). APIs mostly there: payment links (10d), cancellation quote and cancel (9),
+  refunds (10e), cash reports (15c-4: `cashReturned`, no confirm yet).
+- Then **16c-3**: change travellers (repricing at the booked price; extra to pay → a link;
+  fewer → the policy's refund; seats must fit).
+- **Kemi** (guide) is assigned to two of Ìrìn's departures on Fri 20 Nov in the dev database.
+- Your dev database has **no vans or boats** and no short tour names (seeded before 15a);
+  `pnpm db:reset` adds them.
 
 ## 8. Known traps and how they're handled
 
@@ -227,11 +238,18 @@ transport** (on foot, van, boat) and only that kind can be assigned; cancelling 
   `display: none`. The helpers now have the last word (`!important`, end of `app.css`).
 - **What a departure can sell** is `seatsOf(d)` (tour capacity or the van's seats, whichever is
   smaller), never `capacity` alone: include the `resource` when reading departures.
+- **`validate({ query })`** now really checks query strings (it ignored them before 16c) and
+  hands the route the checked values; Express 5's `req.query` is a getter, so it's replaced
+  with `Object.defineProperty`.
+- **A booking's money owed back** is `refundDueKobo`; what's not on its way is that minus every
+  refund that hasn't failed (`notStartedKobo` in desk.js). The office's cancel doesn't start
+  the refund by itself (until 16c-2 joins them).
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-20 · 16c-1 bookings desk: find, a booking's page, notes, holds, desk no-shows.
 - 2026-11-20 · 16b schedule (O6) and a departure (O7): transport, sales capped at the van, cancel with refunds.
 - 2026-11-20 · this log created.
 - 2026-11-20 · 16a manager's shell and Today (`07b04c9`); 44 leftover test businesses deleted from dev.

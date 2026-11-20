@@ -211,6 +211,19 @@ export async function manifest(prisma, { operatorId, departureId }) {
   const cats = new Map(d.product.priceCategories.map((c) => [c.key, c]));
   const counts = { travellers: 0, pending: 0, present: 0, late: 0, noShow: 0 };
 
+  // Office notes marked "show on the guide's manifest" (the bookings desk, 16c), oldest first.
+  const noteEvents = await prisma.bookingEvent.findMany({
+    where: { bookingId: { in: d.bookings.map((b) => b.id) }, type: 'note' },
+    orderBy: { createdAt: 'asc' },
+  });
+  /** @type {Map<string, string[]>} */
+  const notesOf = new Map();
+  for (const e of noteEvents) {
+    const data = /** @type {any} */ (e.data);
+    if (!data?.onManifest) continue;
+    notesOf.set(e.bookingId, [...(notesOf.get(e.bookingId) ?? []), data.text]);
+  }
+
   const bookings = d.bookings.map((b) => {
     const active = CAN_CHECK_IN.includes(b.status);
     const owedKobo = Math.max(0, b.totalKobo - b.amountPaidKobo);
@@ -255,6 +268,8 @@ export async function manifest(prisma, { operatorId, departureId }) {
       // guide's "Mark no-show?" says so (designs: O3 states). Null when sold without one.
       noShowRefundPercent: b.policyVersion ? b.policyVersion.noShowRefundBasisPoints / 100 : null,
       cashReportedKobo: b.cashReports.reduce((n, c) => n + c.amountKobo, 0),
+      // "Halal lunch for Yemi and Tobi. Confirmed with the kitchen." (never shown to guests)
+      notes: notesOf.get(b.id) ?? [],
       // A cancelled booking stays, struck through: "cancelled yesterday".
       endedAt: active ? null : (b.events[0]?.createdAt ?? null),
       travellers,

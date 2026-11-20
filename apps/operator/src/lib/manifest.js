@@ -145,6 +145,8 @@ function bookingView(b, { started, tz }) {
     extras: (b.addOns ?? [])
       .map((/** @type {any} */ a) => `${a.quantity} × ${a.name.toLowerCase()}`)
       .join(' · '),
+    // The office's notes for the guide (the bookings desk, 16c).
+    notes: b.notes ?? [],
     people: b.travellers.map((/** @type {any} */ t) => ({
       id: t.id,
       name: t.displayName,

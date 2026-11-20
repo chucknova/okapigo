@@ -91,6 +91,15 @@ describe('mark the rest no-show', () => {
     expect(nwosu?.people.map((p) => p.pill.label)).toEqual(['✕ No-show', '✕ No-show']);
   });
 
+  it('the office’s notes for the guide, under their booking (16c)', () => {
+    const d = m();
+    d.bookings[0] = { ...d.bookings[0], notes: ['Halal lunch for Yemi and Tobi.'] };
+    const v = manifestView(d, { now: after, tz: TZ });
+    expect(v.bookings[0].notes).toEqual(['Halal lunch for Yemi and Tobi.']);
+    // A package from before 16c has none.
+    expect(manifestView(m(), { now: after, tz: TZ }).bookings[0].notes).toEqual([]);
+  });
+
   it('the question, with the policy and the balance', () => {
     const v = manifestView(m(), { now: after, tz: TZ });
     const b = { ...v.bookings[0], noShowRefundPercent: 0, owesKobo: 4_550_000 };

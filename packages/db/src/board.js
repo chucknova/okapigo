@@ -26,9 +26,9 @@ const TRANSPORT_WORD = /** @type {Record<string, string>} */ ({
 });
 
 /** "Kemi Adeyemi" → "Kemi". @param {string} name */
-const firstName = (name) => name.trim().split(/\s+/)[0] ?? name;
+export const firstName = (name) => name.trim().split(/\s+/)[0] ?? name;
 /** @param {any} p */
-const shortOf = (p) => p.shortTitle || p.title;
+export const shortOf = (p) => p.shortTitle || p.title;
 /** "Van 1 · 14" / "On foot" / "" @param {any} d */
 const vehicleLine = (d) =>
   d.resource
@@ -129,7 +129,7 @@ export async function weekSchedule(prisma, { operatorId, start, now = new Date()
 /**
  * "3 adults, 1 child" from a booking's travellers. @param {any[]} travellers @param {Map<string, any>} cats
  */
-function peopleLine(travellers, cats) {
+export function peopleLine(travellers, cats) {
   /** @type {Map<string, number>} */
   const n = new Map();
   for (const t of travellers) {

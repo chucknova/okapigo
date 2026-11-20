@@ -2008,6 +2008,299 @@
   }
 }
 
+/* --- The bookings desk (O8), 16c ---------------------------------------------------------- */
+.desk {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.desk-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.desk-results {
+  margin: 8px 0 0;
+}
+.desk-none {
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.desk-rows {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.desk-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.desk-row.is-open {
+  background: var(--color-primary-soft);
+  border-left: 4px solid var(--color-text);
+}
+.status-chip {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.status-chip--big {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: var(--text-sm);
+}
+.status-chip--ok {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.status-chip--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-state-late-ink);
+}
+.status-chip--urgent {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.status-chip--info {
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+.status-chip--held {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+}
+.status-chip--muted {
+  background: var(--color-surface-2);
+  color: var(--color-text-soft);
+}
+.row-start {
+  align-items: flex-start;
+  gap: 12px;
+}
+.desk-pick {
+  align-self: center;
+}
+.desk-banner {
+  padding: 16px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-button);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.desk-banner p {
+  margin: 0;
+  color: var(--color-text-soft);
+}
+.desk-banner-title {
+  font-size: var(--text-md);
+}
+.desk-banner--urgent {
+  border-color: var(--color-danger);
+}
+.desk-banner--urgent .desk-banner-title {
+  color: var(--color-danger);
+}
+.desk-banner--warning {
+  border-color: var(--color-state-late-ink);
+}
+.desk-banner--warning .desk-banner-title {
+  color: var(--color-state-late-ink);
+}
+.desk-banner--info {
+  border-color: var(--color-info);
+}
+.desk-banner--info .desk-banner-title {
+  color: var(--color-info);
+}
+.desk-banner--held {
+  border-color: var(--color-primary-ink);
+}
+.desk-banner--held .desk-banner-title {
+  color: var(--color-primary-ink);
+}
+.desk-banner-btns {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.desk-banner-btns:empty {
+  display: none;
+}
+.desk-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.money-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.money-table td {
+  padding: 6px 0;
+  border-top: 1px solid var(--color-state-pending);
+  vertical-align: top;
+}
+.money-table td.right {
+  padding-left: 12px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.money-table tr:first-child td {
+  border-top: 0;
+  color: var(--color-text-soft);
+}
+.money-table .money-total td {
+  border-top: 2px solid var(--color-text);
+  font-weight: 800;
+}
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.messages-list li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 2px 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-state-pending);
+}
+.messages-list li > :last-child {
+  grid-column: 2;
+}
+.timeline {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text-soft);
+}
+.desk-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.desk-action {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* On a phone, what can't be done now is left out (designs: "Mark no-show is hidden"). */
+.desk-action.is-off {
+  display: none;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin: 0;
+  font-weight: 700;
+}
+.check-row input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-primary-ink);
+}
+.check-row.is-off {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.booking-note {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--color-warning-soft);
+  color: var(--color-state-late-ink);
+}
+/* A phone: the list, or one booking (with its "‹ Bookings"). */
+.desk--open .desk-list {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .page.desk {
+    max-width: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 440px minmax(0, 1fr);
+    gap: 0;
+    min-height: 100%;
+  }
+  .desk--open .desk-list {
+    display: flex;
+  }
+  .desk-list {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    padding: 20px 16px;
+    min-width: 0;
+  }
+  .desk-rows {
+    gap: 0;
+    margin: 8px -16px 0;
+  }
+  .desk-row {
+    border: 0;
+    border-bottom: 1px solid var(--color-state-pending);
+    border-left: 4px solid transparent;
+    border-radius: 0;
+    padding: 12px 16px;
+  }
+  .desk-row.is-open {
+    border-left-color: var(--color-text);
+  }
+  .desk-page,
+  .desk-pick {
+    padding: 20px 28px;
+    min-width: 0;
+  }
+  .desk-pick {
+    align-self: start;
+  }
+  .desk-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .desk-action.is-off {
+    display: flex;
+  }
+  .messages-list li {
+    grid-template-columns: 90px 1fr 240px;
+  }
+  .messages-list li > :last-child {
+    grid-column: auto;
+  }
+}
+
 /* The phone's header: the title keeps its room; the tour menu takes what's left. */
 .schedule-head h1 {
   flex: none;

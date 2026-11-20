@@ -103,3 +103,4 @@ export {
   ticketFingerprint,
   MAX_CHANGES_PER_SYNC,
 } from './sync.js';
+export * from './desk.js';

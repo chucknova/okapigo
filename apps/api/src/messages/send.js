@@ -96,7 +96,13 @@ export async function sendGuestMessages(deps) {
     let error = null;
     try {
       const words = await compose(deps, n.booking, n);
-      if (n.channel === 'whatsapp') error = await toChat(deps, n.booking, n.kind, words, now);
+      if (n.channel === 'whatsapp') {
+        const sent = await toChat(deps, n.booking, n.kind, words, now);
+        error = sent.error;
+        // Which chat message it became: its delivery receipts ("read") show on the bookings
+        // desk (16c).
+        n.data = { .../** @type {object} */ (n.data ?? {}), chatMessageId: sent.chatMessageId };
+      }
       if (n.channel === 'email') {
         const id = await toEmail(deps, n.booking, n, words);
         n.data = { .../** @type {object} */ (n.data ?? {}), emailId: id };
@@ -124,7 +130,8 @@ export async function sendGuestMessages(deps) {
 
 /**
  * Into the guest's chat: the one they last used with this business (simulator or WhatsApp),
- * or a new simulator chat if they never wrote. Returns why it failed, or null.
+ * or a new simulator chat if they never wrote. Returns the chat message's id, and why it
+ * failed (or null).
  * @param {SendDeps} deps @param {any} booking @param {string} kind
  * @param {{ body: string, values: any }} words @param {Date} now
  */
@@ -185,7 +192,10 @@ async function toChat(deps, booking, kind, words, now) {
     unprompted: true,
   });
   const after = await prisma.chatMessage.findUniqueOrThrow({ where: { id: stored.id } });
-  return after.delivery === 'failed' ? (after.deliveryError ?? 'failed') : null;
+  return {
+    chatMessageId: after.id,
+    error: after.delivery === 'failed' ? (after.deliveryError ?? 'failed') : null,
+  };
 }
 
 /**

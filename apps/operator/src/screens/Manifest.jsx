@@ -101,6 +101,11 @@ export function Manifest() {
             <span className={`chip chip--${b.pay.tone}`}>{b.pay.text}</span>
             {b.extras && <span className="chip">{b.extras}</span>}
           </div>
+          {b.notes.map((/** @type {string} */ n, /** @type {number} */ i) => (
+            <p key={i} className="booking-note small">
+              Note: {n}
+            </p>
+          ))}
         </div>
         {b.phone && (
           <a className="call-btn" href={`tel:${b.phone}`} aria-label={`Call ${b.lead}, ${b.phone}`}>

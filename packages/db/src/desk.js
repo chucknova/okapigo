@@ -1,0 +1,658 @@
+// @ts-check
+/**
+ * desk.js — the office's bookings desk (stage 16c; designs O8 Bookings, desktop, phone and
+ * "every status").
+ *
+ *   deskList()      find a booking: search (reference, name or phone) and filters (Today ·
+ *                   Upcoming · Owes money · Cash to confirm · Cancelled · All), each row with
+ *                   its status chip ("Owes ₦45,500", "Cash to confirm", "Refund failed"…)
+ *   deskBooking()   one booking's page: who, what, its status and the banner that says what
+ *                   needs doing, the money, the travellers, the messages sent (and whether they
+ *                   arrived), its timeline, and which actions make sense now (and why not)
+ *   addNote()       a note on the timeline; "show on the guide's manifest" puts it there too
+ *
+ * The words are worked out here, once, so the phone and the desktop say the same thing.
+ * Changing a booking goes through the rules already there (bookings.js, cancellations.js,
+ * refunds.js, payment-links.js, cash.js, operations.js).
+ */
+import { formatNaira } from '@okapigo/shared/money';
+import { formatPhoneForDisplay } from '@okapigo/shared/contact';
+import { localDate, localTime, addDays, zonedTimeToUtc } from '@okapigo/shared/time';
+import { formatAt } from '@okapigo/shared/tour-facts';
+import { balanceDueDate } from '@okapigo/shared/deposits';
+import { MESSAGES } from '@okapigo/shared/message-templates';
+import { BookingError } from './booking-lifecycle.js';
+import { firstName, peopleLine, shortOf } from './board.js';
+
+/** Seats sold: the booking is on (from booking-status.js). */
+const LIVE = ['confirmed', 'part_paid', 'paid', 'amended'];
+const ENDED = ['cancelled', 'refunded'];
+const PENDING_CASH = ['reported', 'possible_double'];
+const MAX_ROWS = 100;
+
+export const DESK_FILTERS = /** @type {const} */ ([
+  'today',
+  'upcoming',
+  'owes',
+  'cash',
+  'cancelled',
+  'all',
+]);
+/** @typedef {typeof DESK_FILTERS[number]} DeskFilter */
+
+const CHANNEL = /** @type {Record<string, string>} */ ({
+  web: 'WEB',
+  whatsapp: 'WHATSAPP',
+  staff: 'OFFICE',
+  ota: 'PARTNER',
+});
+const BOOKED_ON = /** @type {Record<string, string>} */ ({
+  web: 'booked on the website',
+  whatsapp: 'booked on WhatsApp',
+  staff: 'booked by the office',
+  ota: 'booked through a partner',
+});
+const METHOD = /** @type {Record<string, string>} */ ({
+  card: 'card',
+  bank_transfer: 'bank transfer',
+  transfer: 'bank transfer',
+  ussd: 'USSD',
+  cash: 'cash',
+});
+
+/** "Tue 17 Nov" @param {Date} at @param {string} tz */
+const dayOf = (at, tz) => formatAt(at.getTime(), tz).split(', ')[0];
+/** "17 Nov" @param {Date} at @param {string} tz */
+const shortDay = (at, tz) => dayOf(at, tz).split(' ').slice(1).join(' ');
+/** "Tue 17 Nov 12:11" @param {Date} at @param {string} tz */
+const stamp = (at, tz) => formatAt(at.getTime(), tz).replace(', ', ' ');
+/** "Sat 28 Nov" from "2026-11-28" @param {string} date */
+const dateWords = (date) => formatAt(Date.parse(`${date}T12:00:00Z`), 'UTC').split(', ')[0];
+
+/**
+ * A search box's words, as the database can match them: "0805 987" → the digits after the
+ * leading 0 (phones are stored +234805…), "ilt-3mz" → "ILT-3MZ".
+ * @param {string} q
+ */
+export function searchTerms(q) {
+  const text = q.trim();
+  const digits = text.replace(/[\s()+-]/g, '');
+  const phone = /^\d{3,}$/.test(digits) ? digits.replace(/^(234|0)/, '') : null;
+  return { text, reference: text.toUpperCase(), phone };
+}
+
+/**
+ * What's owed back to the guest and not on its way: the refund due, less every refund that
+ * hasn't failed (requested, sending or sent). @param {any} b
+ */
+export function notStartedKobo(b) {
+  const underWay = (b.refunds ?? [])
+    .filter((/** @type {any} */ r) => r.status !== 'failed')
+    .reduce((/** @type {number} */ n, /** @type {any} */ r) => n + r.amountKobo, 0);
+  return Math.max(0, (b.refundDueKobo ?? 0) - underWay);
+}
+
+/**
+ * The status chip on a row and at the top of a booking's page. One per booking, the thing
+ * that needs doing first: a failed refund, cash to confirm, money owed.
+ * @param {any} b  a booking with refunds, cashReports and hold
+ * @returns {{ key: string, text: string, tone: 'ok' | 'warning' | 'urgent' | 'info' | 'held' | 'muted', expiresAt?: Date }}
+ */
+export function deskStatus(b) {
+  if (b.status === 'held')
+    return { key: 'held', text: 'Held', tone: 'held', expiresAt: b.hold?.expiresAt };
+  if (ENDED.includes(b.status) || b.status === 'no_show') {
+    const refunds = b.refunds ?? [];
+    const sending = refunds.some(
+      (/** @type {any} */ r) => r.status === 'requested' || r.status === 'pending',
+    );
+    // Owed back and not under way: never started, or started and failed.
+    if (notStartedKobo(b) > 0 && !sending)
+      return refunds.some((/** @type {any} */ r) => r.status === 'failed')
+        ? { key: 'refund_failed', text: 'Refund failed', tone: 'urgent' }
+        : { key: 'refund_due', text: 'Refund to send', tone: 'urgent' };
+    if (b.status === 'no_show') return { key: 'no_show', text: 'No-show', tone: 'muted' };
+    if (sending) return { key: 'cancelled', text: 'Cancelled · refund sending', tone: 'muted' };
+    if (refunds.some((/** @type {any} */ r) => r.status === 'processed'))
+      return { key: 'cancelled', text: 'Cancelled · refunded', tone: 'muted' };
+    return { key: 'cancelled', text: 'Cancelled', tone: 'muted' };
+  }
+  if ((b.cashReports ?? []).some((/** @type {any} */ c) => PENDING_CASH.includes(c.status)))
+    return { key: 'cash', text: 'Cash to confirm', tone: 'info' };
+  const owed = b.totalKobo - b.amountPaidKobo;
+  if (owed > 0) return { key: 'owes', text: `Owes ${formatNaira(owed)}`, tone: 'warning' };
+  return { key: 'paid', text: 'Paid', tone: 'ok' };
+}
+
+const ROW_INCLUDE = /** @type {const} */ ({
+  departure: true,
+  product: true,
+  hold: true,
+  refunds: { select: { status: true, amountKobo: true } },
+  cashReports: { select: { status: true } },
+});
+
+/**
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ operatorId: string, filter?: DeskFilter, q?: string, now?: Date }} o
+ */
+export async function deskList(prisma, { operatorId, filter = 'today', q = '', now = new Date() }) {
+  const operator = await prisma.operator.findUniqueOrThrow({ where: { id: operatorId } });
+  const tz = operator.timeZone;
+  const today = localDate(now, tz);
+  const dayStart = zonedTimeToUtc(today, '00:00', tz);
+  const dayEnd = zonedTimeToUtc(addDays(today, 1), '00:00', tz);
+  const s = searchTerms(q);
+
+  /** @type {any} */
+  const where = { operatorId };
+  if (s.text) {
+    where.OR = [
+      { reference: { contains: s.reference } },
+      { leadName: { contains: s.text, mode: 'insensitive' } },
+      ...(s.phone ? [{ leadPhone: { contains: s.phone } }] : []),
+    ];
+  }
+  if (filter === 'today') where.departure = { startsAt: { gte: dayStart, lt: dayEnd } };
+  if (filter === 'upcoming') {
+    where.departure = { startsAt: { gte: dayStart } };
+    where.status = { notIn: ENDED };
+  }
+  if (filter === 'owes') where.status = { in: LIVE };
+  if (filter === 'cash') where.cashReports = { some: { status: { in: PENDING_CASH } } };
+  if (filter === 'cancelled') where.status = { in: ENDED };
+
+  const byTrip =
+    filter === 'today' || filter === 'upcoming' || filter === 'owes' || filter === 'cash';
+  const found = await prisma.booking.findMany({
+    where,
+    include: ROW_INCLUDE,
+    orderBy: byTrip
+      ? [{ departure: { startsAt: 'asc' } }, { createdAt: 'asc' }]
+      : [{ createdAt: 'desc' }],
+    // "Owes money" is worked out after reading (total − paid can't be asked of the database
+    // here), so it reads more and keeps the first MAX_ROWS.
+    take: filter === 'owes' ? MAX_ROWS * 5 : MAX_ROWS,
+  });
+  const rows = found
+    .filter((b) => filter !== 'owes' || b.totalKobo > b.amountPaidKobo)
+    .slice(0, MAX_ROWS)
+    .map((b) => {
+      const chip = deskStatus(b);
+      return {
+        id: b.id,
+        lead: b.leadName,
+        reference: b.reference,
+        tour: `${shortOf(b.product)} · ${dayOf(b.departure.startsAt, tz)}`,
+        phone: b.leadPhone ? formatPhoneForDisplay(b.leadPhone) : null,
+        chip: { ...chip, expiresAt: chip.expiresAt?.toISOString() ?? null },
+      };
+    });
+  return { filter, q: s.text, rows, more: found.length > MAX_ROWS };
+}
+
+/** "2 adults ₦130,000 · 1 child ₦35,000 · 3 × Lunch ₦24,000": the price, from the quote. @param {any} quote */
+function priceLine(quote) {
+  return (quote?.lines ?? [])
+    .map((/** @type {any} */ l) => {
+      if (l.type !== 'ticket') return `${l.quantity} × ${l.label} ${formatNaira(l.totalKobo)}`;
+      const name = String(l.label)
+        .replace(/\s*\(.*\)\s*$/, '')
+        .toLowerCase();
+      const word = l.quantity === 1 ? name : name === 'child' ? 'children' : `${name}s`;
+      return `${l.quantity} ${word} ${formatNaira(l.totalKobo)}`;
+    })
+    .join(' · ');
+}
+
+/** "Present 07:12" / "Late 07:20" / "No-show" / "" @param {any} t @param {string} tz @param {boolean} ended */
+function travellerState(t, tz, ended) {
+  if (ended) return { text: 'Cancelled', tone: 'muted' };
+  if (t.checkInStatus === 'present')
+    return {
+      text: `Present ${t.checkedInAt ? localTime(t.checkedInAt, tz) : ''}`.trim(),
+      tone: 'ok',
+    };
+  if (t.checkInStatus === 'late')
+    return {
+      text: `Late ${t.checkedInAt ? localTime(t.checkedInAt, tz) : ''}`.trim(),
+      tone: 'warning',
+    };
+  if (t.checkInStatus === 'no_show') return { text: 'No-show', tone: 'urgent' };
+  return { text: '', tone: 'muted' };
+}
+
+/**
+ * "WhatsApp · read" / "Email · failed: mailbox full" / "WhatsApp · waiting to send".
+ * @param {any} n  a notification @param {Map<string, any>} chats  chat messages by id
+ */
+function deliveryOf(n, chats) {
+  const channel = n.channel === 'email' ? 'Email' : 'WhatsApp';
+  if (n.status === 'failed')
+    return {
+      text: `${channel} · failed${n.data?.error ? `: ${n.data.error}` : ''}`,
+      tone: 'urgent',
+    };
+  if (n.status === 'pending') return { text: `${channel} · waiting to send`, tone: 'muted' };
+  if (n.status === 'cancelled')
+    return { text: `${channel} · not sent (no longer needed)`, tone: 'muted' };
+  const chat = n.data?.chatMessageId ? chats.get(n.data.chatMessageId) : null;
+  if (chat?.delivery === 'failed')
+    return {
+      text: `${channel} · failed${chat.deliveryError ? `: ${chat.deliveryError}` : ''}`,
+      tone: 'urgent',
+    };
+  if (chat?.delivery === 'read') return { text: `${channel} · read`, tone: 'ok' };
+  if (chat?.delivery === 'delivered') return { text: `${channel} · delivered`, tone: 'ink' };
+  return { text: `${channel} · sent`, tone: 'ink' };
+}
+
+/** "Balance reminder (7 days)" @param {any} n */
+function messageName(n) {
+  const name = /** @type {any} */ (MESSAGES)[n.kind]?.name ?? n.kind.replace(/_/g, ' ');
+  if (n.kind === 'balance_reminder' && n.data?.daysBefore)
+    return `${name} (${n.data.daysBefore} ${n.data.daysBefore === 1 ? 'day' : 'days'})`;
+  return name;
+}
+
+/**
+ * One line of the timeline, in words. @param {any} e @param {Map<string, string>} names
+ */
+export function eventText(e, names) {
+  const who = e.actorUserId ? (names.get(e.actorUserId) ?? 'someone in the office') : null;
+  const d = e.data ?? {};
+  const money = (/** @type {number} */ k) => formatNaira(k ?? 0);
+  switch (e.type) {
+    case 'created':
+      return d.channel === 'staff' && who ? `booked by ${who}` : (BOOKED_ON[d.channel] ?? 'booked');
+    case 'status_changed': {
+      if (e.toStatus === 'cancelled') {
+        if (d.reason === 'hold_expired') return 'seats released: checkout wasn’t finished in time';
+        if (d.reason === 'hold_released') return `seats released${who ? ` by ${who}` : ''}`;
+        const by = d.initiatedBy === 'guest' ? 'the guest' : (who ?? 'the office');
+        const refund =
+          d.refund?.refundKobo !== undefined
+            ? ` · refund ${money(d.refund.refundKobo)}${d.refund.overridden ? '' : ' by policy'}`
+            : '';
+        const why =
+          d.refund?.overridden && d.overrideReason ? ` (reason: ${d.overrideReason})` : '';
+        return `cancelled by ${by}${refund}${why}`;
+      }
+      if (e.toStatus === 'refunded') return 'refund complete';
+      if (e.toStatus === 'no_show') return `marked a no-show${who ? ` by ${who}` : ''}`;
+      if (e.toStatus === 'completed') return 'trip completed';
+      if (d.amountKobo && (e.toStatus === 'paid' || e.toStatus === 'part_paid'))
+        return `${e.toStatus === 'paid' ? 'paid' : 'part paid'} ${money(d.amountKobo)}`;
+      if (e.toStatus === 'confirmed') return `confirmed${who ? ` by ${who}` : ''}`;
+      return `now ${String(e.toStatus).replace(/_/g, ' ')}`;
+    }
+    case 'refund_requested':
+      return `refund of ${money(d.amountKobo)} started${who ? ` by ${who}` : ''}`;
+    case 'refund_processed':
+      return `refund of ${money(d.amountKobo)} sent`;
+    case 'refund_failed':
+      return `refund of ${money(d.amountKobo)} failed${d.reason ? `: ${d.reason}` : ''}`;
+    case 'payment_link_created':
+      return `${d.tourDay ? 'tour-day ' : ''}payment link for ${money(d.amountKobo)}${who && !d.tourDay ? ` by ${who}` : ''}`;
+    case 'cash_reported':
+      return `cash ${money(d.amountKobo)} reported${who ? ` by ${firstName(who)}` : ''}${d.possibleDouble ? ' (they’d also paid by link)' : ''}`;
+    case 'checked_in': {
+      const n = (d.travellerIds ?? []).length || 1;
+      const verb =
+        /** @type {Record<string, string>} */ ({
+          present: 'checked in',
+          late: 'marked late',
+          no_show: n === 1 ? 'marked a no-show' : 'marked no-shows',
+          pending: 'check-in undone',
+        })[d.status] ?? 'checked in';
+      return `${d.status === 'pending' ? verb : `${n} ${verb}`}${who ? ` by ${firstName(who)}` : ''}`;
+    }
+    case 'traveller_updated':
+      return `traveller details changed${who ? ` by ${who}` : ''}`;
+    case 'note':
+      return `note${who ? ` by ${firstName(who)}` : ''}: “${d.text}”${d.onManifest ? ' · on the guide’s manifest' : ''}`;
+    case 'guest_request':
+      return `the guest asked: ${d.kind === 'change' ? 'a change' : 'a question'}`;
+    case 'guest_request_answered':
+      return `the guest’s request answered${who ? ` by ${who}` : ''}${d.note ? `: ${d.note}` : ''}`;
+    case 'payment_needs_review':
+      return `a payment of ${money(d.amountKobo)} needs a look`;
+    case 'receipt_allocated':
+      return `a bank transfer of ${money(d.amountKobo)} matched to this booking`;
+    default:
+      return String(e.type).replace(/_/g, ' ');
+  }
+}
+
+/**
+ * Which actions make sense now, and why not (designs: "every status": greyed, with a reason).
+ * @param {any} b @param {{ started: boolean, owed: number, tripDay: string }} o
+ */
+export function deskActions(b, { started, owed, tripDay }) {
+  const held = b.status === 'held';
+  const ended = ENDED.includes(b.status);
+  const why = (/** @type {string | null} */ reason) => ({
+    enabled: reason === null,
+    why: reason ?? '',
+  });
+  const notBooked = held ? 'Not booked yet' : null;
+  const gone = ended ? 'Cancelled' : null;
+  const pending = b.travellers.filter(
+    (/** @type {any} */ t) => t.checkInStatus === 'pending',
+  ).length;
+  return {
+    paymentLink: why(notBooked ?? gone ?? (owed <= 0 ? 'Nothing is owed' : null)),
+    changeTravellers: why(
+      notBooked ??
+        gone ??
+        (b.status === 'no_show' || b.status === 'completed' || started
+          ? 'The trip has started'
+          : null),
+    ),
+    addNote: why(null),
+    noShow: why(
+      notBooked ??
+        gone ??
+        (b.status === 'no_show'
+          ? 'Already a no-show'
+          : !started
+            ? `Trip is on ${tripDay}`
+            : pending === 0
+              ? 'Everyone is checked in'
+              : null),
+    ),
+    cancel: why(
+      held
+        ? 'Nothing to cancel yet'
+        : ended
+          ? 'Already cancelled'
+          : b.status === 'no_show'
+            ? 'A no-show'
+            : b.status === 'completed'
+              ? 'The trip is over'
+              : null,
+    ),
+    release: why(held ? null : 'Only while seats are held'),
+  };
+}
+
+/**
+ * One booking's page (designs: O8, "every status").
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ operatorId: string, bookingId: string, now?: Date }} o
+ */
+export async function deskBooking(prisma, { operatorId, bookingId, now = new Date() }) {
+  const b = await prisma.booking.findFirst({
+    where: { id: bookingId, operatorId },
+    include: {
+      departure: true,
+      product: { include: { operator: true, priceCategories: true } },
+      hold: true,
+      policyVersion: true,
+      travellers: { orderBy: { position: 'asc' } },
+      payments: { where: { status: 'succeeded' }, orderBy: { createdAt: 'asc' } },
+      refunds: { orderBy: { createdAt: 'asc' } },
+      cashReports: { orderBy: { createdAt: 'asc' }, include: { reportedBy: true } },
+      notifications: { where: { audience: 'guest' }, orderBy: { createdAt: 'asc' } },
+      events: { orderBy: { createdAt: 'asc' } },
+    },
+  });
+  if (!b) throw new BookingError('NOT_FOUND', 'Booking not found.');
+  const tz = b.product.operator.timeZone;
+  const cats = new Map(b.product.priceCategories.map((c) => [c.key, c]));
+  const userIds = [
+    ...new Set(
+      [...b.events.map((e) => e.actorUserId), ...b.travellers.map((t) => t.checkedInById)].filter(
+        (x) => x !== null,
+      ),
+    ),
+  ];
+  const users = await prisma.user.findMany({
+    where: { id: { in: /** @type {string[]} */ (userIds) } },
+  });
+  const names = new Map(users.map((u) => [u.id, u.name]));
+  const chatIds = b.notifications
+    .map((n) => /** @type {any} */ (n.data)?.chatMessageId)
+    .filter(Boolean);
+  const chats = new Map(
+    (await prisma.chatMessage.findMany({ where: { id: { in: chatIds } } })).map((m) => [m.id, m]),
+  );
+
+  const chip = deskStatus(b);
+  const ended = ENDED.includes(b.status);
+  const owed = Math.max(0, b.totalKobo - b.amountPaidKobo);
+  const tripDate = localDate(b.departure.startsAt, tz);
+  const today = localDate(now, tz);
+  const started = b.departure.startsAt <= now;
+  const due = balanceDueDate(tripDate);
+  const people = peopleLine(b.travellers, cats);
+  const paidSum = b.payments.reduce((n, p) => n + p.amountKobo, 0);
+  const refunded = b.refunds
+    .filter((r) => r.status !== 'failed')
+    .reduce((n, r) => n + r.amountKobo, 0);
+  const pendingCash = b.cashReports.filter((c) => PENDING_CASH.includes(c.status));
+  const lastFailed = [...b.refunds].reverse().find((r) => r.status === 'failed');
+
+  // The money, as a ledger: the price, what came in, cash waiting, refunds, and the bottom line.
+  const money = [
+    { label: priceLine(b.quote) || people, value: formatNaira(b.totalKobo), tone: 'ink' },
+    ...b.payments.map((p) => ({
+      label: [
+        p.purpose === 'deposit' ? 'Deposit' : p.purpose === 'balance' ? 'Balance' : 'Payment',
+        // How it was actually paid (Paystack says: card, bank transfer…); checkout asks for "any".
+        METHOD[p.channel ?? ''] ?? METHOD[p.method] ?? null,
+        shortDay(p.paidAt ?? p.createdAt, tz),
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      value: `${formatNaira(p.amountKobo)} paid`,
+      tone: 'ok',
+    })),
+    ...pendingCash.map((c) => ({
+      label: `Cash · reported by ${firstName(c.reportedBy.name)} · ${shortDay(c.reportedAt, tz)}`,
+      value: `${formatNaira(c.amountKobo)} pending`,
+      tone: 'info',
+    })),
+    ...b.refunds.map((r) => ({
+      label: `Refund · ${shortDay(r.createdAt, tz)} · ${r.status === 'processed' ? 'sent' : r.status === 'failed' ? 'failed' : 'sending'}`,
+      value: `− ${formatNaira(r.amountKobo)}`,
+      tone: r.status === 'failed' ? 'urgent' : 'ink',
+    })),
+  ];
+  const bottom =
+    b.status === 'held'
+      ? { label: 'To pay at checkout', value: formatNaira(owed), tone: 'ink' }
+      : chip.key === 'refund_failed' || chip.key === 'refund_due'
+        ? { label: 'Owed back to the guest', value: formatNaira(notStartedKobo(b)), tone: 'urgent' }
+        : ended
+          ? { label: 'Kept', value: formatNaira(Math.max(0, paidSum - refunded)), tone: 'ink' }
+          : {
+              label:
+                owed > 0 && b.status !== 'no_show'
+                  ? `Still owed · due ${dateWords(due)}`
+                  : 'Still owed',
+              value: formatNaira(owed),
+              tone: owed > 0 ? 'warning' : 'ink',
+            };
+
+  // The banner: what needs doing (or what happened), by status.
+  /** @type {null | { kind: string, tone: string, title: string, text: string, expiresAt?: string, call?: string }} */
+  let banner = null;
+  if (b.status === 'held' && b.hold) {
+    const n = b.travellers.length;
+    banner = {
+      kind: 'held',
+      tone: 'held',
+      title: `Seats held until ${localTime(b.hold.expiresAt, tz)}`,
+      expiresAt: b.hold.expiresAt.toISOString(),
+      text: `The guest is paying right now (${b.channel === 'whatsapp' ? 'on WhatsApp' : 'on the website'}). If they don’t pay in time, the ${n} ${n === 1 ? 'seat is' : 'seats are'} released by themselves and this booking leaves the list.`,
+    };
+  } else if (chip.key === 'refund_due') {
+    banner = {
+      kind: 'refund_due',
+      tone: 'urgent',
+      title: `${formatNaira(notStartedKobo(b))} to refund`,
+      text: 'The booking was cancelled with money owed back, and the refund hasn’t been started yet.',
+    };
+  } else if (chip.key === 'refund_failed' && lastFailed) {
+    banner = {
+      kind: 'refund_failed',
+      tone: 'urgent',
+      title: `Refund of ${formatNaira(lastFailed.amountKobo)} failed`,
+      text: `${lastFailed.failureReason ? `It couldn’t be sent back: ${lastFailed.failureReason}. ` : ''}The guest was told a refund is on its way, so please sort it soon.`,
+    };
+  } else if (pendingCash.length > 0) {
+    const c = pendingCash[0];
+    const who = firstName(c.reportedBy.name);
+    banner = {
+      kind: 'cash',
+      tone: 'info',
+      title: `Cash reported by ${who}: ${formatNaira(c.amountKobo)}`,
+      text:
+        c.status === 'possible_double'
+          ? `${formatAt(c.reportedAt.getTime(), tz)}, at check-in. The guest had also paid by link: one of the two may need giving back.`
+          : `${formatAt(c.reportedAt.getTime(), tz)}, at check-in. Not counted as paid until you confirm ${who} handed it in.`,
+    };
+  } else if (ended) {
+    const cancel = [...b.events].reverse().find((e) => e.toStatus === 'cancelled');
+    const d = /** @type {any} */ (cancel?.data ?? {});
+    const by =
+      d.reason === 'hold_expired'
+        ? 'Seats released: checkout wasn’t finished'
+        : d.reason === 'hold_released'
+          ? `Seats released${cancel?.actorUserId ? ` by ${names.get(cancel.actorUserId) ?? 'the office'}` : ''}`
+          : d.initiatedBy === 'guest'
+            ? 'Cancelled by the guest'
+            : `Cancelled by ${cancel?.actorUserId ? (names.get(cancel.actorUserId) ?? 'the office') : 'the office'}`;
+    const sent = b.refunds
+      .filter((r) => r.status === 'processed')
+      .reduce((n, r) => n + r.amountKobo, 0);
+    const sending = b.refunds
+      .filter((r) => r.status === 'requested' || r.status === 'pending')
+      .reduce((n, r) => n + r.amountKobo, 0);
+    banner = {
+      kind: 'cancelled',
+      tone: 'muted',
+      title: `${by}${cancel ? ` on ${formatAt(cancel.createdAt.getTime(), tz)}` : ''}`,
+      text: sending
+        ? `Refund of ${formatNaira(sending)} is being sent.`
+        : sent
+          ? `Refund of ${formatNaira(sent)} sent; it can take 5–10 working days to arrive.`
+          : paidSum > 0
+            ? 'Nothing was refunded.'
+            : 'Nothing had been paid.',
+    };
+  } else if (owed > 0 && b.status !== 'no_show' && due <= today) {
+    const reminders = b.notifications.filter((n) => n.kind === 'balance_reminder');
+    const last = reminders.at(-1);
+    const lastWent = last ? deliveryOf(last, chats) : null;
+    banner = {
+      kind: 'owes',
+      tone: 'warning',
+      title: `Balance of ${formatNaira(owed)} ${due === today ? 'is due today' : `was due ${dateWords(due)}`}`,
+      text: [
+        b.payments[0]
+          ? `${b.payments[0].purpose === 'deposit' ? 'Deposit' : 'Payment'} paid on ${shortDay(b.payments[0].paidAt ?? b.payments[0].createdAt, tz)}.`
+          : 'Nothing paid yet.',
+        lastWent?.tone === 'urgent'
+          ? `The last reminder didn’t arrive (${lastWent.text.replace(/^[^:]*:\s*/, '')}).`
+          : '',
+        'Nothing is cancelled automatically: send a link, call them, or cancel.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      call: b.leadPhone ? formatPhoneForDisplay(b.leadPhone) : undefined,
+    };
+  }
+
+  const checkers = [...new Set(b.travellers.map((t) => t.checkedInById).filter((x) => x !== null))];
+  const actions = deskActions(b, { started, owed, tripDay: dayOf(b.departure.startsAt, tz) });
+
+  return {
+    id: b.id,
+    reference: b.reference,
+    status: b.status,
+    departureId: b.departureId,
+    holdId: b.holdId,
+    refLine: [
+      b.reference,
+      CHANNEL[b.channel] ?? b.channel.toUpperCase(),
+      b.status === 'held'
+        ? `STARTED ${localTime(b.createdAt, tz)}`
+        : `BOOKED ${dayOf(b.createdAt, tz).toUpperCase()}`,
+    ].join(' · '),
+    lead: b.leadName,
+    phone: b.leadPhone ? formatPhoneForDisplay(b.leadPhone) : null,
+    sub: [
+      b.leadPhone ? formatPhoneForDisplay(b.leadPhone) : null,
+      b.leadEmail ?? 'no email',
+      b.product.title,
+      `${dayOf(b.departure.startsAt, tz)}, ${localTime(b.departure.startsAt, tz)}`,
+      people,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    chip: { ...chip, expiresAt: chip.expiresAt?.toISOString() ?? null },
+    banner,
+    money: [...money, { ...bottom, total: true }],
+    travellers: b.travellers.map((t, i) => {
+      const cat = cats.get(t.categoryKey);
+      const kind = (cat?.name ?? t.categoryKey).replace(/\s*\(.*\)\s*$/, '');
+      return {
+        id: t.id,
+        name: t.name || `Guest ${t.position}`,
+        kind: [
+          kind,
+          t.age !== null && t.categoryKey !== 'adult' ? String(t.age) : null,
+          t.dietaryNeeds || null,
+          i === 0 && b.travellers.length > 1 ? 'lead' : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        checkInStatus: t.checkInStatus,
+        state: travellerState(t, tz, ended),
+      };
+    }),
+    checkedInBy: checkers.length
+      ? `Checked in by ${checkers.map((id) => firstName(names.get(/** @type {string} */ (id)) ?? 'the guide')).join(' and ')}`
+      : null,
+    messages: b.notifications.map((n) => ({
+      id: n.id,
+      date: shortDay(n.sentAt ?? n.createdAt, tz),
+      what: messageName(n),
+      ...deliveryOf(n, chats),
+    })),
+    timeline: b.events.map((e) => `${stamp(e.createdAt, tz)} · ${eventText(e, names)}`),
+    actions,
+    // For "Mark no-show": what the policy this booking was sold with gives back.
+    noShowLine: b.policyVersion
+      ? b.policyVersion.noShowRefundBasisPoints === 0
+        ? 'Policy: no refund for a no-show.'
+        : `Policy: ${b.policyVersion.noShowRefundBasisPoints / 100}% back for a no-show.`
+      : null,
+    trip: { started, date: tripDate },
+  };
+}
+
+/**
+ * A note on the booking: on its timeline, with who and when; "show on the guide's manifest"
+ * puts it under the booking on the manifest too. Guests never see notes.
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {{ operatorId: string, bookingId: string, userId: string, text: string, onManifest?: boolean }} n
+ */
+export async function addNote(prisma, { operatorId, bookingId, userId, text, onManifest = false }) {
+  const b = await prisma.booking.findFirst({ where: { id: bookingId, operatorId } });
+  if (!b) throw new BookingError('NOT_FOUND', 'Booking not found.');
+  const clean = text.trim();
+  if (!clean) throw new BookingError('EMPTY_NOTE', 'Write the note first.');
+  return prisma.bookingEvent.create({
+    data: {
+      operatorId,
+      bookingId,
+      type: 'note',
+      actorType: 'user',
+      actorUserId: userId,
+      data: { text: clean, onManifest },
+    },
+  });
+}

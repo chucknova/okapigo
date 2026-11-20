@@ -10,7 +10,7 @@ import { reloadAll } from './live.js';
 /**
  * @param {import('./sync.js').SyncEngine} engine
  * @param {string} path
- * @param {{ method: 'POST' | 'PUT' | 'PATCH', body?: unknown }} o
+ * @param {{ method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown }} o
  * @returns {Promise<{ ok: true, body: any } | { ok: false, error: ApiError }>}
  */
 export async function act(engine, path, { method, body }) {

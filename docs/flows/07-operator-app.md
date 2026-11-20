@@ -291,3 +291,15 @@ brief didn't have. Decided:
   editing it comes with Settings (16e).
 - **Cancelling a departure starts every paid booking's refund**, and keeps the reason guests
   were told.
+
+## The bookings desk in three parts (decided 2026-11-20)
+
+| Stage | Builds                                                                                                                       |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 16c-1 | find a booking (search, filters), its page in every status, notes (and on the manifest), releasing held seats, desk no-shows |
+| 16c-2 | the money: payment links, cancelling (policy or another amount), confirming a guide's cash, failed and bank-transfer refunds |
+| 16c-3 | changing travellers                                                                                                          |
+
+- **An added traveller pays the price from when the booking was made**, not today's price.
+- A booking cancelled with money owed back, and no refund started, shows **Refund to send**
+  (red) until it's sent.
