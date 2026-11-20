@@ -136,7 +136,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts     | `9c97f5a`           | 16c-2          |
 | 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | `105242e`           | 16c-3          |
 | 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | `a18ebab`           | 16d-1          |
-| 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                            | (this commit)       | 16d-2          |
+| 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                            | `1daa498`           | 16d-2          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -226,7 +226,7 @@ new date (both departures locked in id order), resets check-ins, and tells the g
 
 ## 7. Where we are
 
-- **Last done:** 16d-2, guest requests and moving dates (commit: see §9). 16d-1 pushed.
+- **Last done:** 16d-2, guest requests and moving dates, committed `1daa498`. 16d-1 pushed.
 - **Next:** **16d-3**, the Alerts tab (designs: "O9 Inbox — requests and alerts"): what needs
   dealing with (cash to confirm, a refund failed or to send, a balance overdue, a departure
   without a guide, cash not received), each with its action; clearing by itself when the cause
