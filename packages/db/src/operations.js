@@ -64,12 +64,13 @@ export async function createResource(prisma, { operatorId, kind, name, seats }) 
  * is refused there, and gets the same answer.
  *
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ operatorId: string, departureId: string, guideId?: string | null, resourceId?: string | null, notes?: string }} a
+ * @param {{ operatorId: string, departureId: string, guideId?: string | null, resourceId?: string | null, notes?: string, userId?: string }} a
+ *   userId: who did it (a guide assigned is listed under the inbox's "Done this week", 16d-3)
  * @returns {Promise<{ departure: any, warnings: string[] }>}
  */
 export async function assignDeparture(
   prisma,
-  { operatorId, departureId, guideId, resourceId, notes },
+  { operatorId, departureId, guideId, resourceId, notes, userId },
 ) {
   try {
     return await prisma.$transaction(async (tx) => {
@@ -152,6 +153,8 @@ export async function assignDeparture(
         where: { id: departureId },
         data: {
           ...(guideId !== undefined && { guideId }),
+          ...(guideId && { guideAssignedById: userId ?? null, guideAssignedAt: new Date() }),
+          ...(guideId === null && { guideAssignedById: null, guideAssignedAt: null }),
           ...(resourceId !== undefined && { resourceId }),
           ...(notes !== undefined && { notes: notes.trim() }),
         },

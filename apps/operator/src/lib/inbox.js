@@ -69,3 +69,11 @@ export const movedReply = (to) =>
 /** The send button: "Send and mark answered" / "Send reply". @param {boolean} markAnswered */
 export const replyLabel = (markAnswered) =>
   markAnswered ? 'Send and mark answered' : 'Send reply';
+
+// --- Alerts (16d-3) ------------------------------------------------------------------------
+
+/** The tab's label: "Alerts · 4". @param {number} n */
+export const alertsTab = (n) => (n > 0 ? `Alerts · ${n}` : 'Alerts');
+
+/** Above the list: "4 to deal with". @param {number} n */
+export const alertsHeading = (n) => `${n} to deal with`;

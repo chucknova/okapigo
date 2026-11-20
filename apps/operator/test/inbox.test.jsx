@@ -14,6 +14,8 @@ import { createMemoryStore } from '../src/lib/store.js';
 import { request } from '../src/lib/api.js';
 import { clearLive } from '../src/lib/live.js';
 import {
+  alertsHeading,
+  alertsTab,
   movedReply,
   replyLabel,
   requestsTab,
@@ -526,5 +528,78 @@ describe('requests (16d-2)', () => {
     expect(
       await screen.findByText('No open requests. Guests ask from their trip page.'),
     ).toBeTruthy();
+  });
+});
+
+describe('alerts (16d-3)', () => {
+  const ALERTS = {
+    alerts: [
+      {
+        key: 'refund:b1',
+        kind: 'refund_failed',
+        tone: 'urgent',
+        icon: '!',
+        title: 'Refund failed: ₦62,500',
+        detail: 'Adaeze Okafor · ILT-7K4Q2M · card expired',
+        action: 'Sort it out',
+        href: '/bookings/b1',
+      },
+      {
+        key: 'cash:c1',
+        kind: 'cash',
+        tone: 'info',
+        icon: '₦',
+        title: 'Cash to confirm: ₦45,500 from Femi',
+        detail: 'Funmi Adeyemi · ILT-3MZ8RB · reported Sat 5 Dec, 07:12',
+        action: 'Open booking',
+        href: '/bookings/b2',
+      },
+    ],
+    done: [
+      {
+        text: 'Refund of ₦31,250 sent by Kunle, Thu 3 Dec 15:02',
+        detail: 'Bayo Adewale · ILT-9GT4VA',
+        href: '/bookings/b3',
+      },
+    ],
+  };
+  const routes = (/** @type {any} */ alerts = ALERTS) => ({
+    'GET /api/inbox/chats': () => [200, { chats: LIST }],
+    'GET /api/inbox/requests?tab=open': () => [
+      200,
+      { requests: { tab: 'open', openCount: 0, rows: [] } },
+    ],
+    'GET /api/inbox/alerts': () => [200, alerts],
+  });
+
+  it('the words', () => {
+    expect(alertsTab(4)).toBe('Alerts · 4');
+    expect(alertsTab(0)).toBe('Alerts');
+    expect(alertsHeading(4)).toBe('4 to deal with');
+  });
+
+  it('what to deal with, each with its action; done this week', async () => {
+    fakeFetch(routes());
+    await show('/inbox/alerts');
+    expect(await screen.findByRole('link', { name: 'Alerts · 2' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '2 to deal with' })).toBeTruthy();
+    const failed = screen.getByText('Refund failed: ₦62,500').closest('li');
+    expect(failed?.className).toContain('alert-row--urgent');
+    expect(
+      within(/** @type {HTMLElement} */ (failed))
+        .getByRole('link', { name: 'Sort it out' })
+        .getAttribute('href'),
+    ).toBe('/bookings/b1');
+    expect(screen.getByRole('heading', { name: 'Done this week (1)' })).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: /Refund of ₦31,250 sent by Kunle/ }).getAttribute('href'),
+    ).toBe('/bookings/b3');
+  });
+
+  it('nothing to deal with: says so', async () => {
+    fakeFetch(routes({ alerts: [], done: [] }));
+    await show('/inbox/alerts');
+    expect(await screen.findByText('Nothing to deal with')).toBeTruthy();
+    expect(screen.getByText('Nothing yet this week.')).toBeTruthy();
   });
 });

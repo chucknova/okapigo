@@ -418,29 +418,32 @@ model Schedule {
 // CHECK constraint below is the last line of defence: the database refuses any write that
 // would put more people on a departure than it has seats.
 model Departure {
-  id           String   @id @default(uuid()) @db.Uuid
-  operatorId   String   @map("operator_id") @db.Uuid
-  productId    String   @map("product_id") @db.Uuid
+  id                String    @id @default(uuid()) @db.Uuid
+  operatorId        String    @map("operator_id") @db.Uuid
+  productId         String    @map("product_id") @db.Uuid
   // Set for departures generated from a schedule; null for one-off ("custom") departures.
-  scheduleId   String?  @map("schedule_id") @db.Uuid
-  startsAt     DateTime @map("starts_at") @db.Timestamptz(3)
-  endsAt       DateTime @map("ends_at") @db.Timestamptz(3)
-  capacity     Int
-  seatsSold    Int      @default(0) @map("seats_sold")
-  seatsHeld    Int      @default(0) @map("seats_held")
+  scheduleId        String?   @map("schedule_id") @db.Uuid
+  startsAt          DateTime  @map("starts_at") @db.Timestamptz(3)
+  endsAt            DateTime  @map("ends_at") @db.Timestamptz(3)
+  capacity          Int
+  seatsSold         Int       @default(0) @map("seats_sold")
+  seatsHeld         Int       @default(0) @map("seats_held")
   // "scheduled" = running; "cancelled" = called off (e.g. weather at Tarkwa Bay).
-  status       String   @default("scheduled")
+  status            String    @default("scheduled")
   // Why it was called off, as guests were told ("the weather on the lagoon"; 16b).
-  cancelReason String?  @map("cancel_reason")
+  cancelReason      String?   @map("cancel_reason")
   // Who leads it, and the van or boat (OPS-01, stage 15a). Neither can be on two departures
   // whose times overlap: an exclusion constraint in the migration refuses it, even when two
   // managers assign at the same moment.
-  guideId      String?  @map("guide_id") @db.Uuid
-  resourceId   String?  @map("resource_id") @db.Uuid
+  guideId           String?   @map("guide_id") @db.Uuid
+  resourceId        String?   @map("resource_id") @db.Uuid
+  // Who assigned the guide, and when (16d-3: the inbox's "Done this week").
+  guideAssignedById String?   @map("guide_assigned_by_id") @db.Uuid
+  guideAssignedAt   DateTime? @map("guide_assigned_at") @db.Timestamptz(3)
   // For the guide: "Driver: Sola", "meet at the side gate today".
-  notes        String   @default("")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  notes             String    @default("")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   product  Product   @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
   // SetNull: if a schedule row were ever deleted, its departures (and their bookings) stay.

@@ -15,6 +15,7 @@
  * — states, "Bookings need a connection, so you never act on old information").
  */
 import { addDays, localDate, localTime, zonedTimeToUtc } from '@okapigo/shared/time';
+import { inboxAlerts } from './alerts.js';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatAt } from '@okapigo/shared/tour-facts';
 import { balanceDueDate } from '@okapigo/shared/deposits';
@@ -361,7 +362,9 @@ export async function managerToday(prisma, { operatorId, now = new Date() }) {
     phones,
     badges: {
       schedule: soon.length,
-      inbox: waiting.length + requests + alerts.length,
+      // Chats waiting, open requests, and the alerts tab's (16d-3: the same list).
+      inbox:
+        waiting.length + requests + (await inboxAlerts(prisma, { operatorId, now })).alerts.length,
     },
   };
 }

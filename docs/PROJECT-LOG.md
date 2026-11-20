@@ -137,6 +137,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | `105242e`           | 16c-3          |
 | 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | `a18ebab`           | 16d-1          |
 | 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                            | `1daa498`           | 16d-2          |
+| 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                     | (this commit)       | 16d-3          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -224,17 +225,22 @@ new date (both departures locked in id order), resets check-ins, and tells the g
 **seventh guest message, "Date changed"** (`booking_moved`, editable; WhatsApp template
 `okapigo_booking_moved`). A request's reply is kept and shown on the trip page.
 
+**With 16d-3 (2026-11-21):** alerts are worked out from how things are (no stored rows, no
+dismiss for money); the Inbox badge counts chats waiting + open requests + alerts; departures
+record who assigned the guide.
+
 ## 7. Where we are
 
-- **Last done:** 16d-2, guest requests and moving dates, committed `1daa498`. 16d-1 pushed.
-- **Next:** **16d-3**, the Alerts tab (designs: "O9 Inbox — requests and alerts"): what needs
-  dealing with (cash to confirm, a refund failed or to send, a balance overdue, a departure
-  without a guide, cash not received), each with its action; clearing by itself when the cause
-  is fixed (no dismiss for money); "Done this week" with who dealt with it and when. Then **16e**
-  settings (which lists the two new WhatsApp templates read-only and lets "Date changed" be
-  edited).
-- **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta (texts
-  in `apps/api/src/whatsapp/templates.js`).
+- **Last done:** 16d-3, the inbox's alerts, which finishes the inbox (commit: see §9). 16d-2
+  pushed.
+- **Next:** **16e**, settings (O10; designs: "O10 Settings — Website", "Embed on your site",
+  "Messages", "WhatsApp and staff", "phone", "Settings — Tours"): the website, the widget's
+  embed code, the seven messages (with "Date changed") and the two template-only WhatsApp
+  messages listed read-only, WhatsApp and staff, and tours (including each tour's transport,
+  from 16b). Ask the user how to split it first.
+- **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
+  (ILT-HP97TV)**, cancelled with money owed back and never started.
+- **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta.
 - A payment link for ₦45,500 was sent to Funmi Adeyemi (dev data) as Tunde at 21:27 on 20 Nov,
   to the simulator only; it may have come from my 16c-3 browser check (unconfirmed).
 - **E2E stays local**: `pnpm e2e` every stage; re-run a timed-out test alone before calling it
@@ -284,6 +290,7 @@ new date (both departures locked in id order), resets check-ins, and tells the g
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16d-3 inbox alerts (inbox done).
 - 2026-11-21 · 16d-2 requests and moving dates.
 - 2026-11-21 · 16d-1 inbox chats.
 - 2026-11-21 · 16c-3 change travellers (bookings desk done).

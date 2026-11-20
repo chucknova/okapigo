@@ -16,10 +16,14 @@
  *   POST /api/guest-requests/:id/reply        bookings: edit   { text, markAnswered }: by WhatsApp
  *                                                              and email, shown on the trip page
  * ("Mark answered without replying" is POST /api/guest-requests/:id/answer { note }, 12f-2.)
+ *
+ * Alerts (16d-3):
+ *   GET  /api/inbox/alerts   bookings: edit   what needs dealing with (clearing by itself when
+ *                                              fixed), and "Done this week"
  */
 import { Router } from 'express';
 import { z } from 'zod';
-import { deskStatus, replyGuestRequest } from '@okapigo/db';
+import { deskStatus, replyGuestRequest, inboxAlerts } from '@okapigo/db';
 import { formatPhoneForDisplay } from '@okapigo/shared/contact';
 import { localDate, localTime } from '@okapigo/shared/time';
 import { formatAt } from '@okapigo/shared/tour-facts';
@@ -377,6 +381,10 @@ export function inboxRouter({ prisma }) {
       });
     },
   );
+
+  router.get('/inbox/alerts', requirePermission('bookings', 'edit'), async (req, res) => {
+    fresh(res).json(await inboxAlerts(prisma, { operatorId: authOf(req).operatorId }));
+  });
 
   router.post(
     '/guest-requests/:id/reply',

@@ -109,3 +109,4 @@ export * from './desk.js';
 export * from './desk-money.js';
 export * from './traveller-change.js';
 export * from './move-booking.js';
+export * from './alerts.js';

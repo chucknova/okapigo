@@ -28,6 +28,8 @@ import {
   boldParts,
   chatActions,
   chatsTab,
+  alertsHeading,
+  alertsTab,
   movedReply,
   replyLabel,
   requestsTab,
@@ -36,13 +38,14 @@ import {
   takeOverQuestion,
 } from '../lib/inbox.js';
 
-/** @param {{ tab?: 'chats' | 'requests' }} props */
+/** @param {{ tab?: 'chats' | 'requests' | 'alerts' }} props */
 export function Inbox({ tab = 'chats' }) {
   const { id, rid } = useParams();
   const s = useSync();
   const tz = s.me?.operator?.timeZone ?? 'Africa/Lagos';
   const list = useLive('/api/inbox/chats', { every: LIST_EVERY_MS });
   const asked = useLive('/api/inbox/requests?tab=open', { every: LIST_EVERY_MS });
+  const alerted = useLive('/api/inbox/alerts', { every: LIST_EVERY_MS });
   const open = tab === 'chats' ? id : rid;
   return (
     <main className={`page desk inbox${open ? ' desk--open' : ''}`}>
@@ -64,13 +67,18 @@ export function Inbox({ tab = 'chats' }) {
             >
               {requestsTab(asked.entry.data?.requests?.openCount ?? 0)}
             </Link>
+            <Link
+              href="/inbox/alerts"
+              className="filter"
+              aria-current={tab === 'alerts' ? 'page' : undefined}
+            >
+              {alertsTab(alerted.entry.data?.alerts?.length ?? 0)}
+            </Link>
           </nav>
         </div>
-        {tab === 'chats' ? (
-          <ChatList list={list} id={id} tz={tz} />
-        ) : (
-          <RequestList rid={rid} tz={tz} />
-        )}
+        {tab === 'chats' && <ChatList list={list} id={id} tz={tz} />}
+        {tab === 'requests' && <RequestList rid={rid} tz={tz} />}
+        {tab === 'alerts' && <AlertList live={alerted} tz={tz} />}
       </section>
       {tab === 'chats' &&
         (id ? (
@@ -78,6 +86,7 @@ export function Inbox({ tab = 'chats' }) {
         ) : (
           <p className="desk-pick wide-only muted">Choose a chat to see it here.</p>
         ))}
+      {tab === 'alerts' && <DonePane live={alerted} tz={tz} />}
       {tab === 'requests' &&
         (rid ? (
           <RequestPane rid={rid} tz={tz} />
@@ -782,5 +791,76 @@ function AnsweredNote({ lead, onClose, onSave }) {
         </button>
       </form>
     </Sheet>
+  );
+}
+
+// --- Alerts (16d-3) --------------------------------------------------------------------------
+
+/** What needs dealing with: each with its action; it clears by itself once fixed. @param {{ live: any, tz: string }} props */
+function AlertList({ live, tz }) {
+  return (
+    <LiveFrame live={live} what="The alerts" tz={tz}>
+      {({ alerts }) =>
+        alerts.length === 0 ? (
+          <div className="desk-none">
+            <p className="strong">Nothing to deal with</p>
+            <p className="small muted">Alerts appear here when money or a departure needs you.</p>
+          </div>
+        ) : (
+          <>
+            <h2 className="eyebrow inbox-h">{alertsHeading(alerts.length)}</h2>
+            <ul className="desk-rows">
+              {alerts.map((/** @type {any} */ a) => (
+                <li key={a.key} className={`alert-row alert-row--${a.tone}`}>
+                  <span className="alert-icon" aria-hidden="true">
+                    {a.icon}
+                  </span>
+                  <span className="grow">
+                    <strong className="block">{a.title}</strong>
+                    <span className="small muted">{a.detail}</span>
+                  </span>
+                  <Link href={a.href} className="btn btn--outline btn--compact">
+                    {a.action}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <p className="small muted">
+              An alert clears by itself when its cause is fixed (balance paid, cash confirmed, guide
+              assigned).
+            </p>
+          </>
+        )
+      }
+    </LiveFrame>
+  );
+}
+
+/** "Done this week": who dealt with what, and when. @param {{ live: any, tz: string }} props */
+function DonePane({ live, tz }) {
+  return (
+    <section className="desk-page" aria-label="Done this week">
+      <LiveFrame live={live} what="Done this week" tz={tz}>
+        {({ done }) => (
+          <>
+            <h2 className="h-md">Done this week ({done.length})</h2>
+            {done.length === 0 ? (
+              <p className="sm muted">Nothing yet this week.</p>
+            ) : (
+              <ul className="plain-list done-list">
+                {done.map((/** @type {any} */ d, /** @type {number} */ i) => (
+                  <li key={i}>
+                    <Link href={d.href} className="done-item">
+                      <span className="block">{d.text}</span>
+                      <span className="small muted">{d.detail}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </LiveFrame>
+    </section>
   );
 }

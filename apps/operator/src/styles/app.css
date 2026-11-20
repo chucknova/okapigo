@@ -2432,6 +2432,44 @@ span.filter {
   max-height: 50vh;
   overflow-y: auto;
 }
+.alert-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+}
+.alert-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+.alert-row--urgent .alert-icon {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.alert-row--warning .alert-icon {
+  background: var(--color-warning-soft);
+  color: var(--color-state-late-ink);
+}
+.alert-row--info .alert-icon {
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+.done-item {
+  display: block;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-state-pending);
+  color: var(--color-text);
+  text-decoration: none;
+}
 .chat {
   display: flex;
   flex-direction: column;

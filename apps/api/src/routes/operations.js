@@ -153,6 +153,7 @@ export function operationsRouter({ prisma, authSecret }) {
           operatorId: authOf(req).operatorId,
           departureId: req.params.id,
           ...req.body,
+          userId: authOf(req).userId,
         }),
       );
       res.json({

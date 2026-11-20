@@ -107,6 +107,11 @@ function Shell() {
                 <Bookings />
               ))}
             </Route>
+            <Route path="/inbox/alerts">
+              {officeOnly(() => (
+                <Inbox tab="alerts" />
+              ))}
+            </Route>
             <Route path="/inbox/requests/:rid?">
               {officeOnly(() => (
                 <Inbox tab="requests" />
