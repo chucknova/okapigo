@@ -119,6 +119,26 @@ export async function assignDeparture(
           where: { id: resourceId, operatorId, isActive: true },
         });
         if (!resource) throw new BookingError('NOT_FOUND', 'That van or boat wasn’t found.');
+        // Only the tour's kind of vehicle (16b, decided: "Boat · not for road trips").
+        const need = departure.product.transport;
+        const short = departure.product.shortTitle || departure.product.title;
+        if (need === 'on_foot' || resource.kind !== need) {
+          throw new BookingError(
+            'WRONG_TRANSPORT',
+            need === 'on_foot'
+              ? `The ${short} is on foot: it needs no van or boat.`
+              : `${resource.name} is a ${resource.kind}: the ${short} goes by ${need}.`,
+          );
+        }
+        // Too small for who's booked: refused (16b, decided: the design shows it can't be chosen).
+        const guests = departure.seatsSold + departure.seatsHeld;
+        if (resource.seats < guests) {
+          throw new BookingError(
+            'RESOURCE_TOO_SMALL',
+            `${resource.name} has ${resource.seats} seats; ${guests} are booked. Choose a bigger one, or move ${guests - resource.seats} ${guests - resource.seats === 1 ? 'guest' : 'guests'} to another date first.`,
+            { seats: resource.seats, booked: guests },
+          );
+        }
         const busy = await clash({ resourceId });
         if (busy) {
           throw new BookingError(
@@ -127,8 +147,6 @@ export async function assignDeparture(
             { departureId: busy.id, startsAt: busy.startsAt, endsAt: busy.endsAt },
           );
         }
-        const guests = departure.seatsSold + departure.seatsHeld;
-        if (resource.seats < guests) warnings.push('RESOURCE_TOO_SMALL');
       }
       const updated = await tx.departure.update({
         where: { id: departureId },

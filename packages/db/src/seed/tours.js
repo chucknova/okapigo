@@ -164,6 +164,7 @@ export const TOURS = [
   },
   {
     slug: 'lekki-nature-and-craft',
+    transport: 'van', // how it travels: only a van can be assigned (16b)
     activityLabel: 'Van, pickup',
     // Wednesday and Saturday mornings.
     schedule: { daysOfWeek: [3, 6], times: ['08:00'] },
@@ -201,6 +202,7 @@ export const TOURS = [
   },
   {
     slug: 'tarkwa-bay-beach-and-lagoon',
+    transport: 'boat', // how it travels: only a boat can be assigned (16b)
     activityLabel: 'Boat',
     arriveMinutesEarly: 15,
     // Weekends only.
@@ -253,6 +255,7 @@ export const TOURS = [
   },
   {
     slug: 'badagry-heritage-day-trip',
+    transport: 'van', // how it travels: only a van can be assigned (16b)
     activityLabel: 'Van, full day',
     arriveMinutesEarly: 15,
     // Saturdays, early start.

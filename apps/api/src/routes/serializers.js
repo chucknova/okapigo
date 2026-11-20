@@ -7,6 +7,7 @@
  * column is added. A serializer is an explicit whitelist: only these fields leave the API.
  */
 import { dateToString, localDate, localTime } from '@okapigo/shared/time';
+import { seatsLeft } from '@okapigo/db';
 
 /**
  * @param {import('@prisma/client').User & { role: import('@prisma/client').Role }} user
@@ -128,7 +129,8 @@ export function serializeDeparture(d, timeZone) {
     capacity: d.capacity,
     seatsSold: d.seatsSold,
     seatsHeld: d.seatsHeld,
-    seatsAvailable: d.capacity - d.seatsSold - d.seatsHeld,
+    // Never more than its van or boat holds, when the resource is loaded (16b).
+    seatsAvailable: seatsLeft(/** @type {any} */ (d)),
     status: d.status,
   };
 }

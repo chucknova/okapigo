@@ -18,6 +18,8 @@ import { useLive } from './lib/live.js';
 import { isOffice } from './lib/roles.js';
 import { ManagerToday } from './screens/ManagerToday.jsx';
 import { More } from './screens/More.jsx';
+import { Schedule } from './screens/Schedule.jsx';
+import { Departure } from './screens/Departure.jsx';
 import { Sheet } from './components/Sheet.jsx';
 import { useEngine, useSync } from './lib/engine.jsx';
 import { REFRESH_EVERY_MS } from './lib/sync.js';
@@ -90,24 +92,10 @@ function Shell() {
             <Route path="/sync" component={Sync} />
             <Route path="/scan" component={Scan} />
             <Route path="/scan/:id" component={Scan} />
-            <Route path="/departures/:id">
-              {(p) =>
-                office &&
-                !s.pkg?.departures?.some((/** @type {any} */ d) => d.departure.id === p.id) ? (
-                  <Later
-                    title="Departure"
-                    what="A departure’s page for the office"
-                    stage="16b"
-                    back
-                  />
-                ) : (
-                  <Manifest />
-                )
-              }
-            </Route>
+            <Route path="/departures/:id">{() => (office ? <Departure /> : <Manifest />)}</Route>
             <Route path="/schedule">
               {officeOnly(() => (
-                <Later title="Schedule" what="The schedule" stage="16b" />
+                <Schedule />
               ))}
             </Route>
             <Route path="/bookings">

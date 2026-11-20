@@ -24,6 +24,7 @@ import {
   listAvailability,
   syncScheduleDepartures,
   cancelDeparture,
+  requestBookingRefund,
   BookingError,
   HORIZON_DAYS,
 } from '@okapigo/db';
@@ -42,7 +43,11 @@ import { parseDateRange } from '../lib/date-range.js';
 import { serializeSchedule, serializeDeparture } from './serializers.js';
 
 /** @param {{ prisma: import('@prisma/client').PrismaClient }} deps */
-export function schedulesRouter({ prisma }) {
+/**
+ * @param {{ prisma: import('@prisma/client').PrismaClient, provider?: any }} deps
+ *   provider: to start the refunds when a departure is called off (16b)
+ */
+export function schedulesRouter({ prisma, provider }) {
   const router = Router();
 
   /** @returns {import('../middleware/auth.js').AuthContext} */
@@ -252,8 +257,43 @@ export function schedulesRouter({ prisma }) {
         }
         throw err;
       }
+      // Then everyone's refund starts (16b, designs: "Cancel and refund everyone… 4 refunds
+      // started"). Each on its own: one that fails is recorded and shows under Alerts, and the
+      // others still go. Outside the cancellation's transaction, because it calls the provider.
+      let refundsStarted = 0;
+      let refundsFailed = 0;
+      if (provider) {
+        const owed = await prisma.booking.findMany({
+          where: {
+            operatorId,
+            departureId: req.params.id,
+            status: 'cancelled',
+            refundDueKobo: { gt: 0 },
+          },
+          select: { id: true, refundDueKobo: true },
+        });
+        for (const b of owed) {
+          try {
+            await requestBookingRefund(prisma, provider, {
+              operatorId,
+              bookingId: b.id,
+              amountKobo: b.refundDueKobo,
+              reason: `Departure cancelled: ${req.body.reason}`,
+              actor: { type: 'user', userId },
+            });
+            refundsStarted++;
+          } catch {
+            refundsFailed++;
+          }
+        }
+      }
       const departure = await prisma.departure.findUniqueOrThrow({ where: { id: req.params.id } });
-      res.json({ ...summary, departure: serializeDeparture(departure, timeZone) });
+      res.json({
+        ...summary,
+        refundsStarted,
+        refundsFailed,
+        departure: serializeDeparture(departure, timeZone),
+      });
     },
   );
 

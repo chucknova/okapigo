@@ -49,7 +49,9 @@ export function refundLine(refund, amountPaidKobo, { initiatedBy = null, reason 
   // The business called the trip off (a whole departure, stage 15a; or staff for this booking):
   // always a full refund (the policy's "if the operator cancels" rule), and why, if given.
   if (initiatedBy === 'operator') {
-    const sorry = `We’re sorry: we had to cancel this trip${reason ? ` (${reason.trim().replace(/[.\s]+$/, '')})` : ''}.`;
+    // "…because of the weather on the lagoon." (16b: the reason is written to follow "because of").
+    const why = reason ? reason.trim().replace(/[.\s]+$/, '') : '';
+    const sorry = `We’re sorry: we had to cancel this trip${why ? ` because of ${why.charAt(0).toLowerCase()}${why.slice(1)}` : ''}.`;
     if (!refund || amountPaidKobo === 0)
       return `${sorry} Nothing was paid, so there’s nothing to refund.`;
     return `${sorry} You’ll get a full refund of ${formatNaira(refund.refundKobo)}, back to the card or account you paid with. We’ll message you when it’s sent.`;

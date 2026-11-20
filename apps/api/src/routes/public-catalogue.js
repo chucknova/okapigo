@@ -24,7 +24,7 @@ import { originApproved } from '@okapigo/shared/schemas/website';
 import { STYLES } from '@okapigo/shared/tokens';
 import { Router } from 'express';
 import { z } from 'zod';
-import { listAvailability } from '@okapigo/db';
+import { listAvailability, seatsLeft } from '@okapigo/db';
 import { localDate, localTime } from '@okapigo/shared/time';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
@@ -49,7 +49,8 @@ const CACHE_NEVER = 'no-store';
  * @param {string} timeZone
  */
 function publicDeparture(d, timeZone) {
-  const seatsAvailable = Math.max(0, d.capacity - d.seatsSold - d.seatsHeld);
+  // Never more than its van or boat holds (16b).
+  const seatsAvailable = seatsLeft(/** @type {any} */ (d));
   return {
     id: d.id, // the checkout sends this back when it holds seats (stage 11b)
     startsAt: d.startsAt,

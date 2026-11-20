@@ -291,7 +291,11 @@ export function cancelDeparture(
     const looseHolds = await tx.hold.findMany({ where: { departureId, status: 'active' } });
     for (const hold of looseHolds) await releaseHoldInTx(tx, hold.id, { reason: 'released', now });
 
-    await tx.departure.update({ where: { id: departureId }, data: { status: 'cancelled' } });
+    // The reason is kept, as guests were told it (the schedule shows "Cancelled · weather").
+    await tx.departure.update({
+      where: { id: departureId },
+      data: { status: 'cancelled', cancelReason: reason },
+    });
     // Telling every guest (WhatsApp/email) arrives with automated messages (OPS-11, session 14).
     return { bookingsCancelled: bookings.length, holdsReleased: looseHolds.length, refundsDueKobo };
   }, TX_OPTIONS);

@@ -19,6 +19,7 @@
  *
  * Only FUTURE departures are touched. The past is history.
  */
+import { seatsLeft } from './seats.js';
 import { expandSchedule } from '@okapigo/shared/schedule';
 import { addDays, dateToString, localDate, zonedTimeToUtc } from '@okapigo/shared/time';
 
@@ -166,10 +167,11 @@ export async function listAvailability(
       startsAt: { gte: start > now ? start : now, lt: end },
     },
     orderBy: { startsAt: 'asc' },
+    include: { resource: true }, // its van or boat may hold fewer (16b)
   });
   return departures.map((d) => ({
     ...d,
-    seatsAvailable: d.capacity - d.seatsSold - d.seatsHeld,
+    seatsAvailable: seatsLeft(d),
   }));
 }
 

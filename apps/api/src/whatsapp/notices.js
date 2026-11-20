@@ -18,7 +18,7 @@
  *
  * The API runs it every few seconds (server.js); tests call sendChatNotices() directly.
  */
-import { guestToken } from '@okapigo/db';
+import { guestToken, seatsLeft } from '@okapigo/db';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatLocalDay } from '@okapigo/shared/preview';
 import { localDate } from '@okapigo/shared/time';
@@ -219,9 +219,12 @@ async function notify(deps, booking, kind, key, now) {
 
 /** Are there still enough seats on that date for the same people? @param {any} prisma @param {any} booking @param {Date} now */
 async function stillFree(prisma, booking, now) {
-  const d = await prisma.departure.findUnique({ where: { id: booking.departureId } });
+  const d = await prisma.departure.findUnique({
+    where: { id: booking.departureId },
+    include: { resource: true },
+  });
   if (!d || d.status !== 'scheduled' || d.startsAt <= now) return false;
-  return d.capacity - d.seatsSold - d.seatsHeld >= booking.travellers.length;
+  return seatsLeft(d) >= booking.travellers.length;
 }
 
 /**

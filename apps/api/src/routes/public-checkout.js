@@ -36,6 +36,7 @@ import {
   requestBookingRefund,
   createGuestRequest,
   checkPayment,
+  seatsLeft,
 } from '@okapigo/db';
 import { localDate, localTime } from '@okapigo/shared/time';
 import { balanceDueDate } from '@okapigo/shared/deposits';
@@ -321,14 +322,12 @@ export function publicCheckoutRouter({
       if (req.body.departureId) {
         const departure = await prisma.departure.findFirst({
           where: { id: req.body.departureId, productId: tour.id, status: 'scheduled' },
+          include: { resource: true }, // its van or boat may hold fewer (16b)
         });
         if (!departure) throw new HttpError(404, 'NOT_FOUND', 'Departure not found.');
         const used = await addOnUsage(prisma, departure.id);
         availability = {
-          seatsAvailable: Math.max(
-            0,
-            departure.capacity - departure.seatsSold - departure.seatsHeld,
-          ),
+          seatsAvailable: seatsLeft(departure),
           addOns: tour.addOns.map((a) => ({
             id: a.id,
             // null = unlimited

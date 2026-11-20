@@ -28,6 +28,7 @@ import {
   cancelPaymentLink,
   addOnUsage,
   BookingError,
+  seatsLeft,
 } from '@okapigo/db';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatLocalDay } from '@okapigo/shared/preview';
@@ -617,7 +618,10 @@ export async function reask(ctx, state) {
       return { state, replies: [say.email(firstName(state.leadName ?? ''))] };
     case 'seats_short': {
       const departure = state.departureId
-        ? await ctx.deps.prisma.departure.findUnique({ where: { id: state.departureId } })
+        ? await ctx.deps.prisma.departure.findUnique({
+            where: { id: state.departureId },
+            include: { resource: true },
+          })
         : null;
       return {
         state,
@@ -705,7 +709,7 @@ async function dateRows(ctx, state) {
     .map((d) => ({
       id: d.id,
       startsAt: d.startsAt,
-      left: Math.max(0, d.capacity - d.seatsSold - d.seatsHeld),
+      left: seatsLeft(d),
     }));
   const page = state.datePage ?? 0;
   const slice = dates.slice(page * DATES_PER_PAGE, (page + 1) * DATES_PER_PAGE);
@@ -754,7 +758,7 @@ async function askAdults(ctx, tour, state) {
     : null;
   if (!departure) return showDates(ctx, { ...state, datePage: 0 });
   const tz = ctx.operator.timeZone;
-  const left = Math.max(0, departure.capacity - departure.seatsSold - departure.seatsHeld);
+  const left = seatsLeft(departure);
   return {
     state: { ...state, step: 'adults' },
     replies: [

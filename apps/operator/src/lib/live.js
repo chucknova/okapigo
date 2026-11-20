@@ -159,3 +159,14 @@ export function useLive(path) {
         : Promise.resolve(),
   };
 }
+
+/**
+ * After a change (assigning a guide, cancelling…): load again every path already loaded, so
+ * the schedule, the departure and Today all agree. @param {{ token: string | null }} o
+ */
+export function reloadAll({ token }) {
+  const online = () => globalThis.navigator?.onLine ?? true;
+  return Promise.all(
+    [...cache.keys()].filter(Boolean).map((path) => load(path, { token, online })),
+  );
+}

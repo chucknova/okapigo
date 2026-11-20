@@ -258,6 +258,9 @@ model Product {
   // A short word or two about HOW the tour runs: "Walking", "Boat", "Van, pickup" (stage 12b,
   // shown on tour cards and pages). Optional.
   activityLabel   String? @map("activity_label")
+  // How it travels (16b, decided 2026-11-20): on_foot · van · boat. Only that kind of
+  // vehicle can be assigned ("Boat · not for road trips"); on foot needs none.
+  transport       String  @default("on_foot")
   // A short name for tight spaces, like WhatsApp's 24-character list rows ("Heritage Walk").
   // Optional: the title is used when empty (stage 13c).
   shortTitle      String? @map("short_title")
@@ -426,6 +429,8 @@ model Departure {
   seatsHeld  Int      @default(0) @map("seats_held")
   // "scheduled" = running; "cancelled" = called off (e.g. weather at Tarkwa Bay).
   status     String   @default("scheduled")
+  // Why it was called off, as guests were told ("the weather on the lagoon"; 16b).
+  cancelReason String? @map("cancel_reason")
   // Who leads it, and the van or boat (OPS-01, stage 15a). Neither can be on two departures
   // whose times overlap: an exclusion constraint in the migration refuses it, even when two
   // managers assign at the same moment.

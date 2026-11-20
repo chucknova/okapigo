@@ -29,6 +29,7 @@
 
 import { SEAT_CONSUMING_STATUSES } from '@okapigo/shared/booking-status';
 import { transitionBookingInTx } from './booking-lifecycle.js';
+import { seatsOf } from './seats.js';
 
 /** A hold that can't be placed, with a machine-readable code (the API sends 409/404). */
 export class HoldError extends Error {
@@ -83,12 +84,16 @@ export async function createHoldInTx(tx, input) {
     // 1. LOCK the departure row. Concurrent holds for this departure wait here.
     //    ($queryRaw because Prisma's query builder has no "FOR UPDATE". The ${…} values are
     //    sent as parameters, never pasted into the SQL, so this is safe from SQL injection.)
-    /** @type {Array<{ id: string, product_id: string, capacity: number, seats_sold: number, seats_held: number, status: string, starts_at: Date }>} */
+    //    With its van or boat's seats (16b, decided: "sales stop at the van's seat count").
+    //    Assigning a vehicle locks this same row, so the two can't cross.
+    /** @type {Array<{ id: string, product_id: string, capacity: number, seats_sold: number, seats_held: number, status: string, starts_at: Date, resource_seats: number | null }>} */
     const rows = await tx.$queryRaw`
-      SELECT id, product_id, capacity, seats_sold, seats_held, status, starts_at
-        FROM departures
-       WHERE id = ${input.departureId}::uuid AND operator_id = ${input.operatorId}::uuid
-         FOR UPDATE`;
+      SELECT d.id, d.product_id, d.capacity, d.seats_sold, d.seats_held, d.status, d.starts_at,
+             r.seats AS resource_seats
+        FROM departures d
+        LEFT JOIN resources r ON r.id = d.resource_id
+       WHERE d.id = ${input.departureId}::uuid AND d.operator_id = ${input.operatorId}::uuid
+         FOR UPDATE OF d`;
     const departure = rows[0];
     if (!departure) throw new HoldError('DEPARTURE_NOT_FOUND', 'Departure not found.');
     if (departure.status !== 'scheduled') {
@@ -99,7 +104,13 @@ export async function createHoldInTx(tx, input) {
     }
 
     // 2. CHECK seats, reading the numbers AFTER getting the lock, so they're current.
-    const available = departure.capacity - departure.seats_sold - departure.seats_held;
+    const available =
+      seatsOf({
+        capacity: departure.capacity,
+        resource: departure.resource_seats === null ? null : { seats: departure.resource_seats },
+      }) -
+      departure.seats_sold -
+      departure.seats_held;
     if (available < input.seats) {
       throw new HoldError(
         'SOLD_OUT',

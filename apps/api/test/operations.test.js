@@ -144,7 +144,7 @@ describe('vans and the boat (decided: a name and its seats)', () => {
 });
 
 describe('assigning a guide and a van (OPS-01: never two places at once)', () => {
-  it('the manager assigns; a clash is refused with where they are; a small van is a warning', async () => {
+  it('the manager assigns; a clash is refused with where they are; the wrong or a small vehicle is refused', async () => {
     const { manager, asKemi, kemi, operator, departureOf } = await setup();
     const badagry = await departureOf('badagry-heritage-day-trip', 2, true); // Sat 07:00–17:00
     const walk = await ctx.prisma.departure.findFirstOrThrow({
@@ -180,23 +180,59 @@ describe('assigning a guide and a van (OPS-01: never two places at once)', () =>
       code: 'GUIDE_BUSY',
       message: 'Kemi Adeyemi is on the Badagry Heritage Day Trip until 17:00.',
     });
+    // Lekki goes by van too, at 08:00 that Saturday: Van 1 is on the Badagry trip then.
+    const lekkiProduct = await ctx.prisma.product.findFirstOrThrow({
+      where: { operatorId: operator.id, slug: 'lekki-nature-and-craft' },
+    });
+    const lekki = await ctx.prisma.departure.findFirstOrThrow({
+      where: {
+        productId: lekkiProduct.id,
+        startsAt: new Date(badagry.startsAt.getTime() + 3_600_000),
+      },
+    });
     const vanBusy = await manager
-      .put(`/api/departures/${walk.id}/assignment`)
+      .put(`/api/departures/${lekki.id}/assignment`)
       .send({ resourceId: van1.id });
     expect(vanBusy.body.error).toMatchObject({
       code: 'RESOURCE_BUSY',
       message: 'Van 1 is on the Badagry Heritage Day Trip until 17:00.',
     });
 
-    // The boat seats 12; with 13 guests booked it's allowed, with a warning.
+    // Only the tour's kind of vehicle (16b): the walk is on foot; Lekki doesn't go by boat.
     const boat = await ctx.prisma.resource.findFirstOrThrow({
       where: { operatorId: operator.id, name: 'Boat' },
     });
-    await ctx.prisma.departure.update({ where: { id: walk.id }, data: { seatsSold: 13 } });
-    const small = await manager
+    const onFoot = await manager
       .put(`/api/departures/${walk.id}/assignment`)
       .send({ resourceId: boat.id });
-    expect(small.body.warnings).toEqual(['RESOURCE_TOO_SMALL']);
+    expect(onFoot.body.error).toMatchObject({
+      code: 'WRONG_TRANSPORT',
+      message: 'The Heritage Walk is on foot: it needs no van or boat.',
+    });
+    const byBoat = await manager
+      .put(`/api/departures/${lekki.id}/assignment`)
+      .send({ resourceId: boat.id });
+    expect(byBoat.body.error).toMatchObject({
+      code: 'WRONG_TRANSPORT',
+      message: 'Boat is a boat: the Lekki Nature & Craft goes by van.',
+    });
+
+    // Too small for who's booked: refused (16b, decided), saying what to do.
+    const van2 = await ctx.prisma.resource.findFirstOrThrow({
+      where: { operatorId: operator.id, name: 'Van 2' },
+    });
+    // (As in the design: Van 2 seats 10, and 12 are booked.)
+    await ctx.prisma.resource.update({ where: { id: van2.id }, data: { seats: 10 } });
+    await ctx.prisma.departure.update({ where: { id: lekki.id }, data: { seatsSold: 12 } });
+    const small = await manager
+      .put(`/api/departures/${lekki.id}/assignment`)
+      .send({ resourceId: van2.id });
+    expect(small.status).toBe(409);
+    expect(small.body.error).toMatchObject({
+      code: 'RESOURCE_TOO_SMALL',
+      message:
+        'Van 2 has 10 seats; 12 are booked. Choose a bigger one, or move 2 guests to another date first.',
+    });
 
     // The other way round: the walk first (09:00–12:00), then the Badagry trip that started
     // earlier (07:00) but runs through it: still a clash.
@@ -650,7 +686,7 @@ describe('a departure called off (weather)', () => {
     const b = await ctx.prisma.booking.findUniqueOrThrow({ where: { id } });
     expect(/** @type {any} */ (c.messages.at(-1)?.body)?.text).toMatch(
       new RegExp(
-        `is cancelled\\.\\n\\nWe’re sorry: we had to cancel this trip \\(Bad weather at sea\\)\\. You’ll get a full refund of ₦${(b.amountPaidKobo / 100).toLocaleString('en-NG')}, back to the card or account you paid with\\.`,
+        `is cancelled\\.\\n\\nWe’re sorry: we had to cancel this trip because of bad weather at sea\\. You’ll get a full refund of ₦${(b.amountPaidKobo / 100).toLocaleString('en-NG')}, back to the card or account you paid with\\.`,
       ),
     );
   });

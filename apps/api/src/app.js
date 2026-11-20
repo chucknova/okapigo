@@ -40,6 +40,7 @@ import { messageTemplatesRouter } from './routes/message-templates.js';
 import { operationsRouter } from './routes/operations.js';
 import { syncRouter } from './routes/sync.js';
 import { todayRouter } from './routes/today.js';
+import { boardRouter } from './routes/board.js';
 import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
@@ -268,7 +269,7 @@ export function createApp({
   api.use(rolesRouter({ prisma }));
   api.use(staffRouter({ prisma, sessions }));
   api.use(productsRouter({ prisma }));
-  api.use(schedulesRouter({ prisma }));
+  api.use(schedulesRouter({ prisma, provider }));
   api.use(quotesRouter({ quotes }));
   api.use(holdsRouter({ prisma, quotes, jobs }));
   api.use(bookingsRouter({ prisma, quotes, jobs }));
@@ -284,6 +285,7 @@ export function createApp({
   api.use(operationsRouter({ prisma, authSecret })); // resources, manifests, check-in (15a)
   api.use(syncRouter({ prisma, authSecret, webPublicUrl })); // the operator app offline: package, outbox (15b)
   api.use(todayRouter({ prisma })); // the manager's Today (16a)
+  api.use(boardRouter({ prisma })); // the schedule and a departure's page (16b)
   api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).

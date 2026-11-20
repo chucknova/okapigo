@@ -280,3 +280,14 @@ brief didn't have. Decided:
 | 16c   | the bookings desk (O8): every status, booking actions, refunds, payment links, confirming a guide's cash                           |
 | 16d   | the inbox (O9): chats, requests, alerts                                                                                            |
 | 16e   | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                                   |
+
+## Decided with stage 16b (2026-11-20)
+
+- **Assigning a guide:** they see it on their phone next time it syncs; no message for now
+  (messaging guides is in the parking lot).
+- **A van or boat too small for who's booked is refused**, as designed ("Choose a bigger one, or
+  move 2 guests to another date first"). Once one is assigned, **sales stop at its seats**.
+- **Each tour says how it travels:** on foot, van or boat. Only that kind can be assigned;
+  editing it comes with Settings (16e).
+- **Cancelling a departure starts every paid booking's refund**, and keeps the reason guests
+  were told.

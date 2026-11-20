@@ -131,14 +131,15 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 15d             | journey 6 end to end, network off                                                                                                                                     | `5bbb9ea`           | 15d            |
 | —               | tests get their own databases and queues                                                                                                                              | `21ad517`           | test-isolation |
 | 16a             | manager's shell (tabs/sidebar by role), staff states, manager's Today                                                                                                 | `07b04c9`           | 16a            |
+| 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                         | (this commit)       | 16b            |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
 
 | Next    | What                                                                                           | PRD                       |
 | ------- | ---------------------------------------------------------------------------------------------- | ------------------------- |
-| **16b** | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                 | OPS-01                    |
-| 16c     | bookings desk (O8): every status, actions, refunds, payment links, **confirming guides' cash** | —                         |
+| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                 | OPS-01                    |
+| **16c** | bookings desk (O8): every status, actions, refunds, payment links, **confirming guides' cash** | —                         |
 | 16d     | inbox (O9): chats (take over), requests, alerts                                                | —                         |
 | 16e     | settings (O10): website, embed, messages, WhatsApp, staff, tours                               | —                         |
 | OCTO    | OCTO API + contract tests, channel manager, mock OTA (journey 3)                               | DST-01–03                 |
@@ -185,17 +186,23 @@ GitHub + Actions CI from session 1; path-based links (`/<operator>`, `/<operator
 (16a–16e, see §5); the user had me delete 44 leftover test businesses from the dev database
 (only Ìrìn remains).
 
+**With 16b (2026-11-20):** a guide assigned sees it on their phone (no message yet: parking
+lot); a van or boat **too small is refused**, and once assigned **sales stop at its seats**
+(`seatsOf` = the smaller of the tour's capacity and the van's seats); **each tour has a
+transport** (on foot, van, boat) and only that kind can be assigned; cancelling a departure
+**starts every paid booking's refund** and keeps the reason.
+
 ## 7. Where we are
 
-- **Last done:** 16a, committed `07b04c9`. The user has pushed everything up to the test
-  isolation commit (`21ad517`); 16a's push not yet confirmed.
-- **Next:** **16b**: Schedule (O6) and a departure (O7). Designs: "O6 Schedule — desktop/phone",
-  "O7 Departure — desktop/phone and states" (picking a guide: busy ones say why; the van too
-  small; cancelling for weather). API already there: assignment (15a), cancel departure (9),
-  schedules (5). The manager's Today links to `/departures/:id` (placeholder for the office until 16b).
+- **Last done:** 16b, the schedule and a departure's page (commit: see §9). 16a's push
+  confirmed by the user.
+- **Next:** **16c**: the bookings desk (O8): every status, booking actions, refunds, payment
+  links, **confirming a guide's cash**. Designs: "O8 Bookings".
 - **Kemi** (guide) is assigned to two of Ìrìn's departures on Fri 20 Nov (Heritage Walk 09:00,
   Street Food Crawl 18:30) in the dev database, from my 15c checks.
-- Your dev database has **no vans** (seeded before 15a); `pnpm db:reset` adds them.
+- Your dev database has **no vans or boats** (seeded before 15a): the departure page says "No
+  vans or boats yet". `pnpm db:reset` adds them. Its tours have no short names either, so cards
+  show the long titles.
 
 ## 8. Known traps and how they're handled
 
@@ -216,11 +223,16 @@ GitHub + Actions CI from session 1; path-based links (`/<operator>`, `/<operator
   foreign keys are `DEFERRABLE INITIALLY DEFERRED` (so deleting a business works).
 - **Every tour has a departure every scheduled day**: "today" lists only departures with guests
   or a guide.
+- **`.wide-only` / `.narrow-only` vs a screen's own `display`:** a later `display: flex` beat
+  `display: none`. The helpers now have the last word (`!important`, end of `app.css`).
+- **What a departure can sell** is `seatsOf(d)` (tour capacity or the van's seats, whichever is
+  smaller), never `capacity` alone: include the `resource` when reading departures.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-20 · 16b schedule (O6) and a departure (O7): transport, sales capped at the van, cancel with refunds.
 - 2026-11-20 · this log created.
 - 2026-11-20 · 16a manager's shell and Today (`07b04c9`); 44 leftover test businesses deleted from dev.
 - 2026-11-20 · tests isolated (`21ad517`).
