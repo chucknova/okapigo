@@ -137,7 +137,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | `105242e`           | 16c-3          |
 | 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | `a18ebab`           | 16d-1          |
 | 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                            | `1daa498`           | 16d-2          |
-| 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                     | (this commit)       | 16d-3          |
+| 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                     | `0506dbf`           | 16d-3          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -231,7 +231,7 @@ record who assigned the guide.
 
 ## 7. Where we are
 
-- **Last done:** 16d-3, the inbox's alerts, which finishes the inbox (commit: see §9). 16d-2
+- **Last done:** 16d-3, the inbox's alerts, which finishes the inbox, committed `0506dbf`. 16d-2
   pushed.
 - **Next:** **16e**, settings (O10; designs: "O10 Settings — Website", "Embed on your site",
   "Messages", "WhatsApp and staff", "phone", "Settings — Tours"): the website, the widget's
