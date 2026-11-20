@@ -11,11 +11,15 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createPrismaClient, seedDemoOperator } from '@okapigo/db';
+import { assertIsolated } from '@okapigo/db/testing';
 
 export default async function globalSetup() {
   const rootEnv = new URL('../../../.env', import.meta.url);
   if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
+  // The browser tests' own database (playwright.config.js called isolate('e2e'); made and
+  // migrated by e2e/prepare-database.js before the API started). Never your dev data.
+  assertIsolated();
   const prisma = createPrismaClient(process.env.DATABASE_URL);
   const slug = `test-e2e-${randomUUID().slice(0, 8)}`;
   const operator = await seedDemoOperator(prisma, { slug });

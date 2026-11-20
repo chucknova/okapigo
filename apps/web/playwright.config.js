@@ -11,6 +11,12 @@
  * throwaway copy of Ìrìn (e2e/global-setup.js) and deletes it afterwards.
  */
 import { defineConfig, devices } from '@playwright/test';
+import { isolate } from '@okapigo/db/testing';
+
+// The browser tests' own database and Redis (okapigo_e2e, Redis database 2): not your dev
+// ones (your `pnpm dev` used to answer the tests' WhatsApp tickets, 15c-4), and not the unit
+// tests' either. Everything started from here inherits them: the API, the worker, the tests.
+const services = isolate('e2e');
 
 export const E2E_PORT = 4100;
 const base = `http://localhost:${E2E_PORT}`;
@@ -46,6 +52,8 @@ export default defineConfig({
         // button, and must not depend on Paystack's servers or this connection. (Real values
         // here win over the .env file.)
         PAYMENT_PROVIDER: 'simulator',
+        DATABASE_URL: services.databaseUrl,
+        REDIS_URL: services.redisUrl,
         // Private job queues (the worker in e2e/global-setup.js uses the same), so a `pnpm dev`
         // worker running alongside can't take these jobs.
         JOBS_PREFIX: 'okg-e2e',

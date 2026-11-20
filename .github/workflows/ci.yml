@@ -67,7 +67,8 @@ jobs:
         run: pnpm format:check
 
       # Build the database from the committed migrations, exactly as the demo host will.
-      # `migrate deploy` only applies pending migrations; it never drops data.
+      # `migrate deploy` only applies pending migrations; it never drops data. (The tests then
+      # make and migrate their OWN databases, okapigo_test and okapigo_e2e: packages/db/src/testing.js.)
       - name: Apply database migrations
         run: pnpm --filter @okapigo/db migrate:deploy
 

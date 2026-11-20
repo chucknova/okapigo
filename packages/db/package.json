@@ -5,7 +5,8 @@
   "description": "Prisma schema, migrations, seed script and the shared database client",
   "type": "module",
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./testing": "./src/testing.js"
   },
   "scripts": {
     "generate": "prisma generate",

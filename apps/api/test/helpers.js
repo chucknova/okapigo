@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { pino } from 'pino';
 import { createPrismaClient, seedDemoOperator } from '@okapigo/db';
+import { assertIsolated } from '@okapigo/db/testing';
 import { createApp } from '../src/app.js';
 import { createSessionService } from '../src/auth/session-service.js';
 import { createSimulatorProvider } from '@okapigo/payments';
@@ -120,6 +121,8 @@ export function buildApp(overrides = {}) {
  *   afterEach(() => ctx.cleanup());
  */
 export function createTestContext() {
+  // Never your dev data: tests delete what they make (see @okapigo/db/testing).
+  assertIsolated();
   const prisma = createPrismaClient(process.env.DATABASE_URL);
   const sender = createCapturingSender();
   const jobs = createFakeJobs();

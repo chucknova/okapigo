@@ -6,16 +6,19 @@
  * runs, and those operators are left behind. Over time they pile up and slow down anything
  * that scans every operator (like the nightly schedule job).
  *
- * So each run first removes test operators older than 10 minutes. The age limit means a
+ * First, the tests' OWN database (okapigo_test, never your dev one: see src/testing.js) is
+ * created if it's missing and brought up to date with the migrations. Then each run removes
+ * test operators older than 10 minutes. The age limit means a
  * run never deletes operators that ANOTHER package's tests (running in parallel) are
  * using right now. The pattern only matches test slugs, never real data.
  */
-import { existsSync } from 'node:fs';
 import { createPrismaClient } from '../src/client.js';
+import { assertIsolated, prepareDatabase } from '../src/testing.js';
 
 export default async function setup() {
-  const rootEnv = new URL('../../../.env', import.meta.url);
-  if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
+  // The tests' own database (the config called isolate('test')): made and migrated if needed.
+  assertIsolated();
+  prepareDatabase();
 
   const prisma = createPrismaClient(/** @type {string} */ (process.env.DATABASE_URL));
   try {
