@@ -22,6 +22,7 @@ import { useEngine, useSync } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
 import { formatNaira } from '@okapigo/shared/money';
 import { nairaField } from '../lib/money.js';
+import { request } from '../lib/api.js';
 import { localDate } from '@okapigo/shared/time';
 import {
   FILTERS,
@@ -30,6 +31,10 @@ import {
   canRetryByCard,
   cancelLabel,
   cancelledNote,
+  changeBody,
+  changedNote,
+  nextToRemove,
+  saveChangeLabel,
   linkSentText,
   actionButtons,
   chipText,
@@ -185,7 +190,9 @@ function BookingPane({ id, tz }) {
 function BookingPage({ b }) {
   const engine = useEngine();
   const [sheet, setSheet] = useState(
-    /** @type {'note' | 'noShow' | 'link' | 'cancel' | 'cashAmount' | 'transfer' | null} */ (null),
+    /** @type {'note' | 'noShow' | 'link' | 'cancel' | 'cashAmount' | 'transfer' | 'travellers' | null} */ (
+      null
+    ),
   );
   const [done, setDone] = useState(/** @type {string | null} */ (null));
   const [error, setError] = useState(/** @type {string | null} */ (null));
@@ -214,6 +221,7 @@ function BookingPage({ b }) {
     noShow: 'noShow',
     paymentLink: 'link',
     cancel: 'cancel',
+    changeTravellers: 'travellers',
   });
   const refundBack = () =>
     change(
@@ -486,6 +494,18 @@ function BookingPage({ b }) {
               `/api/bookings/${b.id}/refunds/bank-transfer`,
               { method: 'POST', body },
               `Refund of ${formatNaira(body.amountKobo)} recorded. The guest is told it was sent.`,
+            )
+          }
+        />
+      )}
+      {sheet === 'travellers' && (
+        <TravellersSheet
+          b={b}
+          error={error}
+          onClose={() => setSheet(null)}
+          onSave={(body) =>
+            change(`/api/bookings/${b.id}/travellers/change`, { method: 'POST', body }, (r) =>
+              changedNote(r),
             )
           }
         />
@@ -952,6 +972,178 @@ function TransferSheet({ b, error, onClose, onSave }) {
         <p className="small muted">
           Adds the refund to the books and sends the guest the “Refund sent” message. The reference
           is required.
+        </p>
+      </form>
+    </Sheet>
+  );
+}
+
+/**
+ * "Travellers · Yemi Ojo" (designs: Booking actions): − and + per kind of traveller, a name
+ * and age for each one added; the server works out the new total, the extra or the refund,
+ * and the seats, as you go (POST …/travellers/preview, nothing saved).
+ * @param {{ b: any, error: string | null, onClose: () => void, onSave: (body: any) => Promise<boolean> }} props
+ */
+function TravellersSheet({ b, error, onClose, onSave }) {
+  const engine = useEngine();
+  const [removed, setRemoved] = useState(/** @type {string[]} */ ([]));
+  const [added, setAdded] = useState(
+    /** @type {Array<{ categoryKey: string, name: string, age: string }>} */ ([]),
+  );
+  const [plan, setPlan] = useState(/** @type {any} */ (null));
+  const [problem, setProblem] = useState(/** @type {string | null} */ (null));
+  const [busy, setBusy] = useState(false);
+  const body = changeBody(removed, added);
+  const key = JSON.stringify(body);
+  const settled = useSettled(key);
+
+  // Ask the server what this change would do, once typing pauses.
+  useEffect(() => {
+    let live = true;
+    const token = engine.getState().session?.token ?? null;
+    request(`/api/bookings/${b.id}/travellers/preview`, {
+      method: 'POST',
+      body: JSON.parse(settled),
+      token,
+    }).then(
+      (r) => {
+        if (!live) return;
+        setPlan(r.body.plan);
+        setProblem(null);
+      },
+      (e) => live && setProblem(actionError(e)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [settled, b.id, engine]);
+
+  const ready = plan && !problem && plan.changed && plan.seats.fits && settled === key;
+  const kinds = plan?.categories ?? [];
+  return (
+    <Sheet title={`Travellers · ${b.lead}`} onClose={onClose}>
+      <form
+        className="dialog"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!ready) return;
+          setBusy(true);
+          await onSave({ ...body, refundKobo: plan.refund?.policyKobo ?? 0, sendLink: true });
+          setBusy(false);
+        }}
+      >
+        <h2 className="h-lg">Travellers · {b.lead}</h2>
+        <p className="muted">{b.sub}</p>
+        {kinds.map((/** @type {any} */ c) => {
+          const less = nextToRemove(b.travellers, removed, added, c.key);
+          const plural = c.name.replace(/\s*\(.*\)\s*$/, '');
+          return (
+            <div key={c.key} className="row-between counter-row">
+              <span>
+                <strong>{c.name}</strong>
+                <span className="block small muted">
+                  {formatNaira(c.priceKobo)}
+                  {c.booked ? '' : ' (today’s price)'}
+                </span>
+              </span>
+              <span className="counter">
+                <button
+                  type="button"
+                  className="square-btn"
+                  aria-label={`Fewer: ${plural}`}
+                  disabled={!less}
+                  onClick={() => {
+                    if (!less) return;
+                    if ('added' in less) setAdded(added.filter((_, i) => i !== less.added));
+                    else setRemoved([...removed, less.id]);
+                  }}
+                >
+                  −
+                </button>
+                <strong aria-live="polite">{c.count}</strong>
+                <button
+                  type="button"
+                  className="square-btn"
+                  aria-label={`More: ${plural}`}
+                  onClick={() => setAdded([...added, { categoryKey: c.key, name: '', age: '' }])}
+                >
+                  +
+                </button>
+              </span>
+            </div>
+          );
+        })}
+        {added.map((a, i) => {
+          const c = kinds.find((/** @type {any} */ k) => k.key === a.categoryKey);
+          const kind = (c?.name ?? a.categoryKey).replace(/\s*\(.*\)\s*$/, '');
+          const set = (/** @type {any} */ v) =>
+            setAdded(added.map((x, j) => (j === i ? { ...x, ...v } : x)));
+          return (
+            <div key={i} className="new-traveller">
+              <label className="field grow">
+                {kind}’s name
+                <input
+                  className="input"
+                  type="text"
+                  maxLength={200}
+                  value={a.name}
+                  onChange={(e) => set({ name: e.target.value })}
+                />
+              </label>
+              {c && c.maxAge !== null && (
+                <label className="field age-field">
+                  Age
+                  <input
+                    className="input"
+                    inputMode="numeric"
+                    maxLength={3}
+                    value={a.age}
+                    onChange={(e) => set({ age: e.target.value })}
+                  />
+                </label>
+              )}
+            </div>
+          );
+        })}
+        {plan && plan.changed && (
+          <div className="change-sum">
+            <div className="row-between">
+              <span>New total</span>
+              <strong>{formatNaira(plan.newTotalKobo)}</strong>
+            </div>
+            {plan.extraKobo > 0 && (
+              <div className="row-between">
+                <span>Extra to pay</span>
+                <span>{formatNaira(plan.extraKobo)}</span>
+              </div>
+            )}
+            {plan.refund && (
+              <div className="row-between">
+                <span>Refund (policy)</span>
+                <span>{plan.refund.policyText}</span>
+              </div>
+            )}
+            <div className={`small ${plan.seats.fits ? 'muted' : 'tone--urgent strong'}`}>
+              Seats: {plan.seats.text}
+            </div>
+          </div>
+        )}
+        {problem && (
+          <p role="alert" className="field-error">
+            {problem}
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="field-error">
+            {error}
+          </p>
+        )}
+        <button type="submit" className="btn btn--dark" disabled={busy || !ready}>
+          {busy ? 'Saving…' : plan ? saveChangeLabel(plan) : 'Save'}
+        </button>
+        <p className="small muted">
+          Fewer travellers: the refund the policy allows, which you confirm by saving. Names can be
+          fixed any time, free.
         </p>
       </form>
     </Sheet>

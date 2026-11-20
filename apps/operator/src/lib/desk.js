@@ -61,14 +61,14 @@ export function noMatch(filter, q) {
 }
 
 /**
- * The buttons under a booking, in the designs' order. `built: false` ones aren't shown yet
- * (changing travellers: 16c-3).
+ * The buttons under a booking, in the designs' order (all built, 16c-3: `built` stays so a
+ * future action can arrive switched off).
  * @param {Record<string, { enabled: boolean, why: string }>} a
  */
 export function actionButtons(a) {
   return [
     { key: 'paymentLink', label: 'Send payment link', built: true, ...a.paymentLink },
-    { key: 'changeTravellers', label: 'Change travellers', built: false, ...a.changeTravellers },
+    { key: 'changeTravellers', label: 'Change travellers', built: true, ...a.changeTravellers },
     { key: 'addNote', label: 'Add note', built: true, ...a.addNote },
     { key: 'noShow', label: 'Mark no-show', built: true, ...a.noShow },
     { key: 'cancel', label: 'Cancel booking', built: true, danger: true, ...a.cancel },
@@ -137,3 +137,63 @@ export function cancelledNote(refundKobo, start) {
  */
 export const canRetryByCard = (sums) =>
   sums.owedBackKobo > 0 && sums.byCardKobo >= sums.owedBackKobo;
+
+// --- Change travellers (16c-3) ------------------------------------------------------------
+
+/**
+ * Who "−" takes off for a category: the newest added one first; else the last booked one of
+ * that kind who isn't the lead and isn't checked in. Null: nobody can go.
+ * @param {any[]} travellers  the booking's (id, categoryKey, position, checkInStatus)
+ * @param {string[]} removed @param {Array<{ categoryKey: string }>} added @param {string} key
+ * @returns {{ added: number } | { id: string } | null}
+ */
+export function nextToRemove(travellers, removed, added, key) {
+  const lastAdded = added.map((a) => a.categoryKey).lastIndexOf(key);
+  if (lastAdded >= 0) return { added: lastAdded };
+  const t = [...travellers]
+    .filter(
+      (x) =>
+        x.categoryKey === key &&
+        x.position !== 1 &&
+        x.checkInStatus === 'pending' &&
+        !removed.includes(x.id),
+    )
+    .sort((a, b) => b.position - a.position)[0];
+  return t ? { id: t.id } : null;
+}
+
+/** "9" → 9, "" → null (an adult's age isn't asked). @param {string} typed */
+export const ageOf = (typed) => (/^\d{1,3}$/.test(typed.trim()) ? Number(typed.trim()) : null);
+
+/**
+ * What the server is sent. @param {string[]} removed
+ * @param {Array<{ categoryKey: string, name: string, age: string }>} added
+ */
+export const changeBody = (removed, added) => ({
+  remove: removed,
+  add: added.map((a) => ({ categoryKey: a.categoryKey, name: a.name.trim(), age: ageOf(a.age) })),
+});
+
+/** The save button: "Save and send a link for ₦35,000" / "Save and refund ₦25,000" / "Save". @param {any} plan */
+export const saveChangeLabel = (plan) =>
+  plan.extraKobo > 0 && plan.owedAfterKobo > 0
+    ? `Save and send a link for ${formatNaira(Math.min(plan.extraKobo, plan.owedAfterKobo))}`
+    : plan.refund?.policyKobo > 0
+      ? `Save and refund ${formatNaira(plan.refund.policyKobo)}`
+      : 'Save';
+
+/** After saving: what happened to the money. @param {{ link: any, refundStart: any }} r */
+export function changedNote({ link, refundStart }) {
+  const parts = ['Travellers changed.'];
+  if (link?.sent) parts.push(`A link for ${formatNaira(link.amountKobo)} was sent to the guest.`);
+  if (link && !link.sent)
+    parts.push(
+      `The link didn’t go: ${String(link.problem).replace(/\.$/, '')}. Send one from this page.`,
+    );
+  if (refundStart?.started) parts.push('The refund has started.');
+  if (refundStart && !refundStart.started)
+    parts.push(
+      `The refund didn’t start: ${String(refundStart.problem).replace(/\.$/, '')}. Send it from this page.`,
+    );
+  return parts.join(' ');
+}

@@ -13,6 +13,11 @@ import { createMemoryStore } from '../src/lib/store.js';
 import { request } from '../src/lib/api.js';
 import { clearLive } from '../src/lib/live.js';
 import {
+  ageOf,
+  changeBody,
+  changedNote,
+  nextToRemove,
+  saveChangeLabel,
   amountIn,
   canRetryByCard,
   cancelLabel,
@@ -95,6 +100,8 @@ const OWES = {
       id: 't1',
       name: 'Yemi Ojo',
       kind: 'Adult · lead',
+      categoryKey: 'adult',
+      position: 1,
       checkInStatus: 'present',
       state: { text: 'Present 07:05', tone: 'ok' },
     },
@@ -102,6 +109,8 @@ const OWES = {
       id: 't2',
       name: 'Guest 2',
       kind: 'Adult',
+      categoryKey: 'adult',
+      position: 2,
       checkInStatus: 'pending',
       state: { text: '', tone: 'muted' },
     },
@@ -245,6 +254,7 @@ describe('desk.js: the words', () => {
   it('the buttons built so far, in order; no-shows counted from who’s not checked in', () => {
     expect(actionButtons(OWES.actions).map((b) => b.label)).toEqual([
       'Send payment link',
+      'Change travellers',
       'Add note',
       'Mark no-show',
       'Cancel booking',
@@ -650,5 +660,192 @@ describe('the desk’s money (16c-2)', () => {
     await show('/bookings/b3');
     expect(await screen.findByRole('button', { name: 'I refunded by bank transfer' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Try the refund again' })).toBeNull();
+  });
+});
+
+describe('changing travellers (16c-3)', () => {
+  const T = [
+    { id: 'a1', categoryKey: 'adult', position: 1, checkInStatus: 'pending' },
+    { id: 'a2', categoryKey: 'adult', position: 2, checkInStatus: 'pending' },
+    { id: 'a3', categoryKey: 'adult', position: 3, checkInStatus: 'present' },
+    { id: 'c4', categoryKey: 'child', position: 4, checkInStatus: 'pending' },
+  ];
+  it('who "−" takes off: the newest added, else the last booked who can go', () => {
+    expect(
+      nextToRemove(T, [], [{ categoryKey: 'adult' }, { categoryKey: 'child' }], 'adult'),
+    ).toEqual({
+      added: 0,
+    });
+    // a3 is checked in, a1 is the lead: a2.
+    expect(nextToRemove(T, [], [], 'adult')).toEqual({ id: 'a2' });
+    expect(nextToRemove(T, ['a2'], [], 'adult')).toBeNull();
+    expect(nextToRemove(T, [], [], 'child')).toEqual({ id: 'c4' });
+    expect(nextToRemove(T, [], [], 'infant')).toBeNull();
+  });
+
+  it('what is sent, the save button, and what happened', () => {
+    expect(ageOf(' 9 ')).toBe(9);
+    expect(ageOf('')).toBeNull();
+    expect(ageOf('nine')).toBeNull();
+    // A baby is 0: an age, not "no age". A half-year isn't typed as an age.
+    expect(ageOf('0')).toBe(0);
+    expect(ageOf('2.5')).toBeNull();
+    expect(changeBody(['a2'], [{ categoryKey: 'child', name: ' Tobi ', age: '9' }])).toEqual({
+      remove: ['a2'],
+      add: [{ categoryKey: 'child', name: 'Tobi', age: 9 }],
+    });
+    expect(saveChangeLabel({ extraKobo: 3_500_000, owedAfterKobo: 8_050_000, refund: null })).toBe(
+      'Save and send a link for ₦35,000',
+    );
+    // Owing less than the extra (part was overpaid): the link is for what's owed.
+    expect(saveChangeLabel({ extraKobo: 3_500_000, owedAfterKobo: 1_000_000, refund: null })).toBe(
+      'Save and send a link for ₦10,000',
+    );
+    expect(
+      saveChangeLabel({ extraKobo: 0, owedAfterKobo: 0, refund: { policyKobo: 2_500_000 } }),
+    ).toBe('Save and refund ₦25,000');
+    expect(saveChangeLabel({ extraKobo: 0, owedAfterKobo: 0, refund: { policyKobo: 0 } })).toBe(
+      'Save',
+    );
+    expect(changedNote({ link: { sent: true, amountKobo: 3_500_000 }, refundStart: null })).toBe(
+      'Travellers changed. A link for ₦35,000 was sent to the guest.',
+    );
+    expect(
+      changedNote({
+        link: null,
+        refundStart: { started: false, problem: 'At most ₦0 can be refunded.' },
+      }),
+    ).toBe(
+      'Travellers changed. The refund didn’t start: At most ₦0 can be refunded. Send it from this page.',
+    );
+    expect(
+      changedNote({
+        link: { sent: false, problem: 'Nothing owed.' },
+        refundStart: { started: true },
+      }),
+    ).toBe(
+      'Travellers changed. The link didn’t go: Nothing owed. Send one from this page. The refund has started.',
+    );
+  });
+
+  const cats = (/** @type {number} */ adults, /** @type {number} */ children) => [
+    {
+      key: 'adult',
+      name: 'Adult (13+)',
+      priceKobo: 6_500_000,
+      booked: true,
+      minAge: 13,
+      maxAge: null,
+      count: adults,
+    },
+    {
+      key: 'child',
+      name: 'Child (3–12)',
+      priceKobo: 3_500_000,
+      booked: false,
+      minAge: 3,
+      maxAge: 12,
+      count: children,
+    },
+  ];
+  /** The server's preview, worked out roughly as it would. @param {any} body */
+  const plan = (body) => {
+    const adults =
+      2 -
+      body.remove.length +
+      body.add.filter((/** @type {any} */ a) => a.categoryKey === 'adult').length;
+    const children = body.add.filter((/** @type {any} */ a) => a.categoryKey === 'child').length;
+    const total = adults * 6_500_000 + children * 3_500_000;
+    return {
+      categories: cats(adults, children),
+      removing: body.remove,
+      oldTotalKobo: 13_000_000,
+      newTotalKobo: total,
+      extraKobo: Math.max(0, total - 13_000_000),
+      owedAfterKobo: Math.max(0, total - 13_000_000),
+      refund:
+        total < 13_000_000
+          ? {
+              overpaidKobo: 6_500_000,
+              policyKobo: 6_500_000,
+              policyText: '₦65,000 of ₦65,000 (full refund)',
+            }
+          : null,
+      seats: {
+        fits: true,
+        delta: body.add.length - body.remove.length,
+        text: 'fits (13 of 14 in Van 1)',
+      },
+      changed: body.add.length + body.remove.length > 0,
+    };
+  };
+
+  it('the sheet: + a child, an age needed, the new total; saved with a link', async () => {
+    const sent = fakeFetch({
+      'GET /api/desk/bookings?filter=today': () => [200, { list: list() }],
+      'GET /api/desk/bookings/b3': () => [200, { booking: { ...OWES, status: 'paid' } }],
+      'POST /api/bookings/b3/travellers/preview': (/** @type {any} */ body) =>
+        body.add.some((/** @type {any} */ a) => a.categoryKey === 'child' && a.age === null)
+          ? [409, { error: { code: 'AGE_NEEDED', message: 'Give the age of each child (3–12).' } }]
+          : [200, { plan: plan(body) }],
+      'POST /api/bookings/b3/travellers/change': (/** @type {any} */ body) => [
+        200,
+        { plan: plan(body), link: { sent: true, amountKobo: 3_500_000 }, refundStart: null },
+      ],
+    });
+    await show('/bookings/b3');
+    fireEvent.click(await screen.findByRole('button', { name: 'Change travellers' }));
+    expect(await screen.findByText('₦35,000 (today’s price)')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'More: Child' }));
+    expect(await screen.findByText('Give the age of each child (3–12).')).toBeTruthy();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Child’s name' }), {
+      target: { value: 'Tobi Ojo' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Age' }), { target: { value: '9' } });
+    const save = await screen.findByRole('button', { name: 'Save and send a link for ₦35,000' });
+    expect(screen.getByText('Seats: fits (13 of 14 in Van 1)')).toBeTruthy();
+    fireEvent.click(save);
+    expect((await screen.findByRole('status')).textContent).toBe(
+      'Travellers changed. A link for ₦35,000 was sent to the guest.',
+    );
+    expect(sent.find((x) => x.path.endsWith('/travellers/change'))?.body).toEqual({
+      remove: [],
+      add: [{ categoryKey: 'child', name: 'Tobi Ojo', age: 9 }],
+      refundKobo: 0,
+      sendLink: true,
+    });
+  });
+
+  it('the sheet: − an adult; the policy’s refund, confirmed by saving', async () => {
+    const sent = fakeFetch({
+      'GET /api/desk/bookings?filter=today': () => [200, { list: list() }],
+      'GET /api/desk/bookings/b3': () => [200, { booking: { ...OWES, status: 'paid' } }],
+      'POST /api/bookings/b3/travellers/preview': (/** @type {any} */ body) => [
+        200,
+        { plan: plan(body) },
+      ],
+      'POST /api/bookings/b3/travellers/change': (/** @type {any} */ body) => [
+        200,
+        { plan: plan(body), link: null, refundStart: { started: true } },
+      ],
+    });
+    await show('/bookings/b3');
+    fireEvent.click(await screen.findByRole('button', { name: 'Change travellers' }));
+    // Nothing changed yet: nothing to save.
+    expect(await screen.findByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
+    fireEvent.click(await screen.findByRole('button', { name: 'Fewer: Adult' }));
+    expect(await screen.findByText('₦65,000 of ₦65,000 (full refund)')).toBeTruthy();
+    // Only Guest 2 could go (Yemi is the lead): no more "−".
+    expect(screen.getByRole('button', { name: 'Fewer: Adult' })).toHaveProperty('disabled', true);
+    fireEvent.click(await screen.findByRole('button', { name: 'Save and refund ₦65,000' }));
+    expect((await screen.findByRole('status')).textContent).toBe(
+      'Travellers changed. The refund has started.',
+    );
+    expect(sent.find((x) => x.path.endsWith('/travellers/change'))?.body).toEqual({
+      remove: ['t2'],
+      add: [],
+      refundKobo: 6_500_000,
+      sendLink: true,
+    });
   });
 });

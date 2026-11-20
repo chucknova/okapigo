@@ -307,3 +307,6 @@ brief didn't have. Decided:
   bank transfer comes from a **Bank** account; "Not received" alerts the owner; cancelling from
   the desk starts the refund at once. A payment link is for the **balance or another amount**
   (no "Deposit" choice), and can be copied instead of sent.
+- **16c-3 (2026-11-21):** changing travellers keeps the booked price (today's for a kind the
+  booking never had); the lead stays; fewer → the policy's refund, confirmed; more → a link for
+  the extra.

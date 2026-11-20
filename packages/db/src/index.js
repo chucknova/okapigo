@@ -106,3 +106,4 @@ export {
 } from './sync.js';
 export * from './desk.js';
 export * from './desk-money.js';
+export * from './traveller-change.js';

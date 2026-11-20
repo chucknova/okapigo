@@ -287,7 +287,7 @@ export function createApp({
   api.use(syncRouter({ prisma, authSecret, webPublicUrl })); // the operator app offline: package, outbox (15b)
   api.use(todayRouter({ prisma })); // the manager's Today (16a)
   api.use(boardRouter({ prisma })); // the schedule and a departure's page (16b)
-  api.use(deskRouter({ prisma })); // the bookings desk (16c)
+  api.use(deskRouter({ prisma, provider, webPublicUrl })); // the bookings desk (16c)
   api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).

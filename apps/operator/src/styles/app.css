@@ -2358,6 +2358,41 @@
   min-width: 0;
 }
 
+.counter-row {
+  min-height: 56px;
+  border-bottom: 1px solid var(--color-state-pending);
+}
+.counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.square-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.counter strong {
+  min-width: 24px;
+  text-align: center;
+  font-size: var(--text-md);
+}
+.new-traveller {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.age-field {
+  width: 80px;
+}
+.change-sum {
+  padding: 12px;
+  border-radius: var(--radius-input);
+  background: var(--color-surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* The phone's header: the title keeps its room; the tour menu takes what's left. */
 .schedule-head h1 {
   flex: none;

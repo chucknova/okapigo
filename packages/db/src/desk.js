@@ -284,6 +284,7 @@ export function eventText(e, names) {
       if (d.amountKobo && (e.toStatus === 'paid' || e.toStatus === 'part_paid'))
         return `${e.toStatus === 'paid' ? 'paid' : 'part paid'} ${money(d.amountKobo)}`;
       if (e.toStatus === 'confirmed') return `confirmed${who ? ` by ${who}` : ''}`;
+      if (e.toStatus === 'amended') return 'changed: more to pay';
       return `now ${String(e.toStatus).replace(/_/g, ' ')}`;
     }
     case 'refund_requested':
@@ -315,6 +316,13 @@ export function eventText(e, names) {
       return `cash ${money(d.amountKobo)} not received from ${d.guide ? firstName(d.guide) : 'the guide'}${who ? ` · marked by ${firstName(who)}` : ''} · the owner was alerted`;
     case 'refund_by_transfer':
       return `refund of ${money(d.amountKobo)} paid by bank transfer (ref ${d.reference})${who ? ` · recorded by ${firstName(who)}` : ''}`;
+    case 'travellers_changed': {
+      const parts = [
+        d.added?.length ? `added ${d.added.join(', ')}` : '',
+        d.removed?.length ? `removed ${d.removed.join(', ')}` : '',
+      ].filter(Boolean);
+      return `travellers changed${who ? ` by ${firstName(who)}` : ''}: ${parts.join('; ')} · ${money(d.fromKobo)} → ${money(d.toKobo)}${d.refundKobo ? ` · refund ${money(d.refundKobo)}` : ''}`;
+    }
     case 'traveller_updated':
       return `traveller details changed${who ? ` by ${who}` : ''}`;
     case 'note':
@@ -694,6 +702,9 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
           .filter(Boolean)
           .join(' · '),
         checkInStatus: t.checkInStatus,
+        // For "Change travellers" (16c-3): which − removes whom.
+        categoryKey: t.categoryKey,
+        position: t.position,
         state: travellerState(t, tz, ended),
       };
     }),

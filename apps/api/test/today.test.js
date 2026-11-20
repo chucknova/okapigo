@@ -101,17 +101,25 @@ describe('the manager’s Today', () => {
       tone: 'urgent',
       key: expect.stringMatching(/^IN 2 H (19|20) MIN$/),
       title: 'Heritage Walk has no guide',
-      detail: expect.stringMatching(/^\d\d:\d\d · 1 booked · \w+ is free$/),
+      // After 21:40 the departure is tomorrow: then its date comes first ("Sat 21 Nov, 00:08").
+      detail: expect.stringMatching(/^(\w{3} \d+ \w{3}, )?\d\d:\d\d · 1 booked · \w+ is free$/),
       action: 'Assign',
       href: `/departures/${walk.id}`,
     });
+    // Under "departures today" only if it IS today in Lagos (late in the evening, it's tomorrow's).
     const row = t.departures.find((/** @type {any} */ d) => d.id === walk.id);
-    expect(row).toMatchObject({
-      guide: 'No guide yet',
-      hasGuide: false,
-      progress: '1 booked of 15',
-      state: { text: 'Needs a guide', tone: 'urgent' },
-    });
+    const lagosDay = (/** @type {number} */ ms) =>
+      new Date(ms).toLocaleDateString('en-GB', { timeZone: 'Africa/Lagos' });
+    if (lagosDay(Date.now() + 2 * HOUR + 20 * 60_000) === lagosDay(Date.now())) {
+      expect(row).toMatchObject({
+        guide: 'No guide yet',
+        hasGuide: false,
+        progress: '1 booked of 15',
+        state: { text: 'Needs a guide', tone: 'urgent' },
+      });
+    } else {
+      expect(row).toBeUndefined();
+    }
     expect(t.badges.schedule).toBe(1);
 
     // A guide busy at the same time isn't the one suggested. Guides are offered in name

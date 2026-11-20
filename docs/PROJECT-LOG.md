@@ -134,6 +134,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                         | `d293b30`           | 16b            |
 | 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                   | `bf4d0d7`           | 16c-1          |
 | 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts     | `9c97f5a`           | 16c-2          |
+| 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | (this commit)       | 16c-3          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -141,7 +142,7 @@ deploy "session 18"):
 | Next    | What                                                                                                     | PRD                       |
 | ------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
 | ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                           | OPS-01                    |
-| **16c** | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; **16c-3** change travellers | —                         |
+| **16c** | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers | —                         |
 | 16d     | inbox (O9): chats (take over), requests, alerts                                                          | —                         |
 | 16e     | settings (O10): website, embed, messages, WhatsApp, staff, tours                                         | —                         |
 | OCTO    | OCTO API + contract tests, channel manager, mock OTA (journey 3)                                         | DST-01–03                 |
@@ -205,15 +206,23 @@ received" alerts the owner (Today); the desk's cancel **starts the refund at onc
 option isn't offered: only Balance or Other (a deposit link only makes sense before anything is
 paid, and the desk sends links for what's owed).
 
+**With 16c-3 (2026-11-21):** an added traveller pays the booked price; a kind the booking never
+had pays today's ("(today's price)" on the sheet). A booking with a promo or a fee can't be
+repriced (refused). Fewer travellers: the policy's refund on the overpaid part, confirmed by
+saving; more: paid → **amended**, and a link for the extra is sent. The lead always stays.
+
 ## 7. Where we are
 
-- **Last done:** 16c-2, the money at the bookings desk, committed `9c97f5a`. 16c-1 pushed.
-- **Next:** **16c-3**: change travellers (designs: "Booking actions": Adults/Children − +,
-  names and ages, new total, extra to pay, "Seats: fits (13 of 14 in Van 1)", **Save and send
-  a link** for the extra; fewer travellers: the refund the policy allows, confirmed). Decided:
-  an added traveller pays **the price from when it was booked** (the booking's quote).
-- Then **16d** (inbox: chats, requests, alerts; the "cash not received" alert shows there too)
-  and **16e** (settings).
+- **Last done:** 16c-3, changing travellers, which finishes the bookings desk (commit: see §9).
+  16c-2 pushed.
+- **Next:** **16d**, the inbox (O9; designs: "O9 Inbox — chats", "requests and alerts", "phone
+  and states", "Inbox gaps"): chats (needs a person first; take over, reply, hand back: API
+  since 13b), guest requests (mark answered + a note: 12f-2), alerts (overdue balances, refunds
+  needing a look, **cash not received** from 16c-2), WhatsApp's 24-hour rule, a message that
+  failed.
+- Then **16e** (settings).
+- **E2E stays local** (decided 2026-11-21): `pnpm e2e` every stage; under load, re-run a
+  timed-out test alone before calling it a failure.
 - **Kemi** (guide) is assigned to two of Ìrìn's departures on Fri 20 Nov in the dev database.
 - Your dev database has **no vans or boats** and no short tour names (seeded before 15a);
   `pnpm db:reset` adds them.
@@ -252,11 +261,15 @@ paid, and the desk sends links for what's owed).
   that drops and re-adds the rule. **Never edit an applied migration**: add another.
 - **Cash payments** have no Paystack transaction: `requestBookingRefund` skips them (it only
   refunds payments with a `providerTransactionId`). Cash goes back by bank transfer.
+- **Tests that read the clock**: "2 h 20 min from now" is tomorrow after 21:40 in Lagos. The
+  Today test assumed the same day and failed late in the evening (fixed 16c-3: it checks
+  Lagos's date). Write such tests so either day passes.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16c-3 change travellers (bookings desk done).
 - 2026-11-21 · 16c-2 desk money: links, cancel + refund, cash confirm, bank-transfer refunds.
 - 2026-11-20 · 16c-1 bookings desk: find, a booking's page, notes, holds, desk no-shows.
 - 2026-11-20 · 16b schedule (O6) and a departure (O7): transport, sales capped at the van, cancel with refunds.
