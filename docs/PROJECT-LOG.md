@@ -132,7 +132,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | —               | tests get their own databases and queues                                                                                                                              | `21ad517`           | test-isolation |
 | 16a             | manager's shell (tabs/sidebar by role), staff states, manager's Today                                                                                                 | `07b04c9`           | 16a            |
 | 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                         | `d293b30`           | 16b            |
-| 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                   | (this commit)       | 16c-1          |
+| 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                   | `bf4d0d7`           | 16c-1          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -199,7 +199,7 @@ a booking cancelled with money owed back and no refund started shows **Refund to
 
 ## 7. Where we are
 
-- **Last done:** 16c-1, the bookings desk's list and a booking's page (commit: see §9). 16b
+- **Last done:** 16c-1, the bookings desk's list and a booking's page, committed `bf4d0d7`. 16b
   pushed.
 - **Next:** **16c-2**, the money on the desk (designs: "O8 Bookings — every status", "phone and
   states", "Booking statuses — phone"): **Send payment link** (amount, for, expires; WhatsApp
