@@ -76,18 +76,26 @@ describe('accounts', () => {
     );
   });
 
-  it('the migration that backfilled existing operators lists exactly the same accounts', () => {
-    // The add_ledger migration has its own copy of the account list (SQL can't import
-    // JavaScript). This test fails if the two ever drift apart.
+  it('the migrations that backfilled existing operators list exactly the same accounts', () => {
+    // The migrations have their own copies of the account list (SQL can't import
+    // JavaScript): add_ledger's seven, then cash_and_bank's two (16c-2). This test fails if
+    // the code and the migrations ever drift apart.
     const dir = new URL('../prisma/migrations/', import.meta.url);
-    const folder = readdirSync(dir).find((f) => f.endsWith('_add_ledger'));
-    const sql = readFileSync(new URL(`${folder}/migration.sql`, dir), 'utf8');
-    // \s* between columns: the SQL lines up its columns with extra spaces.
-    const rows = [
-      ...sql.matchAll(/\('(\d{4})',\s*'([A-Z_]+)',\s*'([^']+)',\s*'(\w+)',\s*'(\w+)'\)/g),
-    ].map((m) => m.slice(1));
-    expect(rows).toEqual(
-      Object.entries(ACCOUNTS).map(([key, a]) => [a.code, key, a.name, a.type, a.normal]),
+    const folders = readdirSync(dir).filter(
+      (f) => f.endsWith('_add_ledger') || f.endsWith('_cash_and_bank'),
+    );
+    expect(folders).toHaveLength(2);
+    const rows = folders.flatMap((folder) => {
+      const sql = readFileSync(new URL(`${folder}/migration.sql`, dir), 'utf8');
+      // \s* between columns: the SQL lines up its columns with extra spaces.
+      return [
+        ...sql.matchAll(/\('(\d{4})',\s*'([A-Z_]+)',\s*'([^']+)',\s*'(\w+)',\s*'(\w+)'\)/g),
+      ].map((m) => m.slice(1));
+    });
+    const byCode = (/** @type {string[][]} */ list) =>
+      [...list].sort((x, y) => x[0].localeCompare(y[0]));
+    expect(byCode(rows)).toEqual(
+      byCode(Object.entries(ACCOUNTS).map(([key, a]) => [a.code, key, a.name, a.type, a.normal])),
     );
   });
 });

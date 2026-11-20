@@ -5,6 +5,11 @@
  * "no bookings match" line, and which of a booking's actions are built yet.
  */
 
+import { formatNaira } from '@okapigo/shared/money';
+import { localTime } from '@okapigo/shared/time';
+import { formatAt } from '@okapigo/shared/tour-facts';
+import { cashAmount } from './money.js';
+
 export const FILTERS = /** @type {const} */ ([
   { key: 'today', label: 'Today' },
   { key: 'upcoming', label: 'Upcoming' },
@@ -56,17 +61,17 @@ export function noMatch(filter, q) {
 }
 
 /**
- * The buttons under a booking, in the designs' order. `built: false` ones arrive in 16c-2
- * and 16c-3 and aren't shown yet.
+ * The buttons under a booking, in the designs' order. `built: false` ones aren't shown yet
+ * (changing travellers: 16c-3).
  * @param {Record<string, { enabled: boolean, why: string }>} a
  */
 export function actionButtons(a) {
   return [
-    { key: 'paymentLink', label: 'Send payment link', built: false, ...a.paymentLink },
+    { key: 'paymentLink', label: 'Send payment link', built: true, ...a.paymentLink },
     { key: 'changeTravellers', label: 'Change travellers', built: false, ...a.changeTravellers },
     { key: 'addNote', label: 'Add note', built: true, ...a.addNote },
     { key: 'noShow', label: 'Mark no-show', built: true, ...a.noShow },
-    { key: 'cancel', label: 'Cancel booking', built: false, danger: true, ...a.cancel },
+    { key: 'cancel', label: 'Cancel booking', built: true, danger: true, ...a.cancel },
   ].filter((b) => b.built);
 }
 
@@ -80,3 +85,55 @@ export function noShowLabel(travellers, picked) {
   ).length;
   return n === 0 ? 'Choose who didn’t come' : `Mark ${n} no-show${n === 1 ? '' : 's'}`;
 }
+
+/**
+ * An amount typed in naira, up to `maxKobo`: "45,500" → 4_550_000.
+ * @param {string} typed @param {number} maxKobo @param {string} tooMuch  what to say if it's over
+ * @returns {{ ok: true, kobo: number } | { ok: false, error: string }}
+ */
+export function amountIn(typed, maxKobo, tooMuch) {
+  const r = cashAmount(typed, maxKobo);
+  return r.ok || r.error !== 'That’s more than they owe.' ? r : { ok: false, error: tooMuch };
+}
+
+/** How long a payment link lasts (designs: "Expires: 7 days · 2 days · 24 hours"). */
+export const LINK_EXPIRY = /** @type {const} */ ([
+  { days: 7, label: '7 days' },
+  { days: 2, label: '2 days' },
+  { days: 1, label: '24 hours' },
+]);
+
+/**
+ * After sending: "Payment link for ₦45,500 sent at 17:42 · expires Sat 12 Dec."
+ * @param {{ amountKobo: number, expiresAt: string }} link @param {Date} at @param {string} tz
+ */
+export const linkSentText = (link, at, tz) =>
+  `Payment link for ${formatNaira(link.amountKobo)} sent at ${localTime(at, tz)} · expires ${
+    formatAt(Date.parse(link.expiresAt), tz).split(', ')[0]
+  }. It shows under Messages with its delivery status.`;
+
+/**
+ * The cancel button's words: "Cancel and refund ₦31,250", or "Cancel booking" when nothing
+ * goes back. @param {number} refundKobo
+ */
+export const cancelLabel = (refundKobo) =>
+  refundKobo > 0 ? `Cancel and refund ${formatNaira(refundKobo)}` : 'Cancel booking';
+
+/**
+ * After cancelling: what happened to the money.
+ * @param {number} refundKobo @param {{ started: boolean, problem?: string } | null} start
+ */
+export function cancelledNote(refundKobo, start) {
+  if (refundKobo === 0)
+    return 'Cancelled. Nothing to refund. The guest is told by WhatsApp and email.';
+  if (start?.started)
+    return `Cancelled. Refund of ${formatNaira(refundKobo)} started; the guest is told by WhatsApp and email.`;
+  return `Cancelled, but the refund of ${formatNaira(refundKobo)} didn’t start${start?.problem ? `: ${start.problem.replace(/\.$/, '')}` : ''}. Send it from this page.`;
+}
+
+/**
+ * A failed or never-started refund: can it go back by card (Paystack), or only by transfer?
+ * @param {{ owedBackKobo: number, byCardKobo: number }} sums
+ */
+export const canRetryByCard = (sums) =>
+  sums.owedBackKobo > 0 && sums.byCardKobo >= sums.owedBackKobo;

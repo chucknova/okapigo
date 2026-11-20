@@ -1243,6 +1243,7 @@ model CashReport {
   // When the guide took it (the phone's clock, like a check-in).
   reportedAt   DateTime  @map("reported_at") @db.Timestamptz(3)
   // reported → confirmed (handed in) · possible_double (they'd paid by link too) → returned
+  // · not_received (the office says it never came in, 16c-2: the owner is alerted)
   status       String    @default("reported")
   resolvedAt   DateTime? @map("resolved_at") @db.Timestamptz(3)
   resolvedById String?   @map("resolved_by_id") @db.Uuid

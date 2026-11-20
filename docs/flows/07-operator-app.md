@@ -303,3 +303,7 @@ brief didn't have. Decided:
 - **An added traveller pays the price from when the booking was made**, not today's price.
 - A booking cancelled with money owed back, and no refund started, shows **Refund to send**
   (red) until it's sent.
+- **16c-2 (2026-11-21):** confirmed cash is a payment in a **Cash** account; a refund sent by
+  bank transfer comes from a **Bank** account; "Not received" alerts the owner; cancelling from
+  the desk starts the refund at once. A payment link is for the **balance or another amount**
+  (no "Deposit" choice), and can be copied instead of sent.

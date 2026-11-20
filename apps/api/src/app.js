@@ -273,7 +273,7 @@ export function createApp({
   api.use(schedulesRouter({ prisma, provider }));
   api.use(quotesRouter({ quotes }));
   api.use(holdsRouter({ prisma, quotes, jobs }));
-  api.use(bookingsRouter({ prisma, quotes, jobs }));
+  api.use(bookingsRouter({ prisma, quotes, jobs, provider }));
   api.use(policiesRouter({ prisma }));
   api.use(ledgerRouter({ prisma }));
   api.use(payments.apiRouter);

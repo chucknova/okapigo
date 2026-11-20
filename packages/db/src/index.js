@@ -61,6 +61,7 @@ export {
   requestReceiptRefund,
   markRefundProcessed,
   markRefundFailed,
+  processRefundInTx,
 } from './refunds.js';
 export { reconcile, checkPayment } from './reconciliation.js';
 export {
@@ -104,3 +105,4 @@ export {
   MAX_CHANGES_PER_SYNC,
 } from './sync.js';
 export * from './desk.js';
+export * from './desk-money.js';

@@ -50,6 +50,9 @@ export const CancelBookingSchema = z.object({
   reason: z.string().trim().min(2).max(500),
   // Staff may set the refund themselves (PAY-08). Needs payments: edit. Recorded on the timeline.
   refundOverrideKobo: z.number().int().nonnegative().optional(),
+  // Start the refund right away (the bookings desk, 16c-2: "Cancel and refund ₦62,500").
+  // Without it the refund is owed, and started separately (POST /bookings/:id/refunds).
+  startRefund: z.boolean().default(false),
 });
 
 /** POST /api/departures/:id/cancel: call off a whole departure (e.g. weather). */

@@ -191,6 +191,19 @@ export async function managerToday(prisma, { operatorId, now = new Date() }) {
         href: `/bookings/${b.id}`,
       });
     }
+    // The office marked a guide's cash "not received" (16c-2): the owner hears of it here.
+    if (a.kind === 'cash_not_received') {
+      const d = /** @type {any} */ (a.data) ?? {};
+      needs.push({
+        kind: 'cash_missing',
+        tone: 'urgent',
+        key: 'CASH',
+        title: `Cash not handed in: ${formatNaira(d.amountKobo ?? 0)}`,
+        detail: `${b.leadName} · reported by ${String(d.guide ?? 'the guide').split(' ')[0]}`,
+        action: 'Open',
+        href: `/bookings/${b.id}`,
+      });
+    }
   }
 
   // Balances due today, or overdue (owed, not paid).

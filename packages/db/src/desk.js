@@ -23,6 +23,7 @@ import { balanceDueDate } from '@okapigo/shared/deposits';
 import { MESSAGES } from '@okapigo/shared/message-templates';
 import { BookingError } from './booking-lifecycle.js';
 import { firstName, peopleLine, shortOf } from './board.js';
+import { previewCancellation } from './cancellations.js';
 
 /** Seats sold: the booking is on (from booking-status.js). */
 const LIVE = ['confirmed', 'part_paid', 'paid', 'amended'];
@@ -274,8 +275,7 @@ export function eventText(e, names) {
           d.refund?.refundKobo !== undefined
             ? ` · refund ${money(d.refund.refundKobo)}${d.refund.overridden ? '' : ' by policy'}`
             : '';
-        const why =
-          d.refund?.overridden && d.overrideReason ? ` (reason: ${d.overrideReason})` : '';
+        const why = d.refund?.overridden && d.reason ? ` (reason: ${d.reason})` : '';
         return `cancelled by ${by}${refund}${why}`;
       }
       if (e.toStatus === 'refunded') return 'refund complete';
@@ -307,6 +307,14 @@ export function eventText(e, names) {
         })[d.status] ?? 'checked in';
       return `${d.status === 'pending' ? verb : `${n} ${verb}`}${who ? ` by ${firstName(who)}` : ''}`;
     }
+    case 'cash_confirmed':
+      return d.amountKobo === d.reportedKobo
+        ? `cash ${money(d.amountKobo)} confirmed received${who ? ` by ${firstName(who)}` : ''}`
+        : `cash ${money(d.amountKobo)} received of ${money(d.reportedKobo)} reported${who ? ` · confirmed by ${firstName(who)}` : ''}`;
+    case 'cash_not_received':
+      return `cash ${money(d.amountKobo)} not received from ${d.guide ? firstName(d.guide) : 'the guide'}${who ? ` · marked by ${firstName(who)}` : ''} · the owner was alerted`;
+    case 'refund_by_transfer':
+      return `refund of ${money(d.amountKobo)} paid by bank transfer (ref ${d.reference})${who ? ` · recorded by ${firstName(who)}` : ''}`;
     case 'traveller_updated':
       return `traveller details changed${who ? ` by ${who}` : ''}`;
     case 'note':
@@ -322,6 +330,43 @@ export function eventText(e, names) {
     default:
       return String(e.type).replace(/_/g, ' ');
   }
+}
+
+/**
+ * The policy's refund in words: "50%, because it’s 24–48 hours before".
+ * @param {any} q  previewCancellation's answer @param {Array<{ hoursBefore: number, refundBasisPoints: number }>} rules
+ */
+export function policyWords(q, rules) {
+  if (q.reason === 'NOTHING_PAID') return 'nothing was paid';
+  if (q.reason === 'OPERATOR_CANCELLED') return 'full refund, because we called it off';
+  // A deposit that isn't refundable comes off first: say so, or "full refund" of ₦0 confuses.
+  const kept = q.keptDepositKobo > 0 ? formatNaira(q.keptDepositKobo) : null;
+  if (kept && q.refundKobo === 0) return `nothing back: the ${kept} deposit isn’t refundable`;
+  const tiers = [...rules].sort((x, y) => x.hoursBefore - y.hoursBefore);
+  let words;
+  if (!q.rule) {
+    words =
+      q.hoursBefore < 0
+        ? 'nothing back: the trip has started'
+        : `nothing back, because it’s under ${tiers[0]?.hoursBefore ?? 0} hours before`;
+  } else {
+    const next = tiers.find((t) => t.hoursBefore > q.rule.hoursBefore);
+    const share =
+      q.rule.refundBasisPoints === 10_000 ? 'full refund' : `${q.rule.refundBasisPoints / 100}%`;
+    words = next
+      ? `${share}, because it’s ${q.rule.hoursBefore}–${next.hoursBefore} hours before`
+      : `${share}, because it’s ${q.rule.hoursBefore} hours or more before`;
+  }
+  return kept ? `${words}; the ${kept} deposit isn’t refundable` : words;
+}
+
+/** "trip is in 30 hours" / "trip is in 9 days" / "the trip has started" @param {Date} startsAt @param {Date} now */
+export function tripIn(startsAt, now) {
+  const hours = (startsAt.getTime() - now.getTime()) / 3_600_000;
+  if (hours < 0) return 'the trip has started';
+  if (hours < 48)
+    return `trip is in ${Math.max(1, Math.round(hours))} ${Math.round(hours) === 1 ? 'hour' : 'hours'}`;
+  return `trip is in ${Math.round(hours / 24)} days`;
 }
 
 /**
@@ -476,7 +521,7 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
             };
 
   // The banner: what needs doing (or what happened), by status.
-  /** @type {null | { kind: string, tone: string, title: string, text: string, expiresAt?: string, call?: string }} */
+  /** @type {null | { kind: string, tone: string, title: string, text: string, expiresAt?: string, call?: string, cashReportId?: string, amountKobo?: number }} */
   let banner = null;
   if (b.status === 'held' && b.hold) {
     const n = b.travellers.length;
@@ -508,6 +553,9 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
       kind: 'cash',
       tone: 'info',
       title: `Cash reported by ${who}: ${formatNaira(c.amountKobo)}`,
+      // For "Confirm ₦45,500 received" / "Received a different amount" / "Not received".
+      cashReportId: c.id,
+      amountKobo: c.amountKobo,
       text:
         c.status === 'possible_double'
           ? `${formatAt(c.reportedAt.getTime(), tz)}, at check-in. The guest had also paid by link: one of the two may need giving back.`
@@ -568,6 +616,42 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
   const checkers = [...new Set(b.travellers.map((t) => t.checkedInById).filter((x) => x !== null))];
   const actions = deskActions(b, { started, owed, tripDay: dayOf(b.departure.startsAt, tz) });
 
+  // Cancelling (designs: "Cancel with the policy's refund, or another amount"): what the
+  // policy gives back now, in words, and the most that can go back (what was paid).
+  /** @type {any} */
+  let cancel = null;
+  let actNote = '';
+  if (actions.cancel.enabled) {
+    const q = /** @type {any} */ (
+      await previewCancellation(prisma, { operatorId, bookingId: b.id, initiatedBy: 'guest', now })
+    );
+    const words = policyWords(q, /** @type {any} */ (b.policyVersion?.rules) ?? []);
+    cancel = {
+      paidKobo: b.amountPaidKobo,
+      policyKobo: q.refundKobo,
+      policyText: `${formatNaira(q.refundKobo)} ${words}`,
+      maxKobo: b.amountPaidKobo,
+      title: `Cancel ${b.reference} · ${b.leadName}`,
+      sub: [
+        `${shortOf(b.product)}, ${dayOf(b.departure.startsAt, tz)} ${localTime(b.departure.startsAt, tz)}`,
+        `paid ${formatNaira(b.amountPaidKobo)}`,
+        tripIn(b.departure.startsAt, now),
+      ].join(' · '),
+    };
+    actNote =
+      q.keptDepositKobo > 0
+        ? `Cancelling now: the ${formatNaira(q.keptDepositKobo)} deposit isn’t refunded (deposits are non-refundable).`
+        : q.refundKobo === 0 && started
+          ? 'Cancelling now would refund ₦0: the trip has started (policy). A different amount is possible with a reason.'
+          : b.amountPaidKobo > 0
+            ? `Cancelling now refunds ${formatNaira(q.refundKobo)} (${words}).`
+            : '';
+  }
+  // What can go back through Paystack (cash can't): a failed refund's "Try again".
+  const byCardKobo = b.payments
+    .filter((p) => p.providerTransactionId !== null)
+    .reduce((n, p) => n + (p.amountKobo - p.refundedKobo), 0);
+
   return {
     id: b.id,
     reference: b.reference,
@@ -625,6 +709,15 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
     timeline: b.events.map((e) => `${stamp(e.createdAt, tz)} · ${eventText(e, names)}`),
     actions,
     // For "Mark no-show": what the policy this booking was sold with gives back.
+    cancel,
+    actNote,
+    // The sums the money sheets start from.
+    sums: {
+      owedKobo: owed,
+      owedBackKobo: notStartedKobo(b),
+      byCardKobo,
+      timeZone: tz,
+    },
     noShowLine: b.policyVersion
       ? b.policyVersion.noShowRefundBasisPoints === 0
         ? 'Policy: no refund for a no-show.'

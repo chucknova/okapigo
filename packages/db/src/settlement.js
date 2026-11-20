@@ -381,7 +381,7 @@ async function recordUnmatchedReceiptInTx(
  * @param {Date} now
  * @returns {Promise<string | null>}
  */
-async function settleBooking(tx, booking, payment, now) {
+export async function settleBooking(tx, booking, payment, now) {
   const amount = payment.amountKobo;
   const newPaid = booking.amountPaidKobo + amount;
   const owedBefore = booking.totalKobo - booking.amountPaidKobo;

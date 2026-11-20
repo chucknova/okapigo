@@ -247,73 +247,86 @@ export async function requestReceiptRefund(
  * @returns {Promise<'PROCESSED' | 'ALREADY_PROCESSED' | 'WAS_FAILED'>}
  */
 export function markRefundProcessed(prisma, refundId) {
-  return prisma.$transaction(async (tx) => {
-    /** @type {Array<{ status: string }>} */
-    const [locked] =
-      await tx.$queryRaw`SELECT status FROM refunds WHERE id = ${refundId}::uuid FOR UPDATE`;
-    if (locked.status === 'processed') return 'ALREADY_PROCESSED';
-    if (locked.status === 'failed') return 'WAS_FAILED'; // a human looks: we'd given up on it
+  return prisma.$transaction((tx) => processRefundInTx(tx, refundId), TX_OPTIONS);
+}
 
-    const refund = await tx.refund.update({
-      where: { id: refundId },
-      data: { status: 'processed', processedAt: new Date() },
-      include: { payment: true },
-    });
-    await postTransaction(tx, {
-      operatorId: refund.operatorId,
-      type: 'refund_paid',
-      idempotencyKey: `refund-paid:${refund.id}`,
-      description: refund.bookingId
-        ? `Refund paid out on ${refund.payment.reference}`
-        : `Unmatched receipt ${refund.payment.reference} sent back`,
-      lines: refund.bookingId
-        ? POSTINGS.refundPaid(refund.amountKobo)
-        : POSTINGS.receiptRefunded(refund.amountKobo),
-      bookingId: refund.bookingId,
-      paymentId: refund.paymentId,
-    });
+/**
+ * The money left: the refund is processed, the ledger says from where (Paystack's balance, or
+ * the business's bank for a refund sent by bank transfer, 16c-2), the guest is told, and the
+ * booking becomes "refunded" once everything owed is back. Inside the caller's transaction.
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ * @param {string} refundId
+ * @param {{ processedAt?: Date }} [o]
+ * @returns {Promise<'PROCESSED' | 'ALREADY_PROCESSED' | 'WAS_FAILED'>}
+ */
+export async function processRefundInTx(tx, refundId, { processedAt = new Date() } = {}) {
+  /** @type {Array<{ status: string }>} */
+  const [locked] =
+    await tx.$queryRaw`SELECT status FROM refunds WHERE id = ${refundId}::uuid FOR UPDATE`;
+  if (locked.status === 'processed') return 'ALREADY_PROCESSED';
+  if (locked.status === 'failed') return 'WAS_FAILED'; // a human looks: we'd given up on it
 
-    if (refund.bookingId) {
-      const booking = await tx.booking.findUniqueOrThrow({ where: { id: refund.bookingId } });
-      const paidOut =
-        (
-          await tx.refund.aggregate({
-            where: { bookingId: booking.id, status: 'processed' },
-            _sum: { amountKobo: true },
-          })
-        )._sum.amountKobo ?? 0;
-      // "Your refund of ₦31,250 has been sent" (stage 14a), decided with the ledger entry.
-      await planGuestMessage(tx, {
-        booking,
-        kind: 'refund_sent',
-        key: `refund_sent:${refund.id}`,
-        data: { refundKobo: refund.amountKobo },
-      });
-      await tx.bookingEvent.create({
+  const refund = await tx.refund.update({
+    where: { id: refundId },
+    data: { status: 'processed', processedAt },
+    include: { payment: true },
+  });
+  await postTransaction(tx, {
+    operatorId: refund.operatorId,
+    type: 'refund_paid',
+    idempotencyKey: `refund-paid:${refund.id}`,
+    description: refund.bookingId
+      ? `Refund paid out on ${refund.payment.reference}`
+      : `Unmatched receipt ${refund.payment.reference} sent back`,
+    lines: !refund.bookingId
+      ? POSTINGS.receiptRefunded(refund.amountKobo)
+      : refund.provider === 'bank_transfer'
+        ? POSTINGS.refundPaidByTransfer(refund.amountKobo)
+        : POSTINGS.refundPaid(refund.amountKobo),
+    bookingId: refund.bookingId,
+    paymentId: refund.paymentId,
+  });
+
+  if (refund.bookingId) {
+    const booking = await tx.booking.findUniqueOrThrow({ where: { id: refund.bookingId } });
+    const paidOut =
+      (
+        await tx.refund.aggregate({
+          where: { bookingId: booking.id, status: 'processed' },
+          _sum: { amountKobo: true },
+        })
+      )._sum.amountKobo ?? 0;
+    // "Your refund of ₦31,250 has been sent" (stage 14a), decided with the ledger entry.
+    await planGuestMessage(tx, {
+      booking,
+      kind: 'refund_sent',
+      key: `refund_sent:${refund.id}`,
+      data: { refundKobo: refund.amountKobo },
+    });
+    await tx.bookingEvent.create({
+      data: {
+        operatorId: booking.operatorId,
+        bookingId: booking.id,
+        type: 'refund_processed',
+        actorType: 'system',
         data: {
-          operatorId: booking.operatorId,
-          bookingId: booking.id,
-          type: 'refund_processed',
-          actorType: 'system',
-          data: {
-            refundId,
-            amountKobo: refund.amountKobo,
-            paidOutKobo: paidOut,
-            refundDueKobo: booking.refundDueKobo,
-          },
+          refundId,
+          amountKobo: refund.amountKobo,
+          paidOutKobo: paidOut,
+          refundDueKobo: booking.refundDueKobo,
         },
+      },
+    });
+    if (REFUNDABLE_END_STATES.includes(booking.status) && paidOut >= booking.refundDueKobo) {
+      await transitionBookingInTx(tx, {
+        bookingId: booking.id,
+        to: 'refunded',
+        actor: { type: 'system' },
+        data: { paidOutKobo: paidOut },
       });
-      if (REFUNDABLE_END_STATES.includes(booking.status) && paidOut >= booking.refundDueKobo) {
-        await transitionBookingInTx(tx, {
-          bookingId: booking.id,
-          to: 'refunded',
-          actor: { type: 'system' },
-          data: { paidOutKobo: paidOut },
-        });
-      }
     }
-    return 'PROCESSED';
-  }, TX_OPTIONS);
+  }
+  return 'PROCESSED';
 }
 
 /**

@@ -36,7 +36,9 @@ describe('reading the books', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.accounts.map((a) => a.code)).toEqual([
+      '1000', // Cash (16c-2)
       '1100',
+      '1200', // Bank (16c-2)
       '2100',
       '2200',
       '4000',

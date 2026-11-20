@@ -13,6 +13,11 @@ import { createMemoryStore } from '../src/lib/store.js';
 import { request } from '../src/lib/api.js';
 import { clearLive } from '../src/lib/live.js';
 import {
+  amountIn,
+  canRetryByCard,
+  cancelLabel,
+  cancelledNote,
+  linkSentText,
   actionButtons,
   chipText,
   heldLeft,
@@ -122,6 +127,16 @@ const OWES = {
     release: off('Only while seats are held'),
   },
   noShowLine: 'Policy: no refund for a no-show.',
+  cancel: {
+    paidKobo: 1_950_000,
+    policyKobo: 0,
+    policyText: '₦0 nothing back: the ₦19,500 deposit isn’t refundable',
+    maxKobo: 1_950_000,
+    title: 'Cancel ILT-2LW9DK · Yemi Ojo',
+    sub: 'Badagry Day Trip, Sat 12 Dec 07:00 · paid ₦19,500 · trip is in 9 days',
+  },
+  actNote: 'Cancelling now: the ₦19,500 deposit isn’t refunded (deposits are non-refundable).',
+  sums: { owedKobo: 4_550_000, owedBackKobo: 0, byCardKobo: 1_950_000, timeZone: 'Africa/Lagos' },
   trip: { started: true, date: '2026-12-12' },
 };
 
@@ -228,7 +243,13 @@ describe('desk.js: the words', () => {
   });
 
   it('the buttons built so far, in order; no-shows counted from who’s not checked in', () => {
-    expect(actionButtons(OWES.actions).map((b) => b.label)).toEqual(['Add note', 'Mark no-show']);
+    expect(actionButtons(OWES.actions).map((b) => b.label)).toEqual([
+      'Send payment link',
+      'Add note',
+      'Mark no-show',
+      'Cancel booking',
+    ]);
+    expect(actionButtons(OWES.actions).find((b) => b.key === 'cancel')?.danger).toBe(true);
     expect(actionButtons(HELD.actions).find((b) => b.key === 'noShow')).toMatchObject({
       enabled: false,
       why: 'Not booked yet',
@@ -399,5 +420,235 @@ describe('the desk', () => {
       travellerIds: ['t2'],
       status: 'no_show',
     });
+  });
+});
+
+describe('desk.js: the money’s words (16c-2)', () => {
+  it('an amount typed, up to a limit, in its own words', () => {
+    expect(amountIn('45,500', 4_550_000, 'Too much.')).toEqual({ ok: true, kobo: 4_550_000 });
+    expect(amountIn('₦ 20,000.50', 4_550_000, 'Too much.')).toEqual({ ok: true, kobo: 2_000_050 });
+    expect(amountIn('50,000', 4_550_000, 'Only ₦45,500 is owed back.')).toEqual({
+      ok: false,
+      error: 'Only ₦45,500 is owed back.',
+    });
+    expect(amountIn('abc', 4_550_000, 'Too much.')).toEqual({
+      ok: false,
+      error: 'Type the amount in naira, like 45,500.',
+    });
+  });
+
+  it('after sending a link; the cancel button; after cancelling; retrying by card', () => {
+    expect(
+      linkSentText(
+        { amountKobo: 4_550_000, expiresAt: '2026-12-12T16:42:00Z' },
+        new Date('2026-12-05T16:42:00Z'),
+        'Africa/Lagos',
+      ),
+    ).toBe(
+      'Payment link for ₦45,500 sent at 17:42 · expires Sat 12 Dec. It shows under Messages with its delivery status.',
+    );
+    expect(cancelLabel(3_125_000)).toBe('Cancel and refund ₦31,250');
+    expect(cancelLabel(0)).toBe('Cancel booking');
+    expect(cancelledNote(0, null)).toBe(
+      'Cancelled. Nothing to refund. The guest is told by WhatsApp and email.',
+    );
+    expect(cancelledNote(3_125_000, { started: true })).toBe(
+      'Cancelled. Refund of ₦31,250 started; the guest is told by WhatsApp and email.',
+    );
+    expect(
+      cancelledNote(3_125_000, { started: false, problem: 'At most ₦0 can be refunded.' }),
+    ).toBe(
+      'Cancelled, but the refund of ₦31,250 didn’t start: At most ₦0 can be refunded. Send it from this page.',
+    );
+    expect(canRetryByCard({ owedBackKobo: 100, byCardKobo: 100 })).toBe(true);
+    expect(canRetryByCard({ owedBackKobo: 100, byCardKobo: 99 })).toBe(false); // part was cash
+    expect(canRetryByCard({ owedBackKobo: 0, byCardKobo: 100 })).toBe(false);
+  });
+});
+
+describe('the desk’s money (16c-2)', () => {
+  const CASH = {
+    ...OWES,
+    chip: { key: 'cash', text: 'Cash to confirm', tone: 'info', expiresAt: null },
+    banner: {
+      kind: 'cash',
+      tone: 'info',
+      title: 'Cash reported by Femi: ₦45,500',
+      text: 'Sat 5 Dec, 07:12, at check-in.',
+      cashReportId: 'c1',
+      amountKobo: 4_550_000,
+    },
+  };
+  const FAILED = {
+    ...OWES,
+    status: 'cancelled',
+    chip: { key: 'refund_failed', text: 'Refund failed', tone: 'urgent', expiresAt: null },
+    banner: {
+      kind: 'refund_failed',
+      tone: 'urgent',
+      title: 'Refund of ₦62,500 failed',
+      text: 'The card has expired.',
+    },
+    cancel: null,
+    actNote: '',
+    sums: { owedKobo: 0, owedBackKobo: 6_250_000, byCardKobo: 6_250_000, timeZone: 'Africa/Lagos' },
+  };
+  const base = (/** @type {any} */ b, /** @type {any} */ extra = {}) => ({
+    'GET /api/desk/bookings?filter=today': () => [200, { list: list() }],
+    [`GET /api/desk/bookings/${b.id}`]: () => [200, { booking: b }],
+    ...extra,
+  });
+
+  it('cash: confirmed as reported; a different amount; not received', async () => {
+    const sent = fakeFetch(
+      base(CASH, {
+        'POST /api/cash-reports/c1/confirm': () => [200, { cash: {} }],
+        'POST /api/cash-reports/c1/not-received': () => [200, { cash: {} }],
+      }),
+    );
+    await show('/bookings/b3');
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm ₦45,500 received' }));
+    expect((await screen.findByRole('status')).textContent).toBe(
+      '₦45,500 cash confirmed. It’s in the books.',
+    );
+    expect(sent.find((x) => x.method === 'POST')).toMatchObject({
+      path: '/api/cash-reports/c1/confirm',
+      body: {},
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Received a different amount' }));
+    const field = screen.getByRole('textbox', { name: /^Amount \(₦\)/ });
+    fireEvent.change(field, { target: { value: '50,000' } });
+    expect(
+      screen.getByText('That’s more than was reported. Confirm the reported amount instead.'),
+    ).toBeTruthy();
+    fireEvent.change(field, { target: { value: '20,000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm received' }));
+    expect((await screen.findByRole('status')).textContent).toBe(
+      '₦20,000 cash confirmed. The rest is still owed.',
+    );
+    expect(sent.find((x) => x.body?.amountKobo === 2_000_000)?.path).toBe(
+      '/api/cash-reports/c1/confirm',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Not received' }));
+    expect((await screen.findByRole('status')).textContent).toBe(
+      'Marked not received. The guest still owes, and the owner has been alerted.',
+    );
+  });
+
+  it('a payment link: the balance or another amount, how long; sent, or copied', async () => {
+    const link = { amountKobo: 2_000_000, expiresAt: '2026-12-07T16:42:00Z' };
+    const sent = fakeFetch(
+      base(OWES, {
+        'POST /api/bookings/b3/payment-links': (/** @type {any} */ body) => [
+          201,
+          { link: { ...link, amountKobo: body.amountKobo }, url: 'https://pay.example/pay/tok123' },
+        ],
+      }),
+    );
+    await show('/bookings/b3');
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Send payment link' }))[0]);
+    expect(screen.getByRole('textbox', { name: /^Amount \(₦\)/ })).toHaveProperty(
+      'value',
+      '45,500',
+    );
+    fireEvent.click(screen.getByRole('radio', { name: 'Other' }));
+    fireEvent.change(screen.getByRole('textbox', { name: /^Amount \(₦\)/ }), {
+      target: { value: '60,000' },
+    });
+    expect(screen.getByText('That’s more than they owe.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Send to the guest' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    fireEvent.change(screen.getByRole('textbox', { name: /^Amount \(₦\)/ }), {
+      target: { value: '20,000' },
+    });
+    fireEvent.click(screen.getByRole('radio', { name: '2 days' }));
+
+    // Copied: made without messaging the guest, shown to copy.
+    fireEvent.click(screen.getByRole('button', { name: 'Copy the link instead' }));
+    expect(await screen.findByDisplayValue('https://pay.example/pay/tok123')).toBeTruthy();
+    expect(sent.find((x) => x.body?.send === false)?.body).toEqual({
+      amountKobo: 2_000_000,
+      expiresInDays: 2,
+      send: false,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send to the guest' }));
+    expect((await screen.findByRole('status')).textContent).toMatch(
+      /^Payment link for ₦20,000 sent at \d\d:\d\d · expires Mon 7 Dec\. /,
+    );
+    expect(sent.filter((x) => x.method === 'POST').at(-1)?.body).toEqual({
+      amountKobo: 2_000_000,
+      expiresInDays: 2,
+    });
+  });
+
+  it('cancelling: the policy by default; another amount needs a reason; the refund started', async () => {
+    const sent = fakeFetch(
+      base(OWES, {
+        'POST /api/bookings/b3/cancel': () => [200, { refund: {}, refundStart: { started: true } }],
+      }),
+    );
+    await show('/bookings/b3');
+    expect(await screen.findByText(OWES.actNote)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel booking' }));
+    expect(screen.getByRole('heading', { name: 'Cancel ILT-2LW9DK · Yemi Ojo' })).toBeTruthy();
+    expect(
+      screen.getByRole('radio', {
+        name: 'Policy: ₦0 nothing back: the ₦19,500 deposit isn’t refundable',
+      }),
+    ).toHaveProperty('checked', true);
+    fireEvent.click(screen.getByRole('radio', { name: 'Another amount, up to ₦19,500' }));
+    const go = screen.getByRole('button', { name: 'Cancel and refund ₦19,500' });
+    expect(go).toHaveProperty('disabled', true); // a reason first
+    fireEvent.change(screen.getByRole('textbox', { name: /^Reason/ }), {
+      target: { value: 'Family emergency' },
+    });
+    fireEvent.click(go);
+    expect((await screen.findByRole('status')).textContent).toBe(
+      'Cancelled. Refund of ₦19,500 started; the guest is told by WhatsApp and email.',
+    );
+    expect(sent.find((x) => x.method === 'POST')?.body).toEqual({
+      initiatedBy: 'guest',
+      reason: 'Family emergency',
+      refundOverrideKobo: 1_950_000,
+      startRefund: true,
+    });
+  });
+
+  it('a failed refund: try again by card, or record a bank transfer', async () => {
+    const sent = fakeFetch(
+      base(FAILED, {
+        'POST /api/bookings/b3/refunds': () => [201, { refunds: [] }],
+        'POST /api/bookings/b3/refunds/bank-transfer': () => [201, { refund: {} }],
+      }),
+    );
+    await show('/bookings/b3');
+    fireEvent.click(await screen.findByRole('button', { name: 'Try the refund again' }));
+    expect((await screen.findByRole('status')).textContent).toBe('Refund of ₦62,500 started.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'I refunded by bank transfer' }));
+    const record = screen.getByRole('button', { name: 'Record and tell the guest' });
+    expect(record).toHaveProperty('disabled', true); // the reference is needed
+    fireEvent.change(screen.getByRole('textbox', { name: 'Transfer reference' }), {
+      target: { value: 'GTB-55102' },
+    });
+    fireEvent.click(record);
+    expect((await screen.findByRole('status')).textContent).toBe(
+      'Refund of ₦62,500 recorded. The guest is told it was sent.',
+    );
+    const body = sent.find((x) => x.path.endsWith('/bank-transfer'))?.body;
+    expect(body).toMatchObject({ amountKobo: 6_250_000, reference: 'GTB-55102' });
+    expect(body.sentOn).toMatch(/^\d{4}-\d\d-\d\d$/);
+  });
+
+  it('part was paid in cash: no card retry, only the bank transfer', async () => {
+    fakeFetch(base({ ...FAILED, sums: { ...FAILED.sums, byCardKobo: 1_000_000 } }));
+    await show('/bookings/b3');
+    expect(await screen.findByRole('button', { name: 'I refunded by bank transfer' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Try the refund again' })).toBeNull();
   });
 });

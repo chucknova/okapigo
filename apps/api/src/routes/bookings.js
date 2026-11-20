@@ -26,6 +26,7 @@ import {
   previewCancellation,
   cancelBooking,
   markNoShow,
+  requestBookingRefund,
   BookingError,
   HoldError,
 } from '@okapigo/db';
@@ -88,7 +89,7 @@ export function toHttp(err) {
  *   jobs: { scheduleHoldExpiry: (holdId: string, expiresAt: Date) => Promise<void> },
  * }} deps
  */
-export function bookingsRouter({ prisma, quotes, jobs }) {
+export function bookingsRouter({ prisma, quotes, jobs, provider }) {
   const router = Router();
 
   /** @returns {import('../middleware/auth.js').AuthContext} */
@@ -316,7 +317,29 @@ export function bookingsRouter({ prisma, quotes, jobs }) {
       } catch (err) {
         throw toHttp(err);
       }
-      res.json({ refund, booking: await loadFull(operatorId, req.params.id, timeZone) });
+      // "Cancel and refund": start it now. If it can't start (part was paid in cash, the
+      // provider refused), the booking stays cancelled and the desk shows "Refund to send".
+      /** @type {{ started: boolean, problem?: string } | null} */
+      let refundStart = null;
+      const owed = /** @type {any} */ (refund)?.refundKobo ?? 0;
+      if (req.body.startRefund && owed > 0 && provider) {
+        try {
+          await requestBookingRefund(prisma, provider, {
+            operatorId,
+            bookingId: req.params.id,
+            reason: req.body.reason,
+            actor: actorOf(req),
+          });
+          refundStart = { started: true };
+        } catch (err) {
+          refundStart = { started: false, problem: /** @type {Error} */ (err).message };
+        }
+      }
+      res.json({
+        refund,
+        refundStart,
+        booking: await loadFull(operatorId, req.params.id, timeZone),
+      });
     },
   );
 

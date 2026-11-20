@@ -19,7 +19,11 @@
 
 /** The accounts every operator gets. Codes follow the usual 1xxx assets … 5xxx expenses. */
 export const ACCOUNTS = /** @type {const} */ ({
+  // The cash guides handed in (stage 16c-2).
+  CASH: { code: '1000', name: 'Cash', type: 'asset', normal: 'debit' },
   PROVIDER_CLEARING: { code: '1100', name: 'Paystack clearing', type: 'asset', normal: 'debit' },
+  // The business's own bank account: refunds sent by bank transfer (stage 16c-2).
+  BANK: { code: '1200', name: 'Bank', type: 'asset', normal: 'debit' },
   REFUNDS_PAYABLE: { code: '2100', name: 'Refunds payable', type: 'liability', normal: 'credit' },
   UNALLOCATED_RECEIPTS: {
     code: '2200',
@@ -88,6 +92,19 @@ export const POSTINGS = {
   refundPaid(/** @type {number} */ kobo) {
     assertAmount(kobo);
     return [debit('REFUNDS_PAYABLE', kobo), credit('PROVIDER_CLEARING', kobo)];
+  },
+
+  /** A guide's cash, handed in to the office (16c-2).  Dr Cash / Cr Tour sales */
+  cashReceived(/** @type {number} */ kobo) {
+    assertAmount(kobo);
+    return [debit('CASH', kobo), credit('TOUR_SALES', kobo)];
+  },
+
+  /** A refund sent by bank transfer from the business's account (16c-2).
+   *                               Dr Refunds payable / Cr Bank */
+  refundPaidByTransfer(/** @type {number} */ kobo) {
+    assertAmount(kobo);
+    return [debit('REFUNDS_PAYABLE', kobo), credit('BANK', kobo)];
   },
 
   /** Money arrived we can't match to a booking yet (a bank transfer, stage 10d).

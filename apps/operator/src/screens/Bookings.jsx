@@ -20,8 +20,17 @@ import { Sheet } from '../components/Sheet.jsx';
 import { useLive } from '../lib/live.js';
 import { useEngine, useSync } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
+import { formatNaira } from '@okapigo/shared/money';
+import { nairaField } from '../lib/money.js';
+import { localDate } from '@okapigo/shared/time';
 import {
   FILTERS,
+  LINK_EXPIRY,
+  amountIn,
+  canRetryByCard,
+  cancelLabel,
+  cancelledNote,
+  linkSentText,
   actionButtons,
   chipText,
   heldLeft,
@@ -175,24 +184,43 @@ function BookingPane({ id, tz }) {
 /** @param {{ b: any }} props */
 function BookingPage({ b }) {
   const engine = useEngine();
-  const [sheet, setSheet] = useState(/** @type {'note' | 'noShow' | null} */ (null));
+  const [sheet, setSheet] = useState(
+    /** @type {'note' | 'noShow' | 'link' | 'cancel' | 'cashAmount' | 'transfer' | null} */ (null),
+  );
   const [done, setDone] = useState(/** @type {string | null} */ (null));
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const now = useNow(1000, b.chip.key === 'held');
   const buttons = actionButtons(b.actions);
 
-  /** @param {string} path @param {{ method: 'POST' | 'DELETE', body?: unknown }} o @param {string} said */
+  /**
+   * Sends one change; on success closes the sheet and says what happened.
+   * @param {string} path @param {{ method: 'POST' | 'DELETE', body?: unknown }} o
+   * @param {string | ((body: any) => string)} said
+   */
   const change = async (path, o, said) => {
     setError(null);
+    setDone(null);
     const r = await act(engine, path, o);
     if (!r.ok) {
       setError(actionError(r.error));
       return false;
     }
     setSheet(null);
-    setDone(said);
+    setDone(typeof said === 'function' ? said(r.body) : said);
     return true;
   };
+  const SHEET_OF = /** @type {Record<string, any>} */ ({
+    addNote: 'note',
+    noShow: 'noShow',
+    paymentLink: 'link',
+    cancel: 'cancel',
+  });
+  const refundBack = () =>
+    change(
+      `/api/bookings/${b.id}/refunds`,
+      { method: 'POST', body: { reason: 'Sent again from the bookings desk' } },
+      `Refund of ${formatNaira(b.sums.owedBackKobo)} started.`,
+    );
 
   return (
     <article className="stack-md">
@@ -240,6 +268,68 @@ function BookingPage({ b }) {
                 Release the seats now
               </button>
             )}
+            {b.banner.kind === 'cash' && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn--ok btn--compact"
+                  onClick={() =>
+                    change(
+                      `/api/cash-reports/${b.banner.cashReportId}/confirm`,
+                      { method: 'POST', body: {} },
+                      `${formatNaira(b.banner.amountKobo)} cash confirmed. It’s in the books.`,
+                    )
+                  }
+                >
+                  Confirm {formatNaira(b.banner.amountKobo)} received
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--outline btn--compact"
+                  onClick={() => setSheet('cashAmount')}
+                >
+                  Received a different amount
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--danger-outline btn--compact"
+                  onClick={() =>
+                    change(
+                      `/api/cash-reports/${b.banner.cashReportId}/not-received`,
+                      { method: 'POST' },
+                      'Marked not received. The guest still owes, and the owner has been alerted.',
+                    )
+                  }
+                >
+                  Not received
+                </button>
+              </>
+            )}
+            {b.banner.kind === 'owes' && b.actions.paymentLink.enabled && (
+              <button
+                type="button"
+                className="btn btn--dark btn--compact"
+                onClick={() => setSheet('link')}
+              >
+                Send payment link
+              </button>
+            )}
+            {(b.banner.kind === 'refund_failed' || b.banner.kind === 'refund_due') && (
+              <>
+                {canRetryByCard(b.sums) && (
+                  <button type="button" className="btn btn--dark btn--compact" onClick={refundBack}>
+                    {b.banner.kind === 'refund_failed' ? 'Try the refund again' : 'Send the refund'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--outline btn--compact"
+                  onClick={() => setSheet('transfer')}
+                >
+                  I refunded by bank transfer
+                </button>
+              </>
+            )}
             {b.banner.call && (
               <a
                 className="btn btn--outline btn--compact"
@@ -249,6 +339,12 @@ function BookingPage({ b }) {
               </a>
             )}
           </div>
+          {b.banner.kind === 'cash' && (
+            <p className="small muted">
+              Confirming adds a cash payment to the books and closes the balance. “Not received”
+              keeps them owing and flags it to the owner.
+            </p>
+          )}
         </section>
       )}
 
@@ -313,9 +409,9 @@ function BookingPage({ b }) {
           <span key={x.key} className={`desk-action${x.enabled ? '' : ' is-off'}`}>
             <button
               type="button"
-              className="btn btn--outline btn--compact"
+              className={`btn btn--compact ${x.danger ? 'btn--danger-outline' : 'btn--outline'}`}
               disabled={!x.enabled}
-              onClick={() => setSheet(/** @type {any} */ (x.key === 'addNote' ? 'note' : 'noShow'))}
+              onClick={() => setSheet(SHEET_OF[x.key])}
             >
               {x.label}
             </button>
@@ -323,7 +419,77 @@ function BookingPage({ b }) {
           </span>
         ))}
       </div>
+      {b.actNote && <p className="small muted">{b.actNote}</p>}
 
+      {sheet === 'link' && (
+        <LinkSheet
+          b={b}
+          error={error}
+          onClose={() => setSheet(null)}
+          onSend={(body) =>
+            change(`/api/bookings/${b.id}/payment-links`, { method: 'POST', body }, (r) =>
+              linkSentText(r.link, new Date(), b.sums.timeZone),
+            )
+          }
+          onCopy={async (body) => {
+            setError(null);
+            const r = await act(engine, `/api/bookings/${b.id}/payment-links`, {
+              method: 'POST',
+              body: { ...body, send: false },
+            });
+            if (!r.ok) {
+              setError(actionError(r.error));
+              return null;
+            }
+            return r.body.url;
+          }}
+        />
+      )}
+      {sheet === 'cancel' && b.cancel && (
+        <CancelSheet
+          b={b}
+          error={error}
+          onClose={() => setSheet(null)}
+          onCancel={(body, refundKobo) =>
+            change(`/api/bookings/${b.id}/cancel`, { method: 'POST', body }, (r) =>
+              cancelledNote(refundKobo, r.refundStart),
+            )
+          }
+        />
+      )}
+      {sheet === 'cashAmount' && b.banner?.kind === 'cash' && (
+        <AmountSheet
+          title="Received a different amount"
+          heading={`Cash handed in for ${b.reference}`}
+          help={`${b.banner.title}. Type what was really handed in; the rest stays owed.`}
+          maxKobo={b.banner.amountKobo}
+          tooMuch="That’s more than was reported. Confirm the reported amount instead."
+          button="Confirm received"
+          error={error}
+          onClose={() => setSheet(null)}
+          onSave={(kobo) =>
+            change(
+              `/api/cash-reports/${b.banner.cashReportId}/confirm`,
+              { method: 'POST', body: { amountKobo: kobo } },
+              `${formatNaira(kobo)} cash confirmed. The rest is still owed.`,
+            )
+          }
+        />
+      )}
+      {sheet === 'transfer' && (
+        <TransferSheet
+          b={b}
+          error={error}
+          onClose={() => setSheet(null)}
+          onSave={(body) =>
+            change(
+              `/api/bookings/${b.id}/refunds/bank-transfer`,
+              { method: 'POST', body },
+              `Refund of ${formatNaira(body.amountKobo)} recorded. The guest is told it was sent.`,
+            )
+          }
+        />
+      )}
       {sheet === 'note' && (
         <NoteSheet
           b={b}
@@ -466,6 +632,327 @@ function NoShowSheet({ b, error, onClose, onMark }) {
         >
           {busy ? 'Marking…' : label}
         </button>
+      </form>
+    </Sheet>
+  );
+}
+
+/** "Payment link for Yemi Ojo" (designs: Send payment link). @param {{ b: any, error: string | null, onClose: () => void, onSend: (body: any) => Promise<boolean>, onCopy: (body: any) => Promise<string | null> }} props */
+function LinkSheet({ b, error, onClose, onSend, onCopy }) {
+  const owed = b.sums.owedKobo;
+  const [kind, setKind] = useState(/** @type {'balance' | 'other'} */ ('balance'));
+  const [typed, setTyped] = useState(nairaField(owed));
+  const [days, setDays] = useState(7);
+  const [busy, setBusy] = useState(false);
+  const [url, setUrl] = useState(/** @type {string | null} */ (null));
+  const amount =
+    kind === 'balance'
+      ? { ok: true, kobo: owed }
+      : amountIn(typed, owed, 'That’s more than they owe.');
+  const body = () => ({ amountKobo: /** @type {any} */ (amount).kobo, expiresInDays: days });
+  return (
+    <Sheet title="Send a payment link" onClose={onClose}>
+      <form
+        className="dialog"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!amount.ok) return;
+          setBusy(true);
+          await onSend(body());
+          setBusy(false);
+        }}
+      >
+        <h2 className="h-lg">Payment link for {b.lead}</h2>
+        <fieldset className="segmented">
+          <legend className="strong">For</legend>
+          <label className={kind === 'balance' ? 'is-on' : ''}>
+            <input
+              type="radio"
+              name="for"
+              checked={kind === 'balance'}
+              onChange={() => setKind('balance')}
+            />
+            Balance
+          </label>
+          <label className={kind === 'other' ? 'is-on' : ''}>
+            <input
+              type="radio"
+              name="for"
+              checked={kind === 'other'}
+              onChange={() => setKind('other')}
+            />
+            Other
+          </label>
+        </fieldset>
+        <label className="field">
+          Amount (₦)
+          <input
+            className="input input--money"
+            inputMode="decimal"
+            value={kind === 'balance' ? nairaField(owed) : typed}
+            readOnly={kind === 'balance'}
+            onChange={(e) => setTyped(e.target.value)}
+          />
+          <span className="small muted plain">Up to {formatNaira(owed)}, what they still owe</span>
+        </label>
+        {!amount.ok && <p className="field-error">{/** @type {any} */ (amount).error}</p>}
+        <fieldset className="segmented">
+          <legend className="strong">Expires</legend>
+          {LINK_EXPIRY.map((x) => (
+            <label key={x.days} className={days === x.days ? 'is-on' : ''}>
+              <input
+                type="radio"
+                name="expires"
+                checked={days === x.days}
+                onChange={() => setDays(x.days)}
+              />
+              {x.label}
+            </label>
+          ))}
+        </fieldset>
+        {error && (
+          <p role="alert" className="field-error">
+            {error}
+          </p>
+        )}
+        <button type="submit" className="btn btn--dark" disabled={busy || !amount.ok}>
+          {busy ? 'Sending…' : 'Send to the guest'}
+        </button>
+        {url ? (
+          <div className="copy-box">
+            <input className="input" readOnly value={url} aria-label="The payment link" />
+            <button
+              type="button"
+              className="btn btn--outline btn--compact"
+              onClick={() => globalThis.navigator?.clipboard?.writeText(url)}
+            >
+              Copy
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="text-link"
+            disabled={busy || !amount.ok}
+            onClick={async () => setUrl(await onCopy(body()))}
+          >
+            Copy the link instead
+          </button>
+        )}
+        <p className="small muted">
+          Sent by WhatsApp and email, using your “Payment link” message. If their messages aren’t
+          arriving, copy the link and send it another way.
+        </p>
+      </form>
+    </Sheet>
+  );
+}
+
+/** "Cancel ILT-7K4Q2M · Adaeze Okafor" (designs: the policy's refund, or another amount). @param {{ b: any, error: string | null, onClose: () => void, onCancel: (body: any, refundKobo: number) => Promise<boolean> }} props */
+function CancelSheet({ b, error, onClose, onCancel }) {
+  const c = b.cancel;
+  const [which, setWhich] = useState(/** @type {'policy' | 'other'} */ ('policy'));
+  const [typed, setTyped] = useState(nairaField(c.maxKobo));
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const other = amountIn(typed, c.maxKobo, `At most ${formatNaira(c.maxKobo)}, what was paid.`);
+  const refund = which === 'policy' ? c.policyKobo : other.ok ? other.kobo : 0;
+  const ready = which === 'policy' || (other.ok && reason.trim().length >= 3);
+  return (
+    <Sheet title={c.title} alert onClose={onClose}>
+      <form
+        className="dialog"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          await onCancel(
+            {
+              initiatedBy: 'guest',
+              reason: reason.trim() || 'Cancelled by the office',
+              ...(which === 'other' ? { refundOverrideKobo: refund } : {}),
+              startRefund: true,
+            },
+            refund,
+          );
+          setBusy(false);
+        }}
+      >
+        <h2 className="h-lg">{c.title}</h2>
+        <p className="muted">{c.sub}</p>
+        <fieldset className="stack-sm plain-fieldset">
+          <legend className="strong">Refund</legend>
+          <label className="check-row">
+            <input
+              type="radio"
+              name="refund"
+              checked={which === 'policy'}
+              onChange={() => setWhich('policy')}
+            />
+            Policy: {c.policyText}
+          </label>
+          {c.maxKobo > 0 && (
+            <label className="check-row">
+              <input
+                type="radio"
+                name="refund"
+                checked={which === 'other'}
+                onChange={() => setWhich('other')}
+              />
+              Another amount, up to {formatNaira(c.maxKobo)}
+            </label>
+          )}
+        </fieldset>
+        {which === 'other' && (
+          <>
+            <label className="field">
+              Amount (₦)
+              <input
+                className="input input--money"
+                inputMode="decimal"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+              />
+            </label>
+            {!other.ok && <p className="field-error">{other.error}</p>}
+          </>
+        )}
+        <label className="field">
+          Reason {which === 'other' ? '(needed for another amount)' : '(optional)'}
+          <input
+            className="input"
+            type="text"
+            maxLength={200}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+        {error && (
+          <p role="alert" className="field-error">
+            {error}
+          </p>
+        )}
+        <button type="submit" className="btn btn--danger" disabled={busy || !ready}>
+          {busy ? 'Cancelling…' : cancelLabel(refund)}
+        </button>
+        <p className="small muted">
+          The guest is told by WhatsApp and email. You can refund more than the policy; the reason
+          goes on the timeline.
+        </p>
+      </form>
+    </Sheet>
+  );
+}
+
+/** One amount, up to a limit ("Received a different amount"). @param {{ title: string, heading: string, help: string, maxKobo: number, tooMuch: string, button: string, error: string | null, onClose: () => void, onSave: (kobo: number) => Promise<boolean> }} props */
+function AmountSheet({ title, heading, help, maxKobo, tooMuch, button, error, onClose, onSave }) {
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const amount = amountIn(typed, maxKobo, tooMuch);
+  return (
+    <Sheet title={title} onClose={onClose}>
+      <form
+        className="dialog"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!amount.ok) return;
+          setBusy(true);
+          await onSave(amount.kobo);
+          setBusy(false);
+        }}
+      >
+        <h2 className="h-lg">{heading}</h2>
+        <p className="muted">{help}</p>
+        <label className="field">
+          Amount (₦)
+          <input
+            className="input input--money"
+            inputMode="decimal"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+          />
+        </label>
+        {typed && !amount.ok && <p className="field-error">{amount.error}</p>}
+        {error && (
+          <p role="alert" className="field-error">
+            {error}
+          </p>
+        )}
+        <button type="submit" className="btn btn--dark" disabled={busy || !amount.ok}>
+          {busy ? 'Saving…' : button}
+        </button>
+      </form>
+    </Sheet>
+  );
+}
+
+/** "I refunded by bank transfer": amount, date sent, reference. @param {{ b: any, error: string | null, onClose: () => void, onSave: (body: any) => Promise<boolean> }} props */
+function TransferSheet({ b, error, onClose, onSave }) {
+  const max = b.sums.owedBackKobo;
+  const today = localDate(new Date(), b.sums.timeZone);
+  const [typed, setTyped] = useState(nairaField(max));
+  const [sentOn, setSentOn] = useState(today);
+  const [reference, setReference] = useState('');
+  const [busy, setBusy] = useState(false);
+  const amount = amountIn(typed, max, `Only ${formatNaira(max)} is owed back.`);
+  const ready = amount.ok && reference.trim().length >= 3 && sentOn && sentOn <= today;
+  return (
+    <Sheet title="I refunded by bank transfer" onClose={onClose}>
+      <form
+        className="dialog"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!amount.ok) return;
+          setBusy(true);
+          await onSave({ amountKobo: amount.kobo, sentOn, reference: reference.trim() });
+          setBusy(false);
+        }}
+      >
+        <h2 className="h-lg">Refund sent by bank transfer</h2>
+        <p className="muted">
+          {b.reference} · {b.lead} · {formatNaira(max)} owed back
+        </p>
+        <label className="field">
+          Amount (₦)
+          <input
+            className="input input--money"
+            inputMode="decimal"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+          />
+        </label>
+        {!amount.ok && <p className="field-error">{amount.error}</p>}
+        <label className="field">
+          Date sent
+          <input
+            className="input"
+            type="date"
+            max={today}
+            value={sentOn}
+            onChange={(e) => setSentOn(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          Transfer reference
+          <input
+            className="input"
+            type="text"
+            maxLength={60}
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+          />
+        </label>
+        {error && (
+          <p role="alert" className="field-error">
+            {error}
+          </p>
+        )}
+        <button type="submit" className="btn btn--dark" disabled={busy || !ready}>
+          {busy ? 'Saving…' : 'Record and tell the guest'}
+        </button>
+        <p className="small muted">
+          Adds the refund to the books and sends the guest the “Refund sent” message. The reference
+          is required.
+        </p>
       </form>
     </Sheet>
   );
