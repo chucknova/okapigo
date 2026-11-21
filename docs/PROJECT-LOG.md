@@ -143,7 +143,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | `b9781ed`           | 16e-3          |
 | 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | `4872ff2`           | 16e-4a         |
 | 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | `9b6483e`           | 16e-4b         |
-| 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | (this commit)       | 16e-4c         |
+| 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | `8ee0e0f`           | 16e-4c         |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -291,7 +291,8 @@ business's setting; WhatsApp: 30 minutes) are business-wide and only shown.
 
 ## 7. Where we are
 
-- **Last done:** 16e-4c, Tours: extras, pickup points, cancellation and deposit. **Settings
+- **Last done:** 16e-4c, Tours: extras, pickup points, cancellation and deposit, committed
+  `8ee0e0f`. **Settings
   (O10) is done**, and with it the operator app's screens 16a–16e. 16e-4b pushed.
 - **Next:** **OCTO** (the OCTO API with contract tests, a channel manager, the mock OTA:
   journey 3). Its stage number is to be agreed (the docs call AI "session 17" and deploy
