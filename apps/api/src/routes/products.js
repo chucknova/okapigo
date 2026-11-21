@@ -4,11 +4,13 @@
  *
  *   GET   /api/products                          products: view   (?status=published), each
  *                                                with `runs` ("Daily 09:00 · 15 seats", 16e-4)
- *   GET   /api/products/:id                      products: view
+ *   GET   /api/products/:id                      products: view   with `pricesNote` and
+ *                                                `upcomingBookings` (16e-4b)
  *   POST  /api/products                          products: edit
  *   PATCH /api/products/:id                      products: edit
  *   POST  /api/products/:id/price-categories     products: edit
  *   PATCH /api/price-categories/:id              products: edit
+ *   PUT   /api/products/:id/price-categories     products: edit   all of them at once (16e-4b)
  *   POST  /api/products/:id/add-ons              products: edit
  *   PATCH /api/add-ons/:id                       products: edit
  *
@@ -27,8 +29,10 @@ import {
   UpdatePriceCategorySchema,
   CreateAddOnSchema,
   UpdateAddOnSchema,
+  PutPriceCategoriesSchema,
   PRODUCT_STATUSES,
 } from '@okapigo/shared/schemas/products';
+import { SEAT_CONSUMING_STATUSES } from '@okapigo/shared/booking-status';
 import { findAgeOverlap } from '@okapigo/shared/catalogue';
 import { scheduleSummary } from '@okapigo/shared/tour-facts';
 import { slugify, RESERVED_TOUR_SLUGS } from '@okapigo/shared/slug';
@@ -76,6 +80,18 @@ function withPin(mp, city) {
   if (Number.isFinite(mp.lat) && Number.isFinite(mp.lng)) return rest;
   const [lat, lng] = CITY_PINS[(city ?? '').trim().toLowerCase()] ?? CITY_PINS.lagos;
   return { ...rest, lat, lng, approximate: true };
+}
+
+/**
+ * Above the prices: whether they include the tax (designs: "Prices · include 7.5% VAT").
+ * @param {{ name: string, basisPoints: number, inclusive: boolean } | null | undefined} tax
+ */
+export function taxLine(tax) {
+  if (!tax || !tax.basisPoints) return 'No tax is added to these prices.';
+  const rate = `${tax.basisPoints / 100}% ${tax.name}`;
+  return tax.inclusive
+    ? `Prices include ${rate}.`
+    : `${rate} is added to these prices at checkout.`;
 }
 
 /**
@@ -161,7 +177,25 @@ export function productsRouter({ prisma }) {
   });
 
   router.get('/products/:id', canView, validate({ params: IdParamsSchema }), async (req, res) => {
-    res.json({ product: serializeProduct(await findOwnProduct(req, req.params.id)) });
+    const product = await findOwnProduct(req, req.params.id);
+    const [operator, upcomingBookings] = await Promise.all([
+      prisma.operator.findUniqueOrThrow({ where: { id: product.operatorId } }),
+      // "the 26 existing bookings keep their price" (16e-4b): bookings still to travel.
+      prisma.booking.count({
+        where: {
+          productId: product.id,
+          status: { in: [...SEAT_CONSUMING_STATUSES] },
+          departure: { startsAt: { gt: new Date() } },
+        },
+      }),
+    ]);
+    res.json({
+      product: {
+        ...serializeProduct(product),
+        pricesNote: taxLine(/** @type {any} */ (operator.pricing)?.tax),
+        upcomingBookings,
+      },
+    });
   });
 
   router.post('/products', canEdit, validate({ body: CreateProductSchema }), async (req, res) => {
@@ -277,6 +311,67 @@ export function productsRouter({ prisma }) {
         data: req.body,
       });
       res.json({ priceCategory: serializePriceCategory(category) });
+    },
+  );
+
+  // The tour's prices as a whole (Settings › Tours › Prices, 16e-4b): one change, all or
+  // nothing, checked as it will be (no two prices for the same age; on sale keeps a price).
+  router.put(
+    '/products/:id/price-categories',
+    canEdit,
+    validate({ params: IdParamsSchema, body: PutPriceCategoriesSchema }),
+    async (req, res) => {
+      const product = await findOwnProduct(req, req.params.id);
+      /** @type {any[]} */
+      const sent = req.body.categories;
+      const known = new Map(product.priceCategories.map((c) => [c.id, c]));
+      for (const c of sent) {
+        if (c.id && !known.has(c.id)) throw new HttpError(404, 'NOT_FOUND', 'Price not found.');
+      }
+      // A new price's key, from its name, unique on this tour: "senior", "senior-2".
+      const keys = new Set(product.priceCategories.map((c) => c.key));
+      const keyFor = (/** @type {string} */ name) => {
+        const base = slugify(name) || 'price';
+        let key = base;
+        for (let n = 2; keys.has(key); n++) key = `${base}-${n}`;
+        keys.add(key);
+        return key;
+      };
+      const kept = new Set(sent.filter((c) => c.id).map((c) => c.id));
+      const after = [
+        ...sent.map((c, i) => ({
+          ...c,
+          key: c.id ? known.get(c.id).key : keyFor(c.name),
+          sortOrder: i,
+          isActive: true,
+        })),
+        // Left out: archived, after the active ones (so the order never ties with them).
+        ...product.priceCategories
+          .filter((c) => !kept.has(c.id))
+          .map((c, i) => ({ ...c, isActive: false, sortOrder: sent.length + i })),
+      ];
+      assertNoAgeOverlap(after);
+      if (product.status === 'published') assertPublishable({ priceCategories: after });
+
+      await prisma.$transaction(async (tx) => {
+        for (const c of after) {
+          const data = {
+            name: c.name,
+            minAge: c.minAge,
+            maxAge: c.maxAge,
+            amountKobo: c.amountKobo,
+            sortOrder: c.sortOrder,
+            isActive: c.isActive,
+          };
+          if (c.id) await tx.priceCategory.update({ where: { id: c.id }, data });
+          else {
+            await tx.priceCategory.create({
+              data: { ...data, key: c.key, productId: product.id, operatorId: product.operatorId },
+            });
+          }
+        }
+      });
+      res.json({ product: serializeProduct(await findOwnProduct(req, product.id)) });
     },
   );
 

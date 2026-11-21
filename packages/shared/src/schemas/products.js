@@ -161,6 +161,27 @@ export const UpdatePriceCategorySchema = z
   .refine((b) => Object.keys(b).length > 0, 'Send at least one field to change')
   .refine(ageRangeOk, ageRangeMessage);
 
+/**
+ * PUT /api/products/:id/price-categories (Settings › Tours › Prices, 16e-4b): the tour's prices
+ * as a whole, in order. A category with an id is changed; one without is added (its key made
+ * from its name); one left out is archived (bookings keep pointing at it).
+ */
+export const PutPriceCategoriesSchema = z.object({
+  categories: z
+    .array(
+      z
+        .object({
+          id: z.uuid().optional(),
+          name: priceCategoryFields.name,
+          minAge: priceCategoryFields.minAge,
+          maxAge: priceCategoryFields.maxAge,
+          amountKobo: priceCategoryFields.amountKobo,
+        })
+        .refine(ageRangeOk, ageRangeMessage),
+    )
+    .max(12),
+});
+
 // --- Add-ons (INV-10) ----------------------------------------------------------------
 
 const addOnFields = {

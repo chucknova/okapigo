@@ -5,6 +5,7 @@
  *   GET   /api/products/:id/schedules        products: view
  *   POST  /api/products/:id/schedules        products: edit   create a rule → departures appear
  *   PATCH /api/schedules/:id                 products: edit   change a rule → departures re-sync
+ *                                            (`sync.attention`: booked ones it left, in words)
  *   GET   /api/departures                    products: view   staff calendar (?from&to&productId)
  *   POST  /api/products/:id/departures       products: edit   a one-off ("custom") departure
  *   PATCH /api/departures/:id                bookings: edit   change capacity, cancel (if empty), reopen
@@ -36,6 +37,7 @@ import {
   UpdateDepartureSchema,
 } from '@okapigo/shared/schemas/schedules';
 import { addDays, stringToDate, zonedTimeToUtc } from '@okapigo/shared/time';
+import { formatAt } from '@okapigo/shared/tour-facts';
 import { requirePermission } from '../middleware/auth.js';
 import { validate, IdParamsSchema } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
@@ -71,6 +73,27 @@ export function schedulesRouter({ prisma, provider }) {
     return data;
   }
 
+  /**
+   * A schedule change's result in words (Settings › Tours › Schedule, 16e-4b): booked departures
+   * it couldn't remove or shrink, for a person to decide ("Sat 26 Dec, 07:00 · 4 guests · no
+   * longer in the schedule").
+   * @param {{ created: number, removed: number, needsAttention: any[] }} sync @param {string} tz
+   */
+  const inWords = (sync, tz) => ({
+    ...sync,
+    attention: sync.needsAttention.map((d) => {
+      const guests = d.seatsSold + d.seatsHeld;
+      return {
+        id: d.id,
+        text: `${formatAt(new Date(d.startsAt).getTime(), tz)} · ${guests} ${guests === 1 ? 'guest' : 'guests'} · ${
+          d.reason === 'NO_LONGER_IN_SCHEDULE'
+            ? 'no longer in the schedule'
+            : 'more guests than the new seats'
+        }`,
+      };
+    }),
+  });
+
   /** Reads ?from&to as local dates (defaults and limits in lib/date-range.js). */
   const dateRange = (/** @type {import('express').Request} */ req) =>
     parseDateRange(req.query, authOf(req).timeZone);
@@ -102,7 +125,9 @@ export function schedulesRouter({ prisma, provider }) {
       });
       // The new rule's departures for the next 60 days appear straight away.
       const sync = await syncScheduleDepartures(prisma, schedule.id);
-      res.status(201).json({ schedule: serializeSchedule(schedule), sync });
+      res
+        .status(201)
+        .json({ schedule: serializeSchedule(schedule), sync: inWords(sync, authOf(req).timeZone) });
     },
   );
 
@@ -137,7 +162,10 @@ export function schedulesRouter({ prisma, provider }) {
         previousCapacity: existing.capacity ?? existing.product.defaultCapacity,
       });
       // `sync.needsAttention` lists booked departures the change couldn't remove or shrink.
-      res.json({ schedule: serializeSchedule(schedule), sync });
+      res.json({
+        schedule: serializeSchedule(schedule),
+        sync: inWords(sync, authOf(req).timeZone),
+      });
     },
   );
 

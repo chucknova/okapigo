@@ -142,6 +142,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | `f60623f`           | 16e-2          |
 | 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | `b9781ed`           | 16e-3          |
 | 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | `4872ff2`           | 16e-4a         |
+| 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | (this commit)       | 16e-4b         |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -271,13 +272,22 @@ confirmation's "Open in Maps" searches the address) until the real pin. Putting 
 still needs only a price (dates aren't required). The text lists are written one per line
 (stops with a dash, FAQs question/answer with a blank line between).
 
+**With 16e-4b (2026-11-21):** a tour's page has **one save bar** for all its sections
+(`useSaveParts`); Save saves each changed section in page order and stops at the first
+refusal. A tour's prices are saved **as a whole** (`PUT …/price-categories`, one transaction;
+left out = archived, new keys from names). "Existing bookings" = confirmed or paid, still to
+travel (holds don't count). A category with no upper age counts as an adult (no new field).
+The schedule shown is the first switched-on one; booked departures a change leaves are listed
+with links (`sync.attention`), never removed. One-off departures are added straight away, not
+through the save bar.
+
 ## 7. Where we are
 
-- **Last done:** 16e-4a, Settings › Tours: the list, New tour, Basics, committed `4872ff2`. 16e-3 pushed.
-- **Next:** **16e-4b**, Prices (categories, ages, "counts as an adult", "You changed Adult from
-  ₦65,000 to ₦70,000. New bookings pay ₦70,000; the 26 existing bookings keep their price")
-  and Schedule and seats (days, start time, seats, until, not-running dates, one-off
-  departures). Then **16e-4c**: extras, pickup points, cancellation policy, deposit.
+- **Last done:** 16e-4b, Settings › Tours: Prices and Schedule and seats. 16e-4a pushed.
+- **Next:** **16e-4c**: Extras (name, price, limit per departure), pickup points (area, place,
+  time), the cancellation policy (pick one; "Standard: full 48 h · 50% 24–48 h"), the deposit
+  (allowed %, or none; balance due 7 days before), and the holds line. That finishes Settings
+  (O10). Then OCTO, AI and dashboard, and the demo (numbering to confirm).
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
   (ILT-HP97TV)**.
 - **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta.
@@ -327,11 +337,18 @@ still needs only a price (dates aren't required). The text lists are written one
   Today test assumed the same day and failed late in the evening (fixed 16c-3: it checks
   Lagos's date); so did the desk's "filters and search" (fixed 16d-1: the departure is pinned
   to noon today in Lagos). Write such tests so either day passes.
+- **`vi.waitFor` gives up after 1 s**; Testing Library's `waitFor` and `findBy…` wait 10 s
+  (`apps/operator/test/setup.js`). Under a full run's load, use Testing Library's (16e-4b's
+  "one save bar" test flaked on `vi.waitFor`). Older tests (inbox, board) still use `vi.waitFor`.
+- **Order ties are random**: rows with the same `sortOrder` and the same `createdAt` (seeded in
+  one go) come back in id order, which is random. A full run caught archived prices tying with
+  active ones (16e-4b); they now sort after them. Give every sorted row its own place.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16e-4b Tours: Prices, Schedule and seats.
 - 2026-11-21 · 16e-4a Settings › Tours: list, New tour, Basics.
 - 2026-11-21 · 16e-3 settings: Staff and roles.
 - 2026-11-21 · 16e-2 settings: Messages and WhatsApp.

@@ -7,9 +7,9 @@
  *                pin, pasted) → a draft, opened to finish
  *   one tour     its status (on sale, or not, and why), and Basics: name, short name, summary,
  *                description, duration, how it travels, the meeting point and its pin, arrive
- *                by, and the text lists (stops, included, not included, what to bring, FAQs).
- *                Prices and schedule (16e-4b), extras, pickups, cancellation and deposit
- *                (16e-4c) come next.
+ *                by, and the text lists (stops, included, not included, what to bring, FAQs);
+ *                Prices and Schedule and seats (16e-4b, SettingsTourSections.jsx); one save
+ *                bar for all of them. Extras, pickups, cancellation and deposit: 16e-4c.
  *
  * Owners edit; a manager can look (products: view). The rules are in lib/tours.js.
  */
@@ -18,6 +18,8 @@ import { Link, useLocation } from 'wouter';
 import { LiveFrame } from '../components/LiveFrame.jsx';
 import { SaveBar, LeaveGuard } from '../components/SaveBar.jsx';
 import { useLive } from '../lib/live.js';
+import { useSaveParts, useSavePart } from '../lib/save-parts.js';
+import { Prices, Schedule } from './SettingsTourSections.jsx';
 import { useEngine } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
 import { localTime } from '@okapigo/shared/time';
@@ -218,26 +220,64 @@ function OneTour({ id, tz, canEdit }) {
   const live = useLive(`/api/products/${id}`);
   return (
     <LiveFrame live={live} what="This tour" tz={tz}>
-      {({ product }) => (
-        <div className="stack-md">
-          <Link href="/settings/tours" className="back-link">
-            ‹ Tours
-          </Link>
-          <header className="stack-xs">
-            <h2 className="h-xl">{product.title}</h2>
-            <OnSale product={product} canEdit={canEdit} />
-          </header>
-          {!canEdit && <p className="unavailable">{LOOK_ONLY}</p>}
-          <fieldset className="plain-fieldset stack-md" disabled={!canEdit}>
-            <Basics key={product.id} product={product} tz={tz} />
-          </fieldset>
-          <p className="small muted">
-            Prices and the schedule come in the next part; then extras, pickup points, the
-            cancellation policy and the deposit.
-          </p>
-        </div>
-      )}
+      {({ product }) => <TourPage product={product} tz={tz} canEdit={canEdit} />}
     </LiveFrame>
+  );
+}
+
+/**
+ * One tour: its sections, and one save bar for all of them (lib/save-parts.js).
+ * @param {{ product: any, tz: string, canEdit: boolean }} props
+ */
+function TourPage({ product, tz, canEdit }) {
+  const parts = useSaveParts();
+  return (
+    <div className="stack-md">
+      <Link href="/settings/tours" className="back-link">
+        ‹ Tours
+      </Link>
+      <header className="stack-xs">
+        <h2 className="h-xl">{product.title}</h2>
+        <OnSale product={product} canEdit={canEdit} />
+      </header>
+      {!canEdit && <p className="unavailable">{LOOK_ONLY}</p>}
+      <fieldset className="plain-fieldset stack-md" disabled={!canEdit}>
+        <Basics
+          key={`basics-${product.id}`}
+          product={product}
+          tz={tz}
+          part={parts.part('basics')}
+        />
+        <Prices
+          key={`prices-${product.id}`}
+          product={product}
+          tz={tz}
+          part={parts.part('prices')}
+        />
+        <Schedule
+          key={`schedule-${product.id}`}
+          product={product}
+          tz={tz}
+          canEdit={canEdit}
+          part={parts.part('schedule')}
+        />
+      </fieldset>
+      <p className="small muted">
+        Extras, pickup points, the cancellation policy and the deposit come in the next part.
+      </p>
+      <SaveBar
+        changed={parts.changed}
+        saving={parts.saving}
+        blocked={parts.blocked}
+        onSave={parts.saveAll}
+        onDiscard={parts.discardAll}
+      />
+      <LeaveGuard
+        changed={parts.changed}
+        what={`Your change to ${parts.changed.join(', ').toLowerCase()} on ${product.title}`}
+        onSave={parts.saveAll}
+      />
+    </div>
   );
 }
 
@@ -311,12 +351,14 @@ function OnSale({ product, canEdit }) {
   );
 }
 
-/** Basics (designs: name, short name, summary, duration, meeting point; the text lists). @param {{ product: any, tz: string }} props */
-function Basics({ product, tz }) {
+/**
+ * Basics (designs: name, short name, summary, duration, meeting point; the text lists).
+ * @param {{ product: any, tz: string, part: import('../lib/save-parts.js').SavePart }} props
+ */
+function Basics({ product, tz, part }) {
   const engine = useEngine();
   const [saved, setSaved] = useState(() => basicsForm(product));
   const [form, setForm] = useState(saved);
-  const [saving, setSaving] = useState(false);
   const [note, setNote] = useState(/** @type {{ ok: boolean, text: string } | null} */ (null));
   const errors = basicsErrors(form);
   const problems = Object.keys(errors).length;
@@ -326,13 +368,11 @@ function Basics({ product, tz }) {
 
   const save = async () => {
     if (problems) return false;
-    setSaving(true);
     setNote(null);
     const r = await act(engine, `/api/products/${product.id}`, {
       method: 'PATCH',
       body: basicsBody(form, saved),
     });
-    setSaving(false);
     if (!r.ok) {
       setNote({
         ok: false,
@@ -349,6 +389,10 @@ function Basics({ product, tz }) {
     setNote({ ok: true, text: `Saved · ${localTime(new Date(), tz)}.` });
     return true;
   };
+  useSavePart(part, changed, problems > 0, save, () => {
+    setForm(saved);
+    setNote(null);
+  });
 
   /** @param {keyof typeof form} k @param {string} label @param {any} [extra] */
   const field = (k, label, extra = {}) => (
@@ -467,21 +511,6 @@ function Basics({ product, tz }) {
           )}
         </p>
       )}
-      <SaveBar
-        changed={changed}
-        saving={saving}
-        blocked={problems > 0}
-        onSave={save}
-        onDiscard={() => {
-          setForm(saved);
-          setNote(null);
-        }}
-      />
-      <LeaveGuard
-        changed={changed}
-        what={`Your change to ${changed.join(', ').toLowerCase()} on ${product.title}`}
-        onSave={save}
-      />
     </section>
   );
 }

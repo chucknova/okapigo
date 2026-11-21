@@ -4,10 +4,14 @@
  *   - how it travels and "arrive by", editable
  *   - a meeting point without a pin: the business's city, marked approximate, until a real one
  *   - putting a tour on sale needs a price (said plainly)
+ * Stage 16e-4b: the prices as a whole (added, changed, archived; all or nothing), whether they
+ * include the tax, how many bookings keep the old price; a schedule change's booked departures
+ * in words.
  */
 import { describe, it, expect, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { createTestContext } from './helpers.js';
+import { taxLine } from '../src/routes/products.js';
 
 const ctx = createTestContext();
 afterEach(() => ctx.cleanup());
@@ -22,6 +26,8 @@ const as = (token) => ({
     request(ctx.app).post(url).set('Authorization', `Bearer ${token}`),
   patch: (/** @type {string} */ url) =>
     request(ctx.app).patch(url).set('Authorization', `Bearer ${token}`),
+  put: (/** @type {string} */ url) =>
+    request(ctx.app).put(url).set('Authorization', `Bearer ${token}`),
 });
 
 const NEW_TOUR = {
@@ -157,5 +163,182 @@ describe('the basics', () => {
       (await s.managerApi.patch(`/api/products/${made.body.product.id}`).send({ title: 'X y' }))
         .status,
     ).toBe(403);
+  });
+});
+
+/** A website booking on a tour's first departure after `afterDays` (held: a seat taken). */
+async function aBooking(/** @type {any} */ s, /** @type {string} */ slug, afterDays = 2) {
+  const product = await ctx.prisma.product.findFirstOrThrow({
+    where: { operatorId: s.operator.id, slug },
+  });
+  const d = await ctx.prisma.departure.findFirstOrThrow({
+    where: {
+      productId: product.id,
+      startsAt: { gt: new Date(Date.now() + afterDays * 86_400_000) },
+    },
+    orderBy: { startsAt: 'asc' },
+  });
+  const res = await request(ctx.app)
+    .post(`/public/${s.operator.slug}/bookings`)
+    .send({
+      lead: {
+        name: 'Funmi Adeyemi',
+        email: 'funmi@guest.example',
+        phone: '0805 987 6543',
+        acceptTerms: true,
+      },
+      departureId: d.id,
+      travellers: [{ name: 'Funmi Adeyemi', age: 30 }],
+      addOns: [],
+    });
+  expect(res.status, JSON.stringify(res.body)).toBe(201);
+  return { product, departure: d };
+}
+
+describe('prices', () => {
+  it('whether they include the tax, in words', () => {
+    expect(taxLine({ name: 'VAT', basisPoints: 750, inclusive: true })).toBe(
+      'Prices include 7.5% VAT.',
+    );
+    expect(taxLine({ name: 'VAT', basisPoints: 750, inclusive: false })).toBe(
+      '7.5% VAT is added to these prices at checkout.',
+    );
+    expect(taxLine(null)).toBe('No tax is added to these prices.');
+    expect(taxLine({ name: 'VAT', basisPoints: 0, inclusive: true })).toBe(
+      'No tax is added to these prices.',
+    );
+  });
+
+  it('a tour says how many bookings would keep the old price', async () => {
+    const s = await setup();
+    const { product } = await aBooking(s, 'lagos-island-heritage-walk');
+    // Only held (a few minutes, not paid): not yet a booking that keeps a price.
+    expect((await s.api.get(`/api/products/${product.id}`)).body.product.upcomingBookings).toBe(0);
+    await ctx.prisma.booking.updateMany({
+      where: { productId: product.id },
+      data: { status: 'confirmed' },
+    });
+    const res = await s.api.get(`/api/products/${product.id}`);
+    expect(res.body.product).toMatchObject({
+      pricesNote: 'Prices include 7.5% VAT.',
+      upcomingBookings: 1,
+    });
+    // A cancelled booking doesn't count.
+    await ctx.prisma.booking.updateMany({
+      where: { productId: product.id },
+      data: { status: 'cancelled' },
+    });
+    expect((await s.api.get(`/api/products/${product.id}`)).body.product.upcomingBookings).toBe(0);
+  });
+
+  it('all at once: changed, added, left out (archived), in order', async () => {
+    const s = await setup();
+    const p = await ctx.prisma.product.findFirstOrThrow({
+      where: { operatorId: s.operator.id, slug: 'badagry-heritage-day-trip' },
+      include: { priceCategories: { orderBy: { sortOrder: 'asc' } } },
+    });
+    const [adult, child, infant] = p.priceCategories;
+    const res = await s.api.put(`/api/products/${p.id}/price-categories`).send({
+      categories: [
+        { id: adult.id, name: 'Adult', minAge: 13, maxAge: 64, amountKobo: 7_000_000 },
+        { name: 'Senior (65+)', minAge: 65, maxAge: null, amountKobo: 5_000_000 },
+        { id: child.id, name: 'Child', minAge: 3, maxAge: 12, amountKobo: 3_500_000 },
+      ],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(
+      res.body.product.priceCategories.map((/** @type {any} */ c) => [
+        c.key,
+        c.amountKobo,
+        c.isActive,
+      ]),
+    ).toEqual([
+      ['adult', 7_000_000, true],
+      ['senior-65', 5_000_000, true],
+      ['child', 3_500_000, true],
+      ['infant', 0, false],
+    ]);
+    // The infant price is archived, not deleted: bookings may point at it.
+    expect(
+      (await ctx.prisma.priceCategory.findUniqueOrThrow({ where: { id: infant.id } })).isActive,
+    ).toBe(false);
+    // Brought back by sending it again; another "Senior (65+)" gets its own key.
+    const again = await s.api.put(`/api/products/${p.id}/price-categories`).send({
+      categories: [
+        { id: adult.id, name: 'Adult', minAge: 13, maxAge: 59, amountKobo: 7_000_000 },
+        { name: 'Senior (65+)', minAge: 60, maxAge: null, amountKobo: 5_000_000 },
+        { id: infant.id, name: 'Infant', minAge: 0, maxAge: 2, amountKobo: 0 },
+      ],
+    });
+    expect(again.status, JSON.stringify(again.body)).toBe(200);
+    const active = again.body.product.priceCategories.filter((/** @type {any} */ c) => c.isActive);
+    expect(active.map((/** @type {any} */ c) => c.key)).toEqual(['adult', 'senior-65-2', 'infant']);
+  });
+
+  it('refused as a whole: two prices for the same age; on sale with none; someone else’s price', async () => {
+    const s = await setup();
+    const p = await ctx.prisma.product.findFirstOrThrow({
+      where: { operatorId: s.operator.id, slug: 'badagry-heritage-day-trip' },
+      include: { priceCategories: { orderBy: { sortOrder: 'asc' } } },
+    });
+    const [adult, child] = p.priceCategories;
+    const overlap = await s.api.put(`/api/products/${p.id}/price-categories`).send({
+      categories: [
+        { id: adult.id, name: 'Adult', minAge: 10, maxAge: null, amountKobo: 1 },
+        { id: child.id, name: 'Child', minAge: 3, maxAge: 12, amountKobo: 1 },
+      ],
+    });
+    expect(overlap.status).toBe(409);
+    expect(overlap.body.error.code).toBe('AGE_RANGE_OVERLAP');
+    // Nothing changed.
+    expect(
+      (await ctx.prisma.priceCategory.findUniqueOrThrow({ where: { id: adult.id } })).amountKobo,
+    ).toBe(6_500_000);
+    const none = await s.api.put(`/api/products/${p.id}/price-categories`).send({ categories: [] });
+    expect(none.body.error.code).toBe('NOT_READY_TO_PUBLISH');
+    const other = await ctx.seedOperator();
+    const theirs = await ctx.prisma.priceCategory.findFirstOrThrow({
+      where: { operatorId: other.operator.id },
+    });
+    const stolen = await s.api.put(`/api/products/${p.id}/price-categories`).send({
+      categories: [{ id: theirs.id, name: 'X', minAge: 0, maxAge: null, amountKobo: 1 }],
+    });
+    expect(stolen.status).toBe(404);
+    expect(
+      (await s.managerApi.put(`/api/products/${p.id}/price-categories`).send({ categories: [] }))
+        .status,
+    ).toBe(403);
+  });
+});
+
+describe('the schedule', () => {
+  it('a change that leaves booked departures says which, in words', async () => {
+    const s = await setup();
+    const { product, departure } = await aBooking(s, 'badagry-heritage-day-trip');
+    const rule = await ctx.prisma.schedule.findFirstOrThrow({ where: { productId: product.id } });
+    // Sundays instead of Saturdays: the booked Saturday stays, for a person to decide.
+    const res = await s.api.patch(`/api/schedules/${rule.id}`).send({ daysOfWeek: [0] });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.sync.created).toBeGreaterThan(0);
+    expect(res.body.sync.removed).toBeGreaterThan(0);
+    expect(res.body.sync.attention).toEqual([
+      {
+        id: departure.id,
+        text: expect.stringMatching(
+          /^Sat \d{1,2} \w{3}, 07:00 · 1 guest · no longer in the schedule$/,
+        ),
+      },
+    ]);
+    // Fewer seats than are booked: said too.
+    await s.api.patch(`/api/schedules/${rule.id}`).send({ daysOfWeek: [6] });
+    const d2 = await ctx.prisma.departure.findFirstOrThrow({
+      where: { productId: product.id, startsAt: { gt: new Date(Date.now() + 9 * 86_400_000) } },
+      orderBy: { startsAt: 'asc' },
+    });
+    await ctx.prisma.departure.update({ where: { id: d2.id }, data: { seatsSold: 3 } });
+    const tight = await s.api.patch(`/api/schedules/${rule.id}`).send({ capacity: 2 });
+    expect(tight.body.sync.attention.map((/** @type {any} */ a) => a.text)).toContainEqual(
+      expect.stringMatching(/ · 3 guests · more guests than the new seats$/),
+    );
   });
 });

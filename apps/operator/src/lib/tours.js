@@ -8,10 +8,19 @@
  *   lines…            the text lists (stops, included, not included, what to bring, FAQs): one
  *                     per line, the way people write them
  *   newTour…          the short form for a new tour, and what POST gets
+ *   price…            Prices (16e-4b): the rows, their checks, what changed in words ("You
+ *                     changed Adult from ₦65,000 to ₦70,000. New bookings pay ₦70,000; the 26
+ *                     existing bookings keep their price."), what PUT gets
+ *   schedule…         Schedule and seats (16e-4b): days, start times, seats, until, the dates
+ *                     it doesn't run; a one-off departure
  *
  * The pin is read by @okapigo/shared/map-pin ("paste a map link", decided 2026-11-21).
  */
 import { readMapPin, pinText } from '@okapigo/shared/map-pin';
+import { findAgeOverlap } from '@okapigo/shared/catalogue';
+import { formatNaira } from '@okapigo/shared/money';
+import { formatLocalDay } from '@okapigo/shared/preview';
+import { scheduleSummary } from '@okapigo/shared/tour-facts';
 
 /** How a tour travels (16b). */
 export const TRANSPORT_CHOICES = /** @type {const} */ ([
@@ -329,4 +338,282 @@ export function saleWords(p) {
     why:
       prices > 0 ? null : 'Add its prices before it goes on sale (prices come in the next part).',
   };
+}
+
+// --- Prices (16e-4b) --------------------------------------------------------------------------
+
+/** @typedef {{ id: string | null, name: string, minAge: string, maxAge: string, naira: string }} PriceRow */
+
+/** The tour's prices as rows to edit (active ones, in order). @param {any} p @returns {PriceRow[]} */
+export const priceRows = (p) =>
+  (p.priceCategories ?? [])
+    .filter((/** @type {any} */ c) => c.isActive)
+    .map((/** @type {any} */ c) => ({
+      id: c.id,
+      name: c.name,
+      minAge: String(c.minAge),
+      maxAge: c.maxAge == null ? '' : String(c.maxAge),
+      naira: String(c.amountKobo / 100),
+    }));
+
+/** A new, empty row. @returns {PriceRow} */
+export const blankPrice = () => ({ id: null, name: '', minAge: '', maxAge: '', naira: '' });
+
+/** Whole number in a range, or NaN. @param {string} t @param {number} min @param {number} max */
+const whole = (t, min, max) => {
+  const n = Number(t.trim());
+  return t.trim() !== '' && Number.isInteger(n) && n >= min && n <= max ? n : NaN;
+};
+
+/** Naira typed ("70,000", "1500.50") → kobo; NaN if it isn't money. @param {string} t */
+export function koboOf(t) {
+  const clean = t.replace(/[₦,\s]/g, '');
+  if (!/^\d+(\.\d{1,2})?$/.test(clean)) return NaN;
+  const kobo = Math.round(Number(clean) * 100);
+  return kobo <= 2_000_000_000 ? kobo : NaN;
+}
+
+/** "13 and over", "3–12", "Any age" (designs: the Ages column). @param {PriceRow} r */
+export function agesLine(r) {
+  const min = whole(r.minAge, 0, 120);
+  const max = r.maxAge.trim() === '' ? null : whole(r.maxAge, 0, 120);
+  if (Number.isNaN(min) || Number.isNaN(max)) return '';
+  if (max === null) return min === 0 ? 'Any age' : `${min} and over`;
+  return `${min}–${max}`;
+}
+
+/** No upper age: counts as an adult (children need one with them). @param {PriceRow} r */
+export const countsAsAdult = (r) => r.maxAge.trim() === '';
+
+/**
+ * What's wrong: per row, and for the prices together.
+ * @param {PriceRow[]} rows @param {boolean} onSale
+ * @returns {{ rows: Array<Partial<Record<'name' | 'minAge' | 'maxAge' | 'naira', string>>>, all: string | null, count: number }}
+ */
+export function priceErrors(rows, onSale) {
+  const each = rows.map((r) => {
+    /** @type {Partial<Record<'name' | 'minAge' | 'maxAge' | 'naira', string>>} */
+    const e = {};
+    if (!r.name.trim()) e.name = 'Name it, like “Adult”.';
+    else if (r.name.trim().length > 50) e.name = 'Keep it under 50 characters.';
+    const min = whole(r.minAge, 0, 120);
+    if (Number.isNaN(min)) e.minAge = 'An age from 0 to 120.';
+    if (r.maxAge.trim()) {
+      const max = whole(r.maxAge, 0, 120);
+      if (Number.isNaN(max)) e.maxAge = 'An age from 0 to 120, or empty for “and over”.';
+      else if (!Number.isNaN(min) && max < min) e.maxAge = 'Not below the youngest age.';
+    }
+    if (Number.isNaN(koboOf(r.naira))) e.naira = 'A price in naira, like 70,000 (0 for free).';
+    return e;
+  });
+  let all = null;
+  if (rows.length === 0 && onSale) all = 'A tour on sale needs at least one price.';
+  else if (each.every((e) => Object.keys(e).length === 0)) {
+    const overlap = findAgeOverlap(
+      rows.map((r, i) => ({
+        key: r.name.trim() || `price ${i + 1}`,
+        minAge: Number(r.minAge),
+        maxAge: r.maxAge.trim() === '' ? null : Number(r.maxAge),
+      })),
+    );
+    if (overlap) all = `${overlap[0]} and ${overlap[1]} cover some of the same ages.`;
+  }
+  const count = each.reduce((n, e) => n + Object.keys(e).length, 0) + (all ? 1 : 0);
+  return { rows: each, all, count };
+}
+
+/** What PUT /api/products/:id/price-categories gets. @param {PriceRow[]} rows */
+export const pricesBody = (rows) => ({
+  categories: rows.map((r) => ({
+    ...(r.id && { id: r.id }),
+    name: r.name.trim(),
+    minAge: Number(r.minAge),
+    maxAge: r.maxAge.trim() === '' ? null : Number(r.maxAge),
+    amountKobo: koboOf(r.naira),
+  })),
+});
+
+/** A row as compared (spaces and "70,000" vs "70000" aren't changes). @param {PriceRow} r */
+const norm = (r) =>
+  JSON.stringify([r.name.trim(), r.minAge.trim(), r.maxAge.trim(), koboOf(r.naira)]);
+
+/** "Unsaved changes: Adult price, New price: Senior, Removed: Infant" @param {PriceRow[]} rows @param {PriceRow[]} saved */
+export function priceChanges(rows, saved) {
+  /** @type {string[]} */
+  const out = [];
+  const before = new Map(saved.map((r) => [r.id, r]));
+  for (const r of rows) {
+    const was = r.id ? before.get(r.id) : null;
+    if (!was) out.push(`New price: ${r.name.trim() || 'unnamed'}`);
+    else if (norm(r) !== norm(was)) {
+      out.push(koboOf(r.naira) !== koboOf(was.naira) ? `${was.name} price` : was.name);
+    }
+  }
+  const kept = new Set(rows.map((r) => r.id));
+  for (const r of saved) if (!kept.has(r.id)) out.push(`Removed: ${r.name}`);
+  // Moved up or down only.
+  if (out.length === 0 && rows.map((r) => r.id).join() !== saved.map((r) => r.id).join())
+    out.push('Price order');
+  return out;
+}
+
+/**
+ * The prices that changed, and what that means for bookings (designs: "You changed Adult from
+ * ₦65,000 to ₦70,000. New bookings pay ₦70,000; the 26 existing bookings keep their price.").
+ * null when no amount changed. @param {PriceRow[]} rows @param {PriceRow[]} saved @param {number} upcoming
+ */
+export function priceChangeWords(rows, saved, upcoming) {
+  const before = new Map(saved.map((r) => [r.id, r]));
+  const moved = rows
+    .filter((r) => r.id && before.has(r.id))
+    .map((r) => ({ r, was: /** @type {PriceRow} */ (before.get(r.id)) }))
+    .filter(
+      ({ r, was }) => !Number.isNaN(koboOf(r.naira)) && koboOf(r.naira) !== koboOf(was.naira),
+    );
+  if (moved.length === 0) return null;
+  const what = moved
+    .map(
+      ({ r, was }) =>
+        `${was.name} from ${formatNaira(koboOf(was.naira))} to ${formatNaira(koboOf(r.naira))}`,
+    )
+    .join(' and ');
+  const pay =
+    moved.length === 1
+      ? `New bookings pay ${formatNaira(koboOf(moved[0].r.naira))}`
+      : 'New bookings pay the new prices';
+  const keep =
+    upcoming === 0
+      ? 'no booking is waiting at the old price.'
+      : upcoming === 1
+        ? 'the 1 existing booking keeps its price.'
+        : `the ${upcoming} existing bookings keep their price.`;
+  return `You changed ${what}. ${pay}; ${keep}`;
+}
+
+// --- Schedule and seats (16e-4b) --------------------------------------------------------------
+
+/** Monday first, the way a week is read here. */
+export const WEEK = /** @type {const} */ ([
+  [1, 'Mon'],
+  [2, 'Tue'],
+  [3, 'Wed'],
+  [4, 'Thu'],
+  [5, 'Fri'],
+  [6, 'Sat'],
+  [0, 'Sun'],
+]);
+
+/** @typedef {{ days: number[], times: string, seats: string, until: string, skip: string[] }} ScheduleForm */
+
+/**
+ * The rule to edit: the first switched-on schedule (or the first), or a new one.
+ * @param {any[]} schedules @param {any} p
+ * @returns {{ id: string | null, form: ScheduleForm, others: number }}
+ */
+export function scheduleOf(schedules, p) {
+  const rule = schedules.find((s) => s.isActive) ?? schedules[0] ?? null;
+  return {
+    id: rule?.id ?? null,
+    // The rule shown is switched on whenever any is, so the others are the rest of those.
+    others: Math.max(0, schedules.filter((s) => s.isActive).length - 1),
+    form: rule
+      ? {
+          days: [...rule.daysOfWeek].sort(),
+          times: rule.times.join(', '),
+          seats: String(rule.capacity ?? p.defaultCapacity),
+          until: rule.endDate ?? '',
+          skip: [...rule.skipDates].sort(),
+        }
+      : { days: [], times: '', seats: String(p.defaultCapacity ?? ''), until: '', skip: [] },
+  };
+}
+
+/** "07:00, 14:30" → ["07:00", "14:30"] (sorted; "7:00" is fine). @param {string} t */
+export const timesOf = (t) =>
+  t
+    .split(/[,\s]+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((x) => (/^\d:\d\d$/.test(x) ? `0${x}` : x))
+    .sort();
+
+/** @param {ScheduleForm} f @returns {Partial<Record<'days' | 'times' | 'seats' | 'until', string>>} */
+export function scheduleErrors(f) {
+  /** @type {Partial<Record<'days' | 'times' | 'seats' | 'until', string>>} */
+  const e = {};
+  if (f.days.length === 0) e.days = 'Pick at least one day.';
+  const times = timesOf(f.times);
+  if (times.length === 0) e.times = 'Add a start time, like 07:00.';
+  else if (times.some((t) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)))
+    e.times = 'Use 24-hour times like 07:00 or 18:30, separated by commas.';
+  else if (new Set(times).size !== times.length) e.times = 'That time is there twice.';
+  else if (times.length > 12) e.times = 'At most 12 start times.';
+  if (Number.isNaN(whole(f.seats, 1, 500))) e.seats = 'From 1 to 500 seats.';
+  if (f.until && !/^\d{4}-\d{2}-\d{2}$/.test(f.until)) e.until = 'Pick a date.';
+  return e;
+}
+
+/** "Saturdays 07:00", from the form as it is (or null). @param {ScheduleForm} f */
+export const runsPreview = (f) =>
+  f.days.length && timesOf(f.times).length
+    ? scheduleSummary([{ daysOfWeek: f.days, times: timesOf(f.times) }])
+    : null;
+
+/** "Unsaved changes: Days, Seats" @param {ScheduleForm} f @param {ScheduleForm} saved */
+export function scheduleChanges(f, saved) {
+  /** @type {string[]} */
+  const out = [];
+  if ([...f.days].sort().join() !== [...saved.days].sort().join()) out.push('Days');
+  if (timesOf(f.times).join() !== timesOf(saved.times).join()) out.push('Start time');
+  if (f.seats.trim() !== saved.seats.trim()) out.push('Seats');
+  if (f.until !== saved.until) out.push('Until');
+  if ([...f.skip].sort().join() !== [...saved.skip].sort().join()) out.push('Not running on');
+  return out;
+}
+
+/**
+ * What the server gets: PATCH for the rule there is (only what changed), POST for a new one
+ * (starting today). @param {ScheduleForm} f @param {ScheduleForm} saved @param {boolean} isNew @param {string} today
+ */
+export function scheduleBody(f, saved, isNew, today) {
+  const all = {
+    daysOfWeek: [...f.days].sort(),
+    times: timesOf(f.times),
+    capacity: Number(f.seats),
+    endDate: f.until || null,
+    skipDates: [...f.skip].sort(),
+  };
+  if (isNew) return { startDate: today, ...all };
+  const ch = scheduleChanges(f, saved);
+  /** @type {Record<string, unknown>} */
+  const body = {};
+  if (ch.includes('Days')) body.daysOfWeek = all.daysOfWeek;
+  if (ch.includes('Start time')) body.times = all.times;
+  if (ch.includes('Seats')) body.capacity = all.capacity;
+  if (ch.includes('Until')) body.endDate = all.endDate;
+  if (ch.includes('Not running on')) body.skipDates = all.skipDates;
+  return body;
+}
+
+/** "Sat 26 Dec" @param {string} date 'YYYY-MM-DD' */
+export const dayChip = (date) => formatLocalDay(date);
+
+/** After a schedule save: what changed, in a line. @param {{ created: number, removed: number }} sync */
+export function syncLine({ created, removed }) {
+  const parts = [
+    created ? `${created} ${created === 1 ? 'departure' : 'departures'} added` : null,
+    removed ? `${removed} removed` : null,
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(', ')}.` : 'The departures already matched.';
+}
+
+/** A one-off departure's form, checked. @param {{ date: string, time: string, seats: string }} f @param {string} today */
+export function oneOffErrors(f, today) {
+  /** @type {Partial<Record<'date' | 'time' | 'seats', string>>} */
+  const e = {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) e.date = 'Pick a date.';
+  else if (f.date < today) e.date = 'That date has passed.';
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(f.time)) e.time = 'A 24-hour time, like 10:00.';
+  if (Number.isNaN(whole(f.seats, 1, 500))) e.seats = 'From 1 to 500 seats.';
+  return e;
 }

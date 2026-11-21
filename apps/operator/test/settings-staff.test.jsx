@@ -5,7 +5,7 @@
  * a guide, then those departures), and who sees the section at all.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, within, waitFor } from '@testing-library/react';
 import { Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import { App } from '../src/App.jsx';
@@ -418,7 +418,7 @@ describe('Settings › Staff and roles', () => {
     expect(sent.some((x) => x.method === 'PATCH')).toBe(false);
     fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
     fireEvent.click(within(sheet).getByRole('button', { name: 'Make Kunle an owner' }));
-    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(sent.find((x) => x.method === 'PATCH')?.body).toEqual({ roleId: 'r-owner' });
   });
 
@@ -445,7 +445,7 @@ describe('Settings › Staff and roles', () => {
     expect(await within(sheet).findByText('There must always be at least one owner.')).toBeTruthy();
     refuse = false;
     fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
-    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(sent.filter((x) => x.method === 'PATCH').map((x) => x.body)).toEqual([
       { name: 'Kunle B.' },
       { name: 'Kunle B.' },
@@ -521,7 +521,7 @@ describe('Settings › Staff and roles', () => {
     const sheet = screen.getByRole('dialog', { name: 'Edit Amaka Obi' });
     expect(within(sheet).queryByRole('button', { name: 'Remove access' })).toBeNull();
     fireEvent.click(within(sheet).getByRole('button', { name: 'Give access back' }));
-    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(sent.find((x) => x.method === 'PATCH')?.body).toEqual({ isActive: true });
   });
 });

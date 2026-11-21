@@ -4,7 +4,7 @@
  * not, and a manager who can only look.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, within, waitFor } from '@testing-library/react';
 import { Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import { App } from '../src/App.jsx';
@@ -89,7 +89,38 @@ const BADAGRY = {
   exclusions: ['Lunch'],
   whatToBring: ['Water'],
   faqs: [{ question: 'Is lunch included?', answer: 'No: add it as an extra.' }],
-  priceCategories: [{ id: 'c1', key: 'adult', isActive: true }],
+  priceCategories: [
+    {
+      id: 'c1',
+      key: 'adult',
+      name: 'Adult',
+      minAge: 13,
+      maxAge: null,
+      amountKobo: 6_500_000,
+      isActive: true,
+    },
+    {
+      id: 'c2',
+      key: 'child',
+      name: 'Child',
+      minAge: 3,
+      maxAge: 12,
+      amountKobo: 3_500_000,
+      isActive: true,
+    },
+    {
+      id: 'c3',
+      key: 'infant',
+      name: 'Infant',
+      minAge: 0,
+      maxAge: 2,
+      amountKobo: 0,
+      isActive: true,
+    },
+    { id: 'c4', key: 'old', name: 'Old', minAge: 0, maxAge: null, amountKobo: 1, isActive: false },
+  ],
+  pricesNote: 'Prices include 7.5% VAT.',
+  upcomingBookings: 26,
   addOns: [],
   runs: 'Saturdays 07:00 · 14 seats',
 };
@@ -448,7 +479,8 @@ describe('Settings › Tours', () => {
       shortTitle: 'Badagry',
       whatToBring: ['Water', 'A hat'],
     });
-    expect(screen.queryByText(/^Unsaved changes/)).toBeNull();
+    // The bar hears from the section a moment after its note.
+    await waitFor(() => expect(screen.queryByText(/^Unsaved changes/)).toBeNull());
   });
 
   it('leaving with something to fix: “Save and leave” saves nothing', async () => {
@@ -484,7 +516,7 @@ describe('Settings › Tours', () => {
         name: 'Take off sale',
       }),
     );
-    await vi.waitFor(() => expect(sent.some((x) => x.method === 'PATCH')).toBe(true));
+    await waitFor(() => expect(sent.some((x) => x.method === 'PATCH')).toBe(true));
     expect(sent.find((x) => x.method === 'PATCH')?.body).toEqual({ status: 'draft' });
     cleanup();
     clearLive();
