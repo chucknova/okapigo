@@ -3,7 +3,7 @@
  * settings.js — what Settings (O10) shows and checks, outside the screens (stage 16e).
  *
  *   SECTIONS             the menu: Website · Embed on your site · Messages · WhatsApp · Staff
- *                        and roles · Tours (built in four parts: 16e-1…16e-4)
+ *                        and roles · Tours (built in four parts: 16e-1…16e-4) · Channels (17c-2)
  *   detailsForm…         the business details: from the server, checked, what's changed, what's
  *                        sent (designs: "Errors in a form": "2 things to fix before saving")
  *   stylePreview()       a style card's colours, from the same tokens the website uses
@@ -32,6 +32,7 @@ export const SECTIONS = /** @type {const} */ ([
   { key: 'whatsapp', label: 'WhatsApp', built: true, needs: 'channels' },
   { key: 'staff', label: 'Staff and roles', built: true, needs: 'settings' },
   { key: 'tours', label: 'Tours', built: true, needs: 'products' },
+  { key: 'channels', label: 'Channels', built: true, needs: 'channels' },
 ]);
 
 /** The sections this person may open (a role with "none" for an area doesn't see it). @param {any} me */

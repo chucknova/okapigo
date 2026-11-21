@@ -153,6 +153,13 @@ export const POSTINGS = {
     ];
   },
 
+  /** An OTA paid what it owed for its sales, into the bank (17c-2).
+   *                               Dr Bank / Cr Owed by OTAs */
+  otaPayment(/** @type {number} */ kobo) {
+    assertAmount(kobo);
+    return [debit('BANK', kobo), credit('OTA_RECEIVABLE', kobo)];
+  },
+
   /** Money arrived we can't match to a booking yet (a bank transfer, stage 10d).
    *                               Dr Paystack clearing / Cr Unallocated receipts */
   unallocatedReceipt(/** @type {number} */ kobo) {

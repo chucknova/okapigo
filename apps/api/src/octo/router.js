@@ -11,6 +11,10 @@
  *   POST /octo/availability            departures and seats left: a date range, or ids
  *   POST /octo/availability/calendar   day by day: open, how many seats at most
  *   (bookings: 17b)
+ *   /octo/notifications/subscriptions  the OTA's own address for what changed (17c-2; OCTO's
+ *                                      "notifications" capability): create, list, read,
+ *                                      change, delete. The sync job does the telling
+ *                                      (packages/db/src/channel-sync.js).
  *
  * Who's asking: `Authorization: Bearer octo_…`, the channel's own key (channels.js). The key
  * decides the business and which of its tours (channel_products) can be seen; another
@@ -54,6 +58,9 @@ import {
   BookingReservationBodySchema,
   BookingUpdateBodySchema,
   CAPABILITY_PRICING,
+  SubscriptionBodySchema,
+  SubscriptionUpdateBodySchema,
+  checkNotificationUrl,
 } from '@okapigo/shared/octo';
 import { normalizeEmail, normalizePhone } from '@okapigo/shared/contact';
 import { slugify } from '@okapigo/shared/slug';
@@ -94,6 +101,7 @@ class OctoError extends Error {
  *   jobs?: { scheduleHoldExpiry: (holdId: string, expiresAt: Date) => Promise<void> },
  *   authSecret?: string,
  *   webPublicUrl?: string,
+ *   production?: boolean,   notification addresses: public https only
  * }} deps
  */
 export function octoRouter({
@@ -104,6 +112,7 @@ export function octoRouter({
   jobs,
   authSecret = '',
   webPublicUrl = apiPublicUrl,
+  production = false,
 }) {
   const router = Router();
   router.use(express.json({ limit: '100kb' }));
@@ -129,6 +138,17 @@ export function octoRouter({
       if (!channel)
         throw new OctoError(403, 'FORBIDDEN', 'That API key is not valid, or it was switched off.');
       res.locals.channel = channel;
+      // "last used 10:42" on Settings › Channels: at most one write a minute per key.
+      const now = new Date();
+      if (
+        !channel.apiKeyLastUsedAt ||
+        now.getTime() - channel.apiKeyLastUsedAt.getTime() > 60_000
+      ) {
+        await prisma.channel.update({
+          where: { id: channel.id },
+          data: { apiKeyLastUsedAt: now },
+        });
+      }
       next();
     } catch (err) {
       next(err);
@@ -723,6 +743,97 @@ export function octoRouter({
     for (const cb of chosen) out.push(await viewOf(c, cb));
     res.json(out);
   });
+
+  // --- Notifications (17c-2) -------------------------------------------------------------------
+  // The spec writes "subcriptions" (sic): both spellings work.
+  const SUBS = ['/notifications/subscriptions', '/notifications/subcriptions'];
+
+  /** @param {any} s */
+  const subscriptionOf = (s) => ({
+    id: s.id,
+    url: s.url,
+    notificationTypes: s.notificationTypes,
+    headers: s.headers,
+  });
+
+  /** The address, if we may send there. @param {string} url */
+  const allowedUrl = (url) => {
+    const r = checkNotificationUrl(url, production);
+    if (!r.ok) throw new OctoError(400, 'BAD_REQUEST', r.problem, { url });
+    return r.url;
+  };
+
+  /** One of this channel's subscriptions. @param {any} c @param {unknown} id */
+  async function subscriptionFor(c, id) {
+    const parsed = z.uuid().safeParse(id);
+    const sub = parsed.success
+      ? await prisma.channelSubscription.findFirst({
+          where: { id: parsed.data, channelId: c.channel.id },
+        })
+      : null;
+    if (!sub) throw new OctoError(400, 'BAD_REQUEST', 'No subscription with that id', { id });
+    return sub;
+  }
+
+  router.post(SUBS, async (req, res) => {
+    const c = ctx(res);
+    const body = parse(req.body, SubscriptionBodySchema);
+    const sub = await prisma.channelSubscription.create({
+      data: {
+        operatorId: c.operator.id,
+        channelId: c.channel.id,
+        url: allowedUrl(body.url),
+        notificationTypes: [...new Set(body.notificationTypes)],
+        headers: body.headers,
+      },
+    });
+    res.json(subscriptionOf(sub));
+  });
+
+  router.get(SUBS, async (req, res) => {
+    const c = ctx(res);
+    const subs = await prisma.channelSubscription.findMany({
+      where: { channelId: c.channel.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json(subs.map(subscriptionOf));
+  });
+
+  router.get(
+    SUBS.map((p) => `${p}/:id`),
+    async (req, res) => {
+      res.json(subscriptionOf(await subscriptionFor(ctx(res), req.params.id)));
+    },
+  );
+
+  router.patch(
+    SUBS.map((p) => `${p}/:id`),
+    async (req, res) => {
+      const c = ctx(res);
+      const sub = await subscriptionFor(c, req.params.id);
+      const body = parse(req.body, SubscriptionUpdateBodySchema);
+      const updated = await prisma.channelSubscription.update({
+        where: { id: sub.id },
+        data: {
+          ...(body.url !== undefined && { url: allowedUrl(body.url), lastPushError: null }),
+          ...(body.notificationTypes && {
+            notificationTypes: [...new Set(body.notificationTypes)],
+          }),
+          ...(body.headers && { headers: body.headers }),
+        },
+      });
+      res.json(subscriptionOf(updated));
+    },
+  );
+
+  router.delete(
+    SUBS.map((p) => `${p}/:id`),
+    async (req, res) => {
+      const sub = await subscriptionFor(ctx(res), req.params.id);
+      await prisma.channelSubscription.delete({ where: { id: sub.id } });
+      res.json(subscriptionOf(sub));
+    },
+  );
 
   // --- OCTO's error shape, for everything above ----------------------------------------------
   router.use(

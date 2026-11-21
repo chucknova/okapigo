@@ -56,6 +56,14 @@ describe('posting rules', () => {
     }
   });
 
+  it('an OTA pays what it owes (17c-2): into the bank, off what OTAs owe', () => {
+    expect(POSTINGS.otaPayment(32_960_000)).toEqual([
+      { account: 'BANK', debitKobo: 32_960_000, creditKobo: 0 },
+      { account: 'OTA_RECEIVABLE', debitKobo: 0, creditKobo: 32_960_000 },
+    ]);
+    expect(() => POSTINGS.otaPayment(0)).toThrow();
+  });
+
   it('a full story: paid ₦50,000, fee ₦750, cancelled with ₦25,000 owed, then refunded', () => {
     const story = [
       POSTINGS.paymentReceived(5_000_000),

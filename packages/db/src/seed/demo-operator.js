@@ -196,13 +196,13 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
         data: { cancellationPolicyId: policy.id },
       });
 
-      // The mock OTA (session 17): an online travel agency selling every tour through OCTO,
+      // Sojourna, the mock OTA (session 17): a travel website selling every tour through OCTO,
       // keeping 20%. Its key is fixed so the mock OTA app can use it: from the settings for
       // the demo business (MOCK_OTA_API_KEY), otherwise one per business (tests). Dev only.
       const tours = await tx.product.findMany({ where: { operatorId: operator.id } });
       await createChannel(tx, {
         operatorId: operator.id,
-        name: 'Mock OTA',
+        name: 'Sojourna',
         commissionBasisPoints: 2000,
         productIds: tours.map((t) => t.id),
         apiKey:

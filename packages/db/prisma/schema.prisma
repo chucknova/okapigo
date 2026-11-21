@@ -160,13 +160,15 @@ model User {
   guiding       Departure[]
   // When this person's phone last synced, and how many changes it said were waiting
   // (16a: the manager's "Guides’ phones"). Null until their phone first syncs.
-  lastSyncedAt  DateTime?      @map("last_synced_at") @db.Timestamptz(3)
-  outboxWaiting Int?           @map("outbox_waiting")
+  lastSyncedAt  DateTime?        @map("last_synced_at") @db.Timestamptz(3)
+  outboxWaiting Int?             @map("outbox_waiting")
   // Changes this person's phone sent from its offline outbox (stage 15b).
   syncChanges   SyncChange[]
   // Cash this person took from guests on tour day (stage 15c-4).
   cashReports   CashReport[]
-  handlingChats Conversation[] @relation("ChatHandler")
+  handlingChats Conversation[]   @relation("ChatHandler")
+  // Payments from OTAs this person recorded (17c-2).
+  otaPayments   ChannelPayment[]
 
   // Lets departures reference (user id + operator id) together: a guide from another
   // business can't be assigned (tenant safety, like roles).
@@ -1282,7 +1284,7 @@ model CashReport {
 model Channel {
   id                    String    @id @default(uuid()) @db.Uuid
   operatorId            String    @map("operator_id") @db.Uuid
-  // "Mock OTA", "Viator"…: unique per business.
+  // "Sojourna", "Viator"…: unique per business.
   name                  String
   // How it connects. Only OCTO for now. CHECK: 'octo'.
   kind                  String    @default("octo")
@@ -1293,19 +1295,18 @@ model Channel {
   commissionBasisPoints Int       @default(2000) @map("commission_basis_points")
   // Switched off: its key stops working, and it sells nothing.
   isActive              Boolean   @default(true) @map("is_active")
-  // Where we tell the OTA that seats or prices changed (17c, DST-02: within 60 seconds).
-  // Null: it only asks (OCTO availability), we don't tell.
-  webhookUrl            String?   @map("webhook_url")
-  // The last time an update reached it, and why the last one didn't (null when it did).
-  lastPushAt            DateTime? @map("last_push_at") @db.Timestamptz(3)
-  lastPushError         String?   @map("last_push_error")
+  // When this key was made, and when the OTA last used it (17c-2: "made Sat 14 Nov · last
+  // used 10:42"; updated at most once a minute).
+  apiKeyCreatedAt       DateTime  @default(now()) @map("api_key_created_at") @db.Timestamptz(3)
+  apiKeyLastUsedAt      DateTime? @map("api_key_last_used_at") @db.Timestamptz(3)
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  operator Operator           @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  products ChannelProduct[]
-  bookings ChannelBooking[]
-  pushed   ChannelSyncState[]
+  operator      Operator              @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  products      ChannelProduct[]
+  bookings      ChannelBooking[]
+  subscriptions ChannelSubscription[]
+  payments      ChannelPayment[]
 
   @@unique([operatorId, name])
   @@unique([id, operatorId])
@@ -1353,25 +1354,87 @@ model ChannelBooking {
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  channel Channel @relation(fields: [channelId, operatorId], references: [id, operatorId], onDelete: Cascade)
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  channel     Channel                    @relation(fields: [channelId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  booking     Booking                    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  allocations ChannelPaymentAllocation[]
 
   @@unique([channelId, uuid])
   @@index([operatorId, channelId])
   @@map("channel_bookings")
 }
 
-// What we last told a channel about one thing (17c): a departure's seats and status
-// ("departure:<id>"), or a tour's prices ("product:<id>"), as a fingerprint. The sync job
-// compares what is now with what was last told, and tells only the differences.
-model ChannelSyncState {
-  channelId   String   @map("channel_id") @db.Uuid
-  subject     String
-  fingerprint String
-  pushedAt    DateTime @map("pushed_at") @db.Timestamptz(3)
+// An OTA's OCTO notification subscription (17c-2; OCTO's "notifications" capability): where to
+// tell it that something changed, what about (PRODUCT_UPDATE, AVAILABILITY_UPDATE,
+// BOOKING_UPDATE), and headers it asked us to send (its own way of knowing it's us). The sync
+// job tells it within a minute (DST-02). CHECKs: http(s) address; known types, at least one.
+model ChannelSubscription {
+  id                String    @id @default(uuid()) @db.Uuid
+  operatorId        String    @map("operator_id") @db.Uuid
+  channelId         String    @map("channel_id") @db.Uuid
+  url               String
+  notificationTypes String[]  @map("notification_types")
+  headers           Json      @default("{}")
+  // The last time a notification reached it, and why the last one didn't (null when it did).
+  lastPushAt        DateTime? @map("last_push_at") @db.Timestamptz(3)
+  lastPushError     String?   @map("last_push_error")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channel Channel             @relation(fields: [channelId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  states  NotificationState[]
 
-  @@id([channelId, subject])
-  @@map("channel_sync_states")
+  @@index([channelId])
+  @@map("channel_subscriptions")
+}
+
+// What a subscription was last told about one thing: a departure ("departure:<id>"), a tour
+// ("product:<id>") or a booking ("booking:<id>"), as a fingerprint. The sync job compares what
+// is now with what was last told, and tells only the differences.
+model NotificationState {
+  subscriptionId String   @map("subscription_id") @db.Uuid
+  subject        String
+  fingerprint    String
+  pushedAt       DateTime @map("pushed_at") @db.Timestamptz(3)
+
+  subscription ChannelSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@id([subscriptionId, subject])
+  @@map("notification_states")
+}
+
+// Money an OTA paid the business for its sales (17c-2: "Record a payment from Sojourna"). It
+// pays off the channel's oldest bookings first (channel_payment_allocations). Ledger: an
+// ota_payment, Dr Bank / Cr Owed by OTAs. CHECKs: more than 0; a reference of 80 at most.
+model ChannelPayment {
+  id           String   @id @default(uuid()) @db.Uuid
+  operatorId   String   @map("operator_id") @db.Uuid
+  channelId    String   @map("channel_id") @db.Uuid
+  amountKobo   Int      @map("amount_kobo")
+  // The day it reached the bank (as the owner tells us).
+  receivedOn   DateTime @map("received_on") @db.Date
+  // The bank's reference ("SOJ-PAYOUT-NOV-0193"), if any.
+  reference    String?
+  recordedById String?  @map("recorded_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  channel     Channel                    @relation(fields: [channelId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  recordedBy  User?                      @relation(fields: [recordedById], references: [id])
+  allocations ChannelPaymentAllocation[]
+
+  @@index([channelId, receivedOn])
+  @@map("channel_payments")
+}
+
+// How much of a payment went to each booking.
+model ChannelPaymentAllocation {
+  paymentId        String @map("payment_id") @db.Uuid
+  channelBookingId String @map("channel_booking_id") @db.Uuid
+  amountKobo       Int    @map("amount_kobo")
+
+  payment        ChannelPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  channelBooking ChannelBooking @relation(fields: [channelBookingId], references: [id], onDelete: Cascade)
+
+  @@id([paymentId, channelBookingId])
+  @@index([channelBookingId])
+  @@map("channel_payment_allocations")
 }

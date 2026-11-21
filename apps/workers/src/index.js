@@ -56,12 +56,10 @@ const provider = createPaymentProvider({
   simulatorStore: redisStore(redis),
   simulatorSecret: process.env.SIMULATOR_WEBHOOK_SECRET || undefined,
 });
-// AUTH_SECRET: signs what we tell OTAs (the same secret as the API's: 17c).
 const processors = createProcessors({
   prisma,
   logger,
   provider,
-  authSecret: process.env.AUTH_SECRET ?? '',
 });
 
 // --- 1. Timetabled jobs -----------------------------------------------------------------

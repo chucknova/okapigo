@@ -1,59 +1,59 @@
 // @ts-check
 /**
- * channel-sync.js — the channel manager's "push" (session 17c, DST-02: "a sale anywhere
- * updates every channel within 60 seconds").
+ * channel-sync.js — telling connected OTAs what changed (sessions 17c and 17c-2; DST-02: "a
+ * sale anywhere updates every channel within 60 seconds").
  *
- * OCTO OTAs ASK for availability when they need it (17a). Many also keep their own copy for
- * their pages; for those, we TELL them when something changes, at their webhook address:
+ * OCTO OTAs ASK for tours and seats when they need them (17a). Many also keep their own copy
+ * for their pages; for those, OCTO's "notifications" capability lets an OTA SUBSCRIBE an
+ * address of its own (channel_subscriptions, made through POST /octo/notifications/
+ * subscriptions), and we tell it there when something changed. The notification only says
+ * WHAT changed; the OTA fetches it again (OCTO keeps the messages small):
  *
- *   availability_update   a departure's seats or status changed (a sale anywhere, a hold, a
- *                         cancellation, a schedule change, a departure called off)
- *   product_update        a tour's prices changed, or it went off sale: fetch it again
+ *   PRODUCT_UPDATE        a tour's prices, or it went off sale or off the channel
+ *                         data: { productId }
+ *   AVAILABILITY_UPDATE   departures' seats or status (a sale anywhere, a hold, a cancellation,
+ *                         a schedule change, a departure called off or removed)
+ *                         data: { productId, optionId, localDateStart, localDateEnd }
+ *   BOOKING_UPDATE        one of its bookings changed (e.g. the business cancelled it for
+ *                         weather)            data: { uuid }
  *
  * How we know what changed, without touching every piece of code that changes seats: we keep
- * a FINGERPRINT of what we last told each channel about each departure and tour
- * (channel_sync_states), and a job every 30 seconds compares them with how things are now.
+ * a FINGERPRINT of what each subscription was last told about each departure, tour and booking
+ * (notification_states), and a job every 30 seconds compares them with how things are now.
  * Whatever differs is told, and remembered only once the OTA accepted it (an OTA that's down
  * is simply told again on the next run).
  *
- *   pushChannelUpdates(prisma, { send })   one run over every channel with a webhook
- *   webhookSecret(authSecret, channelId)   the key the OTA checks our signature with
- *   signWebhook(secret, timestamp, body)   "t=…,v1=…" for the Octo-Webhook-Signature header
+ *   pushChannelUpdates(prisma, { send })   one run over every subscription
  *
- * `send(channel, payload)` does the HTTP (the workers app gives it): this file decides WHAT
- * to tell, not how it travels.
+ * `send(subscription, notification)` does the HTTP (the workers app gives it): this file
+ * decides WHAT to tell, not how it travels.
  */
-import { createHmac } from 'node:crypto';
-import { localIso, statusOf } from '@okapigo/shared/octo';
+import { randomUUID } from 'node:crypto';
+import { localDate } from '@okapigo/shared/time';
 import { seatsLeft } from './seats.js';
+import { octoStatusOf } from './channel-bookings.js';
 
 /** How far ahead we keep OTAs told: the same 60 days that are on sale (HORIZON_DAYS). */
 export const PUSH_HORIZON_DAYS = 60;
-/** At most this many departures in one update (an OTA's first update can be long). */
-const BATCH = 100;
+
+const DAY = 86_400_000;
 
 /**
- * The key a channel checks our webhook signature with: derived from the server's secret, so
- * nothing new is stored, and it can be shown again when the owner connects the OTA.
- * @param {string} authSecret @param {string} channelId
- */
-export const webhookSecret = (authSecret, channelId) =>
-  createHmac('sha256', authSecret).update(`channel-webhook:${channelId}`).digest('hex');
-
-/**
- * The signature header's value: "t=<unix seconds>,v1=<hex HMAC-SHA256 of `${t}.${body}`>".
- * The timestamp inside the signed text stops an old message being replayed later.
- * @param {string} secret @param {number} timestamp @param {string} body
- */
-export const signWebhook = (secret, timestamp, body) =>
-  `t=${timestamp},v1=${createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
-
-/**
- * What a departure looks like to an OTA, as a fingerprint: seats left, how many in all,
- * whether it runs, when. @param {any} d  with its resource
+ * What a departure looks like to an OTA, as a fingerprint: its tour, whether it runs, seats
+ * left, how many in all, when. The tour comes first and the start last, so a departure that's
+ * gone can still be told about (which tour, which day). @param {any} d  with its resource
  */
 export const departureFingerprint = (d) =>
-  [d.status, seatsLeft(d), d.capacity, d.startsAt.toISOString()].join('|');
+  [d.productId, d.status, seatsLeft(d), d.capacity, d.startsAt.toISOString()].join('|');
+
+/** A departure of a tour that's off sale: closed, whatever its seats. @param {any} d */
+const offSaleFingerprint = (d) => [d.productId, 'off', 0, 0, d.startsAt.toISOString()].join('|');
+
+/** The tour and the start, back out of a fingerprint. @param {string} f */
+const tourAndStart = (f) => {
+  const parts = f.split('|');
+  return { productId: parts[0], startsAt: new Date(parts[parts.length - 1]) };
+};
 
 /**
  * What a tour's prices look like to an OTA: its active price categories, and whether it's on
@@ -71,35 +71,30 @@ export const productFingerprint = (p) =>
   ]);
 
 /**
- * One departure as the update says it (a slimmed OCTO Availability).
- * @param {any} d @param {string} tz
+ * What a booking looks like to an OTA: its OCTO status, and its departure.
+ * @param {any} cb with booking.hold @param {Date} now
  */
-function availabilityLine(d, tz) {
-  const open = d.status === 'scheduled';
-  const left = open ? Math.max(0, seatsLeft(d)) : 0;
-  return {
-    id: d.id,
-    localDateTimeStart: localIso(d.startsAt, tz),
-    status: open ? statusOf(left, d.capacity) : 'CLOSED',
-    available: open && left > 0,
-    vacancies: left,
-    capacity: d.capacity,
-  };
-}
+const bookingFingerprint = (cb, now) =>
+  [octoStatusOf(cb.booking, cb.booking.hold, now), cb.booking.departureId].join('|');
 
 /**
- * What to tell one channel now: the updates, each with the fingerprints to remember once it's
- * accepted.
- * @param {import('@prisma/client').PrismaClient} prisma
- * @param {any} channel  with its operator
- * @param {Date} now
- * @returns {Promise<Array<{ payload: any, remember: Array<{ subject: string, fingerprint: string | null }> }>>}
- *   fingerprint null: forget it (a departure that's gone)
+ * @typedef {{ type: string, data: any, remember: Array<{ subject: string, fingerprint: string | null }> }} Update
+ *   fingerprint null: forget it (something that's gone, told once)
  */
-export async function channelUpdates(prisma, channel, now) {
+
+/**
+ * What to tell one subscription now.
+ * @param {import('@prisma/client').PrismaClient} prisma
+ * @param {any} sub  with its channel and the channel's business
+ * @param {Date} now
+ * @returns {Promise<Update[]>}
+ */
+export async function subscriptionUpdates(prisma, sub, now) {
+  const channel = sub.channel;
   const tz = channel.operator.timeZone;
-  const until = new Date(now.getTime() + PUSH_HORIZON_DAYS * 86_400_000);
-  const [products, told] = await Promise.all([
+  const wants = new Set(sub.notificationTypes);
+  const until = new Date(now.getTime() + PUSH_HORIZON_DAYS * DAY);
+  const [products, bookings, told] = await Promise.all([
     prisma.product.findMany({
       where: { operatorId: channel.operatorId, channels: { some: { channelId: channel.id } } },
       include: {
@@ -112,118 +107,129 @@ export async function channelUpdates(prisma, channel, now) {
       },
       orderBy: { id: 'asc' },
     }),
-    prisma.channelSyncState.findMany({ where: { channelId: channel.id } }),
+    wants.has('BOOKING_UPDATE')
+      ? prisma.channelBooking.findMany({
+          // Its bookings whose day hasn't passed (a day's grace: a no-show, a late refund).
+          where: {
+            channelId: channel.id,
+            booking: { departure: { startsAt: { gt: new Date(now.getTime() - DAY) } } },
+          },
+          include: { booking: { include: { hold: true } } },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [],
+    prisma.notificationState.findMany({ where: { subscriptionId: sub.id } }),
   ]);
   const before = new Map(told.map((t) => [t.subject, t.fingerprint]));
+  /** @type {Set<string>} */
   const seen = new Set();
-  /** @type {Array<{ payload: any, remember: Array<{ subject: string, fingerprint: string | null }> }>} */
+  /** @type {Update[]} */
   const updates = [];
-  const base = { supplierId: channel.operatorId, sentAt: now.toISOString() };
+  /** Changed departures, by tour. @type {Map<string, Array<{ subject: string, fingerprint: string | null, startsAt: Date }>>} */
+  const changedByTour = new Map();
+  /** @param {string} productId @param {{ subject: string, fingerprint: string | null, startsAt: Date }} c */
+  const changed = (productId, c) =>
+    changedByTour.set(productId, [...(changedByTour.get(productId) ?? []), c]);
 
   for (const p of products) {
-    const onSale = p.status === 'published';
-    // The tour: its prices, or that it went off sale.
-    const ps = `product:${p.id}`;
-    const pf = productFingerprint(p);
-    seen.add(ps);
-    if (before.get(ps) !== pf) {
-      updates.push({
-        payload: { event: 'product_update', ...base, productId: p.id, available: onSale },
-        remember: [{ subject: ps, fingerprint: pf }],
-      });
-    }
-    // Its departures: what changed (a tour off sale: every departure closed).
-    const changed = [];
-    for (const d of p.departures) {
-      const subject = `departure:${d.id}`;
-      const fingerprint = onSale ? departureFingerprint(d) : `off|${d.id}`;
+    if (wants.has('PRODUCT_UPDATE')) {
+      const subject = `product:${p.id}`;
+      const fingerprint = productFingerprint(p);
       seen.add(subject);
       if (before.get(subject) !== fingerprint) {
-        const line = availabilityLine(onSale ? d : { ...d, status: 'off' }, tz);
-        changed.push({ line, subject, fingerprint });
+        updates.push({
+          type: 'PRODUCT_UPDATE',
+          data: { productId: p.id },
+          remember: [{ subject, fingerprint }],
+        });
       }
     }
-    for (let i = 0; i < changed.length; i += BATCH) {
-      const part = changed.slice(i, i + BATCH);
+    if (wants.has('AVAILABILITY_UPDATE')) {
+      const onSale = p.status === 'published';
+      for (const d of p.departures) {
+        const subject = `departure:${d.id}`;
+        // A tour off sale: every departure closed.
+        const fingerprint = onSale ? departureFingerprint(d) : offSaleFingerprint(d);
+        seen.add(subject);
+        if (before.get(subject) !== fingerprint) {
+          changed(p.id, { subject, fingerprint, startsAt: d.startsAt });
+        }
+      }
+    }
+  }
+  for (const cb of bookings) {
+    const subject = `booking:${cb.id}`;
+    const fingerprint = bookingFingerprint(cb, now);
+    seen.add(subject);
+    if (before.get(subject) !== fingerprint) {
       updates.push({
-        payload: {
-          event: 'availability_update',
-          ...base,
-          productId: p.id,
-          optionId: 'DEFAULT',
-          availabilities: part.map((c) => c.line),
-        },
-        remember: part.map((c) => ({ subject: c.subject, fingerprint: c.fingerprint })),
+        type: 'BOOKING_UPDATE',
+        data: { uuid: cb.uuid },
+        remember: [{ subject, fingerprint }],
       });
     }
   }
 
-  // Told before, gone now (a departure removed from the schedule, a tour taken off the
-  // channel): closed, then forgotten. A departure simply in the past is just forgotten.
-  const gone = told.filter((t) => !seen.has(t.subject));
-  const goneDepartures = gone.filter((t) => t.subject.startsWith('departure:'));
-  if (goneDepartures.length) {
-    const ids = goneDepartures.map((t) => t.subject.slice('departure:'.length));
-    const still = await prisma.departure.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, productId: true, startsAt: true, capacity: true },
-    });
-    const byId = new Map(still.map((d) => [d.id, d]));
-    /** @type {Map<string, Array<any>>} */
-    const closedBy = new Map();
-    for (const t of goneDepartures) {
-      const id = t.subject.slice('departure:'.length);
-      const d = byId.get(id);
-      if (d && d.startsAt <= now) continue; // past: just forgotten, below
-      const productId = d?.productId ?? null;
-      const list = closedBy.get(productId ?? '') ?? [];
-      list.push({
-        id,
-        ...(d && { localDateTimeStart: localIso(d.startsAt, tz) }),
-        status: 'CLOSED',
-        available: false,
-        vacancies: 0,
-        capacity: d?.capacity ?? 0,
-      });
-      closedBy.set(productId ?? '', list);
-    }
-    for (const [productId, lines] of closedBy) {
+  // Told before, gone now:
+  //   a departure removed from the schedule, or of a tour taken off the channel: its day is
+  //     told once more, then forgotten (one in the past: just forgotten)
+  //   a tour taken off the channel: told once (fetching it now says it isn't there), forgotten
+  //   a booking whose day has passed: just forgotten
+  /** @type {string[]} */
+  const forget = [];
+  for (const t of told) {
+    if (seen.has(t.subject)) continue;
+    if (t.subject.startsWith('departure:')) {
+      const { productId, startsAt } = tourAndStart(t.fingerprint);
+      if (startsAt > now) changed(productId, { subject: t.subject, fingerprint: null, startsAt });
+      else forget.push(t.subject);
+    } else if (t.subject.startsWith('product:')) {
       updates.push({
-        payload: {
-          event: 'availability_update',
-          ...base,
-          productId: productId || null,
-          optionId: 'DEFAULT',
-          availabilities: lines,
-        },
-        remember: lines.map((l) => ({ subject: `departure:${l.id}`, fingerprint: null })),
+        type: 'PRODUCT_UPDATE',
+        data: { productId: t.subject.slice('product:'.length) },
+        remember: [{ subject: t.subject, fingerprint: null }],
       });
+    } else {
+      forget.push(t.subject);
     }
   }
-  // Forget the rest: the past, and tours no longer on the channel (nothing to tell about them).
-  const closing = new Set(updates.flatMap((u) => u.remember.map((r) => r.subject)));
-  const forget = gone.filter((t) => !closing.has(t.subject)).map((t) => t.subject);
+
+  // One AVAILABILITY_UPDATE per tour: the days to fetch again, first to last.
+  for (const [productId, list] of changedByTour) {
+    const days = list.map((c) => localDate(c.startsAt, tz)).sort();
+    updates.push({
+      type: 'AVAILABILITY_UPDATE',
+      data: {
+        productId,
+        optionId: 'DEFAULT',
+        localDateStart: days[0],
+        localDateEnd: days[days.length - 1],
+      },
+      remember: list.map((c) => ({ subject: c.subject, fingerprint: c.fingerprint })),
+    });
+  }
+
   if (forget.length) {
-    await prisma.channelSyncState.deleteMany({
-      where: { channelId: channel.id, subject: { in: forget } },
+    await prisma.notificationState.deleteMany({
+      where: { subscriptionId: sub.id, subject: { in: forget } },
     });
   }
   return updates;
 }
 
 /**
- * Remembers what a channel accepted. @param {import('@prisma/client').PrismaClient} prisma
- * @param {string} channelId @param {Array<{ subject: string, fingerprint: string | null }>} items @param {Date} now
+ * Remembers what a subscription accepted. @param {import('@prisma/client').PrismaClient} prisma
+ * @param {string} subscriptionId @param {Update['remember']} items @param {Date} now
  */
-async function remember(prisma, channelId, items, now) {
+async function remember(prisma, subscriptionId, items, now) {
   const keep = items.filter((i) => i.fingerprint !== null);
   const drop = items.filter((i) => i.fingerprint === null).map((i) => i.subject);
   await prisma.$transaction([
     ...keep.map((i) =>
-      prisma.channelSyncState.upsert({
-        where: { channelId_subject: { channelId, subject: i.subject } },
+      prisma.notificationState.upsert({
+        where: { subscriptionId_subject: { subscriptionId, subject: i.subject } },
         create: {
-          channelId,
+          subscriptionId,
           subject: i.subject,
           fingerprint: /** @type {string} */ (i.fingerprint),
           pushedAt: now,
@@ -231,37 +237,45 @@ async function remember(prisma, channelId, items, now) {
         update: { fingerprint: /** @type {string} */ (i.fingerprint), pushedAt: now },
       }),
     ),
-    prisma.channelSyncState.deleteMany({ where: { channelId, subject: { in: drop } } }),
+    prisma.notificationState.deleteMany({ where: { subscriptionId, subject: { in: drop } } }),
   ]);
 }
 
 /**
- * One run: every active channel with a webhook is told what changed since it was last told.
- * A channel whose OTA refuses or doesn't answer keeps its last error, and is told again next
+ * One run: every subscription of an active channel is told what changed since it was last
+ * told. One whose OTA refuses or doesn't answer keeps its last error, and is told again next
  * time; the others carry on.
  * @param {import('@prisma/client').PrismaClient} prisma
  * @param {{
- *   send: (channel: any, payload: any) => Promise<void>,   throws when the OTA didn't accept it
+ *   send: (subscription: any, notification: any) => Promise<void>,   throws when not accepted
  *   now?: Date,
- *   operatorId?: string,    only this business's channels (tests)
+ *   operatorId?: string,    only this business's (tests)
  * }} o
- * @returns {Promise<{ channels: number, sent: number, failed: number }>}
+ * @returns {Promise<{ subscriptions: number, sent: number, failed: number }>}
  */
 export async function pushChannelUpdates(prisma, { send, now = new Date(), operatorId }) {
-  const channels = await prisma.channel.findMany({
-    where: { isActive: true, webhookUrl: { not: null }, ...(operatorId && { operatorId }) },
-    include: { operator: true },
+  const subs = await prisma.channelSubscription.findMany({
+    where: { channel: { isActive: true }, ...(operatorId && { operatorId }) },
+    include: { channel: { include: { operator: true } } },
+    orderBy: { createdAt: 'asc' },
   });
   let sent = 0;
   let failed = 0;
-  for (const channel of channels) {
-    const updates = await channelUpdates(prisma, channel, now);
+  for (const sub of subs) {
+    const updates = await subscriptionUpdates(prisma, sub, now);
     let error = null;
     let any = false;
     for (const u of updates) {
       try {
-        await send(channel, u.payload);
-        await remember(prisma, channel.id, u.remember, now);
+        // OCTO's envelope: which subscription, what kind, what to fetch again.
+        await send(sub, {
+          id: randomUUID(),
+          subscriptionId: sub.id,
+          notificationType: u.type,
+          utcCreatedAt: now.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+          data: u.data,
+        });
+        await remember(prisma, sub.id, u.remember, now);
         sent += 1;
         any = true;
       } catch (err) {
@@ -271,11 +285,11 @@ export async function pushChannelUpdates(prisma, { send, now = new Date(), opera
       }
     }
     if (any || error) {
-      await prisma.channel.update({
-        where: { id: channel.id },
+      await prisma.channelSubscription.update({
+        where: { id: sub.id },
         data: { ...(any && { lastPushAt: now }), lastPushError: error },
       });
     }
   }
-  return { channels: channels.length, sent, failed };
+  return { subscriptions: subs.length, sent, failed };
 }

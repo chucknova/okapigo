@@ -380,6 +380,117 @@ export const BookingUpdateBodySchema = z.object({
   emailReceipt: z.boolean().optional(),
 });
 
+// --- Notifications (17c-2; OCTO's "notifications" capability) -------------------------------
+// An OTA subscribes an address of its own; we POST there when a tour, its seats or one of its
+// bookings changed, and it fetches the thing again. The spec spells the path
+// "/notifications/subcriptions" (sic); we answer that and the correct spelling.
+
+export const CAPABILITY_NOTIFICATIONS = 'notifications';
+
+export const NOTIFICATION_TYPES = /** @type {const} */ ([
+  'PRODUCT_UPDATE',
+  'AVAILABILITY_UPDATE',
+  'BOOKING_UPDATE',
+]);
+
+/** Headers we never send on an OTA's say-so (they'd break the request or impersonate). */
+const RESERVED_HEADERS = new Set([
+  'host',
+  'content-type',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'cookie',
+]);
+
+/** Headers the OTA wants on every notification (e.g. "Api-Key"): 10 at most, short. */
+export const SubscriptionHeadersSchema = z
+  .record(
+    z
+      .string()
+      .regex(/^[A-Za-z0-9-]{1,64}$/, 'a header name: letters, digits and dashes')
+      .refine((n) => !RESERVED_HEADERS.has(n.toLowerCase()), 'a header we set ourselves'),
+    z
+      .string()
+      .max(512)
+      .regex(/^[^\r\n]*$/, 'one line'),
+  )
+  .refine((h) => Object.keys(h).length <= 10, 'at most 10 headers');
+
+/** POST /notifications/subscriptions */
+export const SubscriptionBodySchema = z.object({
+  url: z
+    .string()
+    .max(500)
+    .regex(/^https?:\/\//, 'an http(s) address'),
+  notificationTypes: z.array(z.enum(NOTIFICATION_TYPES)).min(1),
+  headers: SubscriptionHeadersSchema.default({}),
+});
+
+/** PATCH /notifications/subscriptions/{id}: any of them. */
+export const SubscriptionUpdateBodySchema = SubscriptionBodySchema.partial();
+
+/** What we answer: the subscription. */
+export const SubscriptionSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  notificationTypes: z.array(z.enum(NOTIFICATION_TYPES)),
+  headers: z.record(z.string(), z.string()),
+});
+
+/** What we POST to the OTA. */
+export const NotificationSchema = z.object({
+  id: z.string(),
+  subscriptionId: z.string(),
+  notificationType: z.enum(NOTIFICATION_TYPES),
+  utcCreatedAt: utcDateTime,
+  data: z.union([
+    z.object({ productId: z.string() }).strict(),
+    z
+      .object({
+        productId: z.string(),
+        optionId: z.string(),
+        localDateStart: isoDate,
+        localDateEnd: isoDate,
+      })
+      .strict(),
+    z.object({ uuid: z.string() }).strict(),
+  ]),
+});
+
+/**
+ * An address we may send notifications to. In production: https, and not this machine or a
+ * private network, so an address can't be used to reach our own insides (SSRF). In
+ * development, http://localhost is fine (the mock OTA runs there).
+ * @param {string} url @param {boolean} production
+ * @returns {{ ok: true, url: string } | { ok: false, problem: string }}
+ */
+export function checkNotificationUrl(url, production) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return { ok: false, problem: 'That isn’t a web address.' };
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+    return { ok: false, problem: 'An address starting with https://' };
+  }
+  if (production) {
+    const host = u.hostname.toLowerCase();
+    const privateHost =
+      host === 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.internal') ||
+      /^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+      host.startsWith('[');
+    if (u.protocol !== 'https:' || privateHost) {
+      return { ok: false, problem: 'Use a public https:// address.' };
+    }
+  }
+  return { ok: true, url: u.toString() };
+}
+
 // --- Helpers shared by the API and the sync job (17c) -----------------------------------------
 
 /**

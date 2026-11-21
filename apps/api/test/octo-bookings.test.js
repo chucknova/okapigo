@@ -125,7 +125,7 @@ describe('reserve', () => {
     const booking = await ctx.prisma.booking.findFirstOrThrow({
       where: { reference: res.body.supplierReference },
     });
-    expect(booking).toMatchObject({ channel: 'ota', status: 'held', leadName: 'Mock OTA guest' });
+    expect(booking).toMatchObject({ channel: 'ota', status: 'held', leadName: 'Sojourna guest' });
 
     // The same uuid again (a retry): the same booking, nothing more held.
     const again = await s.reserve(d.id, { uuid: 'ota-1' });
@@ -359,7 +359,7 @@ describe('cancel (Ìrìn’s policy, until the start)', () => {
     conforms(BookingSchema, res.body);
     expect(res.body).toMatchObject({
       status: 'CANCELLED',
-      cancellation: { refund: 'FULL', reason: 'Cancelled by Mock OTA' },
+      cancellation: { refund: 'FULL', reason: 'Cancelled by Sojourna' },
     });
     expect(await seatsOn(d.id)).toEqual({ held: 0, sold: 0 });
     const after = await ctx.prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });

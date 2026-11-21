@@ -132,7 +132,7 @@ const ROW_INCLUDE = /** @type {const} */ ({
   hold: true,
   refunds: { select: { status: true, amountKobo: true } },
   cashReports: { select: { status: true } },
-  // Sold by an OTA (17c): its name, for "via Mock OTA".
+  // Sold by an OTA (17c): its name, for "via Sojourna".
   channelBooking: { select: { channel: { select: { name: true } } } },
 });
 
@@ -264,7 +264,7 @@ function messageName(n) {
 
 /**
  * One line of the timeline, in words. @param {any} e @param {Map<string, string>} names
- * @param {{ channelName?: string | null }} [o]  an OTA's name: "booked through Mock OTA" (17c)
+ * @param {{ channelName?: string | null }} [o]  an OTA's name: "booked through Sojourna" (17c)
  */
 export function eventText(e, names, o = {}) {
   const who = e.actorUserId ? (names.get(e.actorUserId) ?? 'someone in the office') : null;

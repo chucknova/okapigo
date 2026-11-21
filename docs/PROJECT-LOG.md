@@ -105,60 +105,61 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 
 ## 5. What's built, session by session
 
-| Session / stage | What                                                                                                                                                                                   | Commit              | Note           |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------- |
-| 1               | monorepo, Docker (Postgres, Redis), Express + `/health`, CI                                                                                                                            | `36aff2e`           | 01             |
-| 2               | Prisma schema: operators, roles, staff; Ìrìn seed                                                                                                                                      | `f9a4d66`           | 02             |
-| 3               | one-time-code sign-in, sessions (30 days), roles and permissions                                                                                                                       | `0e244ab`           | 03             |
-| 4               | catalogue: products, price categories, add-ons                                                                                                                                         | `ef3724f`           | 04             |
-| 5               | schedules → departures, time zones                                                                                                                                                     | `2e486e1`           | 05             |
-| 6               | pricing pipeline (kobo integers, VAT 7.5% included)                                                                                                                                    | `7c37760`           | 06             |
-| 7               | holds with row locks, BullMQ expiry, no double-selling                                                                                                                                 | `e6840e3`           | 07             |
-| 8               | bookings: state machine, travellers, timeline                                                                                                                                          | `339c395`           | 08             |
-| 9               | versioned cancellation policies, cancel, no-show, departure cancel                                                                                                                     | `eb25fb7`           | 09             |
-| 10a–10e         | ledger (double-entry); payments + Paystack; webhooks; transfers + payment links; refunds + reconciliation                                                                              | `caf0bdb`…`e7e1899` | 10a–10e        |
-| 11a–11e         | public catalogue; public checkout + guest links + rate limits; deposits; balance reminders + staff alerts; share pages                                                                 | `9dd7834`…`498eb92` | 11a–11e        |
-| 12a–12h-2       | guest web from the designs: tokens; catalogue/tour page + share card; checkout; after paying; trip hub (+ cancel, ask); website styles; operator site; booking widget                  | `74cdb67`…`5033a5a` | 12a–12h2       |
-| 13a–13c-3       | WhatsApp booking engine; paying + staff take-over; as designed; simulator app; real Cloud API                                                                                          | `bb6b05d`…`2c62364` | 13a–13c-3      |
-| 14a–14c         | guest messages (templates, outbox); emails (Mailpit/Resend); WhatsApp templates                                                                                                        | `f9a9919`…`6cfde28` | 14a–14c        |
-| brief 07        | the operator app's flow brief, with the user's decisions                                                                                                                               | `56e4f17`           | —              |
-| 15a             | vans/boats, assigning guides (exclusion constraints), manifest + print, check-in, no-show                                                                                              | `2fc4d0f`           | 15a            |
-| 15b             | sync API: offline package (ticket fingerprints), outbox once-only, conflicts, 72 h                                                                                                     | `565205e`           | 15b            |
-| 15c-1           | operator app: PWA at /app/, sign-in, first run, strip, tabs, IndexedDB, outbox, Sync                                                                                                   | `b5224da`           | 15c-1          |
-| 15c-2           | manifest (O3): states, names, two kinds of no-show, money owed, search, PDF                                                                                                            | `cc016eb`           | 15c-2          |
-| 15c-3           | Scan (O4): camera (BarcodeDetector / jsQR), every result, search, Undo                                                                                                                 | `ae37bb7`           | 15c-3          |
-| 15c-4           | money on the day (payment QR, cash reports), pickup stops, A4 printed manifest                                                                                                         | `862aa7f`           | 15c-4          |
-| 15d             | journey 6 end to end, network off                                                                                                                                                      | `5bbb9ea`           | 15d            |
-| —               | tests get their own databases and queues                                                                                                                                               | `21ad517`           | test-isolation |
-| 16a             | manager's shell (tabs/sidebar by role), staff states, manager's Today                                                                                                                  | `07b04c9`           | 16a            |
-| 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                                          | `d293b30`           | 16b            |
-| 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                                    | `bf4d0d7`           | 16c-1          |
-| 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts                      | `9c97f5a`           | 16c-2          |
-| 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                                        | `105242e`           | 16c-3          |
-| 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email                               | `a18ebab`           | 16d-1          |
-| 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                                             | `1daa498`           | 16d-2          |
-| 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                                      | `0506dbf`           | 16d-3          |
-| 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                                    | `72fadc7`           | 16e-1          |
-| 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | `f60623f`           | 16e-2          |
-| 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | `b9781ed`           | 16e-3          |
-| 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | `4872ff2`           | 16e-4a         |
-| 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | `9b6483e`           | 16e-4b         |
-| 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | `8ee0e0f`           | 16e-4c         |
-| 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                              | `035902a`           | 17a            |
-| 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels    | `87aa54a`           | 17b            |
-| 17c             | channel manager, server side: the channels API in words (sales, owed, keys once), "via Mock OTA" on bookings, the 30-second signed push to OTA webhooks (fingerprints), SSRF guard     | `a52461d`           | 17c            |
+| Session / stage | What                                                                                                                                                                                                            | Commit              | Note           |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------- |
+| 1               | monorepo, Docker (Postgres, Redis), Express + `/health`, CI                                                                                                                                                     | `36aff2e`           | 01             |
+| 2               | Prisma schema: operators, roles, staff; Ìrìn seed                                                                                                                                                               | `f9a4d66`           | 02             |
+| 3               | one-time-code sign-in, sessions (30 days), roles and permissions                                                                                                                                                | `0e244ab`           | 03             |
+| 4               | catalogue: products, price categories, add-ons                                                                                                                                                                  | `ef3724f`           | 04             |
+| 5               | schedules → departures, time zones                                                                                                                                                                              | `2e486e1`           | 05             |
+| 6               | pricing pipeline (kobo integers, VAT 7.5% included)                                                                                                                                                             | `7c37760`           | 06             |
+| 7               | holds with row locks, BullMQ expiry, no double-selling                                                                                                                                                          | `e6840e3`           | 07             |
+| 8               | bookings: state machine, travellers, timeline                                                                                                                                                                   | `339c395`           | 08             |
+| 9               | versioned cancellation policies, cancel, no-show, departure cancel                                                                                                                                              | `eb25fb7`           | 09             |
+| 10a–10e         | ledger (double-entry); payments + Paystack; webhooks; transfers + payment links; refunds + reconciliation                                                                                                       | `caf0bdb`…`e7e1899` | 10a–10e        |
+| 11a–11e         | public catalogue; public checkout + guest links + rate limits; deposits; balance reminders + staff alerts; share pages                                                                                          | `9dd7834`…`498eb92` | 11a–11e        |
+| 12a–12h-2       | guest web from the designs: tokens; catalogue/tour page + share card; checkout; after paying; trip hub (+ cancel, ask); website styles; operator site; booking widget                                           | `74cdb67`…`5033a5a` | 12a–12h2       |
+| 13a–13c-3       | WhatsApp booking engine; paying + staff take-over; as designed; simulator app; real Cloud API                                                                                                                   | `bb6b05d`…`2c62364` | 13a–13c-3      |
+| 14a–14c         | guest messages (templates, outbox); emails (Mailpit/Resend); WhatsApp templates                                                                                                                                 | `f9a9919`…`6cfde28` | 14a–14c        |
+| brief 07        | the operator app's flow brief, with the user's decisions                                                                                                                                                        | `56e4f17`           | —              |
+| 15a             | vans/boats, assigning guides (exclusion constraints), manifest + print, check-in, no-show                                                                                                                       | `2fc4d0f`           | 15a            |
+| 15b             | sync API: offline package (ticket fingerprints), outbox once-only, conflicts, 72 h                                                                                                                              | `565205e`           | 15b            |
+| 15c-1           | operator app: PWA at /app/, sign-in, first run, strip, tabs, IndexedDB, outbox, Sync                                                                                                                            | `b5224da`           | 15c-1          |
+| 15c-2           | manifest (O3): states, names, two kinds of no-show, money owed, search, PDF                                                                                                                                     | `cc016eb`           | 15c-2          |
+| 15c-3           | Scan (O4): camera (BarcodeDetector / jsQR), every result, search, Undo                                                                                                                                          | `ae37bb7`           | 15c-3          |
+| 15c-4           | money on the day (payment QR, cash reports), pickup stops, A4 printed manifest                                                                                                                                  | `862aa7f`           | 15c-4          |
+| 15d             | journey 6 end to end, network off                                                                                                                                                                               | `5bbb9ea`           | 15d            |
+| —               | tests get their own databases and queues                                                                                                                                                                        | `21ad517`           | test-isolation |
+| 16a             | manager's shell (tabs/sidebar by role), staff states, manager's Today                                                                                                                                           | `07b04c9`           | 16a            |
+| 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                                                                   | `d293b30`           | 16b            |
+| 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                                                             | `bf4d0d7`           | 16c-1          |
+| 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts                                               | `9c97f5a`           | 16c-2          |
+| 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                                                                 | `105242e`           | 16c-3          |
+| 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email                                                        | `a18ebab`           | 16d-1          |
+| 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                                                                      | `1daa498`           | 16d-2          |
+| 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                                                               | `0506dbf`           | 16d-3          |
+| 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                                                             | `72fadc7`           | 16e-1          |
+| 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect)                          | `f60623f`           | 16e-2          |
+| 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                                             | `b9781ed`           | 16e-3          |
+| 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                                         | `4872ff2`           | 16e-4a         |
+| 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                                                    | `9b6483e`           | 16e-4b         |
+| 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                                         | `8ee0e0f`           | 16e-4c         |
+| 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                                                       | `035902a`           | 17a            |
+| 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels                             | `87aa54a`           | 17b            |
+| 17c             | channel manager, server side: the channels API in words (sales, owed, keys once), "via Mock OTA" on bookings, the 30-second signed push to OTA webhooks (fingerprints), SSRF guard                              | `a52461d`           | 17c            |
+| 17c-2           | Settings › Channels (O11) as designed: cards, tours one by one, latest bookings, money, commission, key (once, made, last used), switch off; OCTO notifications; payments from the OTA (oldest first); Sojourna | `(this commit)`     | 17c-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
-| Next    | What                                                                                                                 | PRD                       |
-| ------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                                       | OPS-01                    |
-| ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers             | —                         |
-| ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                                      | —                         |
-| ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                     | —                         |
-| **17**  | OCTO in four parts: ~~17a~~ catalogue; ~~17b~~ bookings; 17c channel manager (screen waits on designs); 17d mock OTA | DST-01–03                 |
-| 18      | AI companion, posters, dashboard (journeys 7, 8)                                                                     | GST-16, MKT-01/02, RPT-01 |
-| 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                                           | step 10                   |
+| Next    | What                                                                                                                      | PRD                       |
+| ------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                                            | OPS-01                    |
+| ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers                  | —                         |
+| ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                                           | —                         |
+| ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                          | —                         |
+| **17**  | OCTO: ~~17a~~ catalogue; ~~17b~~ bookings; ~~17c~~ ~~17c-2~~ channel manager; 17c-3 via Sojourna everywhere; 17d Sojourna | DST-01–03                 |
+| 18      | AI companion, posters, dashboard (journeys 7, 8)                                                                          | GST-16, MKT-01/02, RPT-01 |
+| 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                                                | step 10                   |
 
 ## 6. Decisions (dated)
 
@@ -327,15 +328,34 @@ ranges, 169.254, .internal, IPv6 literals); redirects are never followed; 5 seco
 Off sale or taken off the channel: departures told CLOSED, then forgotten. "via Mock OTA",
 "Paid by Mock OTA" and "Mock OTA owes you" show on the desk, the booking and the departure.
 
+**With 17c-2 (2026-11-21, your designs for brief 08):** the mock OTA is **Sojourna**. The rest
+of session 17 goes in three: **17c-2** Settings › Channels, **17c-3** "via Sojourna" everywhere
+else (bookings filter, booking page, manifest, schedule), **17d** the Sojourna app and journey 3.
+**OTA guests get the trip page link and the reminders from the business** (the confirmation,
+receipts and refunds stay the OTA's: "Not sent: Sojourna sends its own"); this replaces 17b's
+"nothing automatic" and lands in 17c-3. The design has no webhook field, so **17c's own webhook
+is replaced by OCTO's notifications capability**: the OTA subscribes its own address
+(`/octo/notifications/subscriptions`, also the spec's "subcriptions"), with the types it wants
+and headers it asks for; messages are OCTO's small ones (PRODUCT_UPDATE {productId},
+AVAILABILITY_UPDATE {productId, optionId, localDateStart, localDateEnd}, BOOKING_UPDATE {uuid});
+fingerprints per subscription (`notification_states`). **Payments from an OTA** are recorded
+(amount, day, bank reference) and pay off its **oldest bookings first**; ledger `ota_payment`
+(Dr Bank / Cr Owed by OTAs). A booking refunded after the OTA paid for it is owed back. Only
+published tours can be on a channel; connecting switches every published tour on. The key
+shows its last 4, when it was made and when it was last used (updated at most once a minute).
+Payments: owners only (channels: edit). Key format stays `octo_…` and the address `/octo` (the
+designs' `okg_live_…` and `/octo/v1` were illustrative).
+
 ## 7. Where we are
 
-- **Last done:** 17c, the channel manager's server side, committed `a52461d`. 17b pushed.
-- **Next:** **17d**, the mock OTA app (`apps/mock-ota`, journey 3) and **Settings › Channels**
-  (O11), both once your designs for brief 08 (O11 and M1–M5) and the mock OTA's name arrive.
-  The API for O11 is ready (`/api/channels`). If the designs aren't ready, session 18 (AI,
-  posters, dashboard) can go first.
-- **Your dev database** has no OTA channel until you run `pnpm db:reset` (the seed adds the
-  Mock OTA with all five tours).
+- **Last done:** 17c-2, Settings › Channels, committed `(this commit)` (on top of 17c,
+  `a52461d`).
+- **Next:** **17c-3**, "via Sojourna" everywhere else (your designs: the bookings list's channel
+  filter and tag, the OTA booking's page with its money and messages, the guide's manifest tag,
+  the departure's channel counts), and the trip page link and reminders for OTA guests. Then
+  **17d**, the Sojourna app (M1–M5 and its states) and journey 3.
+- **Your dev database** needs `pnpm db:reset` for the Sojourna channel (none, or the old "Mock
+  OTA", until then).
 - **The operator app's script is over 500 kB** since 16e-4c (Vite warns at build). Not urgent
   for staff phones on a good connection; splitting Settings into its own chunk would fix it.
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
@@ -399,6 +419,9 @@ Off sale or taken off the channel: departures told CLOSED, then forgotten. "via 
 - **Order ties are random**: rows with the same `sortOrder` and the same `createdAt` (seeded in
   one go) come back in id order, which is random. A full run caught archived prices tying with
   active ones (16e-4b); they now sort after them. Give every sorted row its own place.
+- **A browser check that needs data your dev database lacks** (17c-2: no Sojourna before
+  `pnpm db:reset`): point the check API at the **e2e** database (rebuilt by every e2e run) rather
+  than adding to your dev data.
 - **The channel push (17c) runs in the workers app**, not the API: my check API on :4300
   doesn't push. A test that seeds a whole business and pushes 60 days of departures needs the
   60-second test timeout under load (the workers' default 20 s timed out in a full run).
@@ -407,6 +430,7 @@ Off sale or taken off the channel: departures told CLOSED, then forgotten. "via 
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 17c-2 Settings › Channels (designs arrive; Sojourna).
 - 2026-11-21 · 17c channel manager (server side).
 - 2026-11-21 · 17b OCTO bookings.
 - 2026-11-21 · 17a OCTO catalogue (session 17 begins).

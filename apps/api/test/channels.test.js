@@ -1,17 +1,17 @@
 /**
- * Session 17c: the channel manager.
- *   - the channels in words (tours, sales, what each owes), for owners; managers look
- *   - connecting one (its key and signing secret shown once), changing it, a new key
- *   - "via Mock OTA" on the bookings desk, the booking's page and the departure
- *   - the push: what changed since each OTA was last told, told once it's accepted
+ * Sessions 17c and 17c-2: the channel manager, as designed (O11 · Settings › Channels).
+ *   - each channel as a card, in words; one channel's page (tours, latest bookings, money,
+ *     connection); owners change things, managers look
+ *   - connecting one (its key shown once; every published tour on), changing it, its tours one
+ *     by one, a new key, switching it off and on
+ *   - a payment from the OTA: its oldest bookings paid off first, and the ledger
+ *   - "via Sojourna" on the bookings desk, the booking's page and the departure
  */
 import { describe, it, expect, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
-import { createHmac } from 'node:crypto';
-import { createTestContext, TEST_AUTH_SECRET } from './helpers.js';
-import { pushChannelUpdates, signWebhook, webhookSecret } from '@okapigo/db';
-import { checkWebhookUrl, owedBy } from '../src/routes/channels.js';
-import { ProductSchema } from '@okapigo/shared/octo';
+import { accountBalances } from '@okapigo/db';
+import { createTestContext } from './helpers.js';
+import { bookingMoney, owedWords, tourNote, whoShort } from '../src/routes/channels.js';
 
 const ctx = createTestContext();
 afterEach(() => ctx.cleanup());
@@ -43,79 +43,97 @@ const octo = (key) => {
   };
 };
 
+const TIME = /^\d\d:\d\d$/;
+const DAY = /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2}$/;
+const lagosToday = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
+
 async function setup() {
   const s = await ctx.seedOperator();
   const owner = as(await ctx.tokenFor(s.owner.id));
   const manager = as(await ctx.tokenFor(s.manager.id));
   const guide = as(await ctx.tokenFor(s.guides[0].id));
-  const mock = await ctx.prisma.channel.findFirstOrThrow({ where: { operatorId: s.operator.id } });
-  const api = octo(`octo_dev_${s.operator.slug}`);
-  const tarkwa = await ctx.prisma.product.findFirstOrThrow({
-    where: { operatorId: s.operator.id, slug: 'tarkwa-bay-beach-and-lagoon' },
+  const sojourna = await ctx.prisma.channel.findFirstOrThrow({
+    where: { operatorId: s.operator.id },
   });
+  const api = octo(`octo_dev_${s.operator.slug}`);
+  const tour = (/** @type {string} */ slug) =>
+    ctx.prisma.product.findFirstOrThrow({ where: { operatorId: s.operator.id, slug } });
+  const tarkwa = await tour('tarkwa-bay-beach-and-lagoon');
   /** An OTA sale of two adults on a Tarkwa Bay departure; returns the booking. @param {string} uuid */
-  const sale = async (uuid, api2 = api) => {
+  const sale = async (uuid, through = api) => {
     const d = await ctx.prisma.departure.findFirstOrThrow({
       where: { productId: tarkwa.id, startsAt: { gt: new Date(Date.now() + 4 * 86_400_000) } },
       orderBy: { startsAt: 'asc' },
     });
-    await api2.post('/octo/bookings').send({
+    const r = await through.post('/octo/bookings').send({
       uuid,
       productId: tarkwa.id,
       optionId: 'DEFAULT',
       availabilityId: d.id,
       unitItems: [{ unitId: 'adult' }, { unitId: 'adult' }],
     });
-    const c = await api2
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const c = await through
       .post(`/octo/bookings/${uuid}/confirm`)
       .send({ contact: { fullName: 'Ada Eze', emailAddress: 'ada@guest.example' } });
     expect(c.status, JSON.stringify(c.body)).toBe(200);
     return ctx.prisma.booking.findFirstOrThrow({ where: { channelBooking: { uuid } } });
   };
-  return { ...s, owner, manager, guide, mock, api, tarkwa, sale };
+  const card = async () => (await owner.get('/api/channels')).body.channels[0];
+  const page = async (id = sojourna.id) => (await owner.get(`/api/channels/${id}`)).body.channel;
+  return {
+    ...s,
+    ownerId: s.owner.id,
+    owner,
+    manager,
+    guide,
+    sojourna,
+    api,
+    tour,
+    tarkwa,
+    sale,
+    card,
+    page,
+  };
 }
 
 describe('the channels, in words', () => {
-  it('the seeded mock OTA; owners and managers see it, guides don’t', async () => {
+  it('the seeded Sojourna; owners and managers see it, guides don’t; never its key', async () => {
     const s = await setup();
     const res = await s.owner.get('/api/channels');
     expect(res.status).toBe(200);
     expect(res.body.octoEndpoint).toBe('http://localhost:4000/octo');
     expect(res.body.channels).toEqual([
-      expect.objectContaining({
-        id: s.mock.id,
-        name: 'Mock OTA',
+      {
+        id: s.sojourna.id,
+        name: 'Sojourna',
+        isActive: true,
         status: 'Connected',
-        commission: '20%',
         commissionBasisPoints: 2000,
-        apiKeyHint: `…${`octo_dev_${s.operator.slug}`.slice(-4)}`,
-        toursLine: '5 of 5 tours',
-        salesLine: 'No sales this month',
+        commission: '20%',
+        summary: '20% commission · 5 of 5 tours · no bookings yet',
+        month: { lead: 'This month:', strong: 'no sales yet' },
         owedKobo: 0,
-        owedLine: 'Owes nothing',
-        lastActivity: 'No bookings yet',
-        webhookUrl: null,
-        pushLine: 'No webhook: it asks when it needs to.',
-      }),
+        owedLine: '₦0 owed',
+      },
     ]);
-    // Never the key itself.
     expect(JSON.stringify(res.body)).not.toContain(`octo_dev_${s.operator.slug}`);
     expect((await s.manager.get('/api/channels')).status).toBe(200);
-    expect(
-      (await s.manager.patch(`/api/channels/${s.mock.id}`).send({ isActive: false })).status,
-    ).toBe(403);
+    expect((await s.manager.get(`/api/channels/${s.sojourna.id}`)).status).toBe(200);
+    const patch = await s.manager.patch(`/api/channels/${s.sojourna.id}`).send({ isActive: false });
+    expect(patch.status).toBe(403);
     expect((await s.guide.get('/api/channels')).status).toBe(403);
   });
 
-  it('a sale and a refund: this month’s sales, and what it owes', async () => {
+  it('a sale, a hold, last month’s sale and a half refund: the card, and the desk', async () => {
     const s = await setup();
     await s.sale('c-1');
-    const after = (await s.owner.get('/api/channels')).body.channels[0];
-    expect(after).toMatchObject({
-      salesLine: '1 booking · ₦80,000 this month',
+    expect(await s.card()).toMatchObject({
+      summary: expect.stringMatching(/^20% commission · 5 of 5 tours · last booking \d\d:\d\d$/),
+      month: { lead: 'This month:', strong: '1 booking · ₦80,000' },
       owedKobo: 6_400_000,
       owedLine: '₦64,000 owed',
-      lastActivity: expect.stringMatching(/^Last booking \d\d:\d\d$/),
     });
     // A hold not confirmed yet: not a sale, owes nothing.
     const d = await ctx.prisma.departure.findFirstOrThrow({
@@ -130,19 +148,21 @@ describe('the channels, in words', () => {
       unitItems: [{ unitId: 'adult' }],
     });
     expect(held.status).toBe(200);
-    expect((await s.owner.get('/api/channels')).body.channels[0]).toMatchObject({
-      salesLine: '1 booking · ₦80,000 this month',
+    expect(await s.card()).toMatchObject({
+      month: { strong: '1 booking · ₦80,000' },
       owedKobo: 6_400_000,
     });
     // Sold last month: not this month's sales, still owed.
     await ctx.prisma.channelBooking.update({
-      where: { channelId_uuid: { channelId: s.mock.id, uuid: 'c-1' } },
+      where: { channelId_uuid: { channelId: s.sojourna.id, uuid: 'c-1' } },
       data: { confirmedAt: new Date(Date.now() - 40 * 86_400_000) },
     });
-    expect((await s.owner.get('/api/channels')).body.channels[0]).toMatchObject({
-      salesLine: 'No sales this month',
+    expect(await s.card()).toMatchObject({
+      month: { strong: 'no sales yet' },
       owedKobo: 6_400_000,
     });
+    // Its last booking another day: the day, not the time.
+    expect((await s.card()).summary.split(' · last booking ')[1]).toMatch(DAY);
     // Cancelled 30 hours before: half back to the guest; it owes the other half's net.
     const b = await ctx.prisma.booking.findFirstOrThrow({
       where: { channelBooking: { uuid: 'c-1' } },
@@ -152,505 +172,407 @@ describe('the channels, in words', () => {
       data: { startsAt: new Date(Date.now() + 30 * 3_600_000) },
     });
     expect((await s.api.post('/octo/bookings/c-1/cancel').send({})).status).toBe(200);
-    expect((await s.owner.get('/api/channels')).body.channels[0]).toMatchObject({
-      owedKobo: 3_200_000,
-      owedLine: '₦32,000 owed',
-    });
-    const page = (await s.owner.get(`/api/desk/bookings/${b.id}`)).body.booking;
-    expect(page.money).toEqual(
+    expect(await s.card()).toMatchObject({ owedKobo: 3_200_000, owedLine: '₦32,000 owed' });
+    const desk = (await s.owner.get(`/api/desk/bookings/${b.id}`)).body.booking;
+    expect(desk.money).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          label: 'Mock OTA owes you',
+          label: 'Sojourna owes you',
           value: '₦32,000 (₦40,000 less 20%)',
         }),
       ]),
     );
   });
 
-  it('one channel: its tours (on or not, and why) and its latest bookings', async () => {
+  it('one channel’s page: its tours, its own latest bookings, the money, the connection', async () => {
     const s = await setup();
     const booking = await s.sale('c-2');
     // Another channel's sale isn't this one's.
-    const other2 = await s.owner
+    const other = await s.owner
       .post('/api/channels')
-      .send({ name: 'Tripwell', commissionPercent: 15, productIds: [s.tarkwa.id] });
-    await s.sale('t-1', octo(other2.body.apiKey));
-    await ctx.prisma.product.update({ where: { id: s.tarkwa.id }, data: { status: 'draft' } });
-    const res = await s.owner.get(`/api/channels/${s.mock.id}`);
-    expect(res.status).toBe(200);
-    expect(res.body.channel.tours).toHaveLength(5);
-    expect(
-      res.body.channel.tours.find((/** @type {any} */ t) => t.id === s.tarkwa.id),
-    ).toMatchObject({
+      .send({ name: 'Tripwell', commissionPercent: 15 });
+    await s.sale('t-1', octo(other.body.apiKey));
+    // A tour taken off sale: off, and it can't be switched on.
+    const street = await s.tour('lagos-street-food-crawl');
+    await ctx.prisma.product.update({ where: { id: street.id }, data: { status: 'draft' } });
+
+    const c = await s.page();
+    expect(c.tours).toHaveLength(5);
+    const tourOf = (/** @type {string} */ id) =>
+      c.tours.find((/** @type {any} */ t) => t.id === id);
+    expect(tourOf(s.tarkwa.id)).toEqual({
+      id: s.tarkwa.id,
+      title: s.tarkwa.title,
       on: true,
-      note: 'Not on sale: the OTA won’t see it',
+      canSwitch: true,
+      note: 'On sale on Sojourna',
     });
-    expect(res.body.channel.bookings).toEqual([
-      expect.objectContaining({
+    expect(tourOf((await s.tour('lekki-nature-and-craft')).id).note).toBe(
+      'On sale · pickup points shared',
+    );
+    expect(tourOf((await s.tour('badagry-heritage-day-trip')).id).note).toBe(
+      'On sale · full price only (no deposit on OTAs)',
+    );
+    expect(tourOf(street.id)).toMatchObject({
+      on: false,
+      canSwitch: false,
+      note: 'Draft: only published tours can be on',
+    });
+    // Tours it can sell: on it AND on sale.
+    expect(c.summary).toMatch(/^20% commission · 4 of 4 tours · last booking /);
+
+    expect(c.bookings).toEqual([
+      {
         id: booking.id,
         reference: booking.reference,
-        lead: 'Ada Eze',
-        total: '₦80,000',
-        status: 'paid',
-      }),
+        who: 'Ada Eze · 2A',
+        tour: expect.stringMatching(/^Tarkwa Bay Beach Day · (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d/),
+        price: '₦80,000',
+        state: 'Owes ₦64,000',
+        tone: 'owes',
+      },
     ]);
-    const other = await ctx.seedOperator();
-    const theirs = await ctx.prisma.channel.findFirstOrThrow({
-      where: { operatorId: other.operator.id },
+    expect(c.money).toEqual({
+      salesLabel: 'Sales this month (1)',
+      sales: '₦80,000',
+      shareLabel: 'Sojourna’s 20%',
+      share: '− ₦16,000',
+      owedLabel: `Sojourna owes ${s.operator.name}`,
+      owed: '₦64,000',
+      lastPayment: null,
     });
-    expect((await s.owner.get(`/api/channels/${theirs.id}`)).status).toBe(404);
+    // The key: its last four, when it was made, and when Sojourna last used it (just now).
+    const hint = `octo_dev_${s.operator.slug}`.slice(-4);
+    expect(c.connection.octoEndpoint).toBe('http://localhost:4000/octo');
+    expect(c.connection.keyHint).toBe(hint);
+    const [ending, made, used] = c.connection.keyLine.split(' · ');
+    expect(ending).toBe(`ending ••••${hint}`);
+    expect(made.replace('made ', '')).toMatch(DAY);
+    expect(used.replace('last used ', '')).toMatch(TIME);
+    expect(c.keptLine).toBe(
+      '1 upcoming booking from Sojourna stays as it is; its guests can still come. Sojourna still owes ₦64,000.',
+    );
+
+    const theirs = await ctx.seedOperator();
+    const theirChannel = await ctx.prisma.channel.findFirstOrThrow({
+      where: { operatorId: theirs.operator.id },
+    });
+    expect((await s.owner.get(`/api/channels/${theirChannel.id}`)).status).toBe(404);
   });
 });
 
 describe('connecting and changing a channel', () => {
-  it('connect: its key and signing secret shown once; the key works with OCTO', async () => {
+  it('connect: every published tour on; the key shown once, never stored, works with OCTO', async () => {
     const s = await setup();
-    const walk = await ctx.prisma.product.findFirstOrThrow({
-      where: { operatorId: s.operator.id, slug: 'lagos-island-heritage-walk' },
-    });
-    const res = await s.owner.post('/api/channels').send({
-      name: 'Tripwell',
-      commissionPercent: 17.5,
-      productIds: [walk.id],
-      webhookUrl: 'http://localhost:4400/octo-updates',
-    });
+    const street = await s.tour('lagos-street-food-crawl');
+    await ctx.prisma.product.update({ where: { id: street.id }, data: { status: 'draft' } });
+    const res = await s.owner
+      .post('/api/channels')
+      .send({ name: '  Tripwell ', commissionPercent: 17.5 });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(res.body.apiKey).toMatch(/^octo_[A-Za-z0-9_-]{43}$/);
-    expect(res.body.webhookSecret).toBe(webhookSecret(TEST_AUTH_SECRET, res.body.channel.id));
+    expect(res.body.octoEndpoint).toBe('http://localhost:4000/octo');
     expect(res.body.channel).toMatchObject({
       name: 'Tripwell',
       commission: '17.5%',
-      toursLine: '1 of 5 tours',
-      webhookUrl: 'http://localhost:4400/octo-updates',
-      pushLine: 'Updates start within 30 seconds.',
+      summary: '17.5% commission · 4 of 4 tours · no bookings yet',
     });
-    const products = (await octo(res.body.apiKey).get('/octo/products')).body;
-    expect(products.map((/** @type {any} */ p) => p.id)).toEqual([walk.id]);
-    // The key isn't kept: only its hash.
+    expect(res.body.channel.connection.keyLine).toMatch(/ · not used yet$/);
+    expect(res.body.channel.tours.filter((/** @type {any} */ t) => t.on)).toHaveLength(4);
+    expect((await octo(res.body.apiKey).get('/octo/products')).body).toHaveLength(4);
+    // The key isn't kept: only its hash. Seen again: no key.
     const row = await ctx.prisma.channel.findUniqueOrThrow({ where: { id: res.body.channel.id } });
     expect(JSON.stringify(row)).not.toContain(res.body.apiKey);
-    // Seen again: no key.
     expect(JSON.stringify((await s.owner.get('/api/channels')).body)).not.toContain(
       res.body.apiKey,
     );
+    // Put back on sale later: not on this channel until switched on.
+    await ctx.prisma.product.update({ where: { id: street.id }, data: { status: 'published' } });
+    expect((await s.page(res.body.channel.id)).summary).toMatch(/ · 4 of 5 tours · /);
+    // Switched off before selling anything.
+    const off = await s.owner
+      .patch(`/api/channels/${res.body.channel.id}`)
+      .send({ isActive: false });
+    expect(off.body.channel.month).toEqual({ lead: 'No past bookings', strong: null });
   });
 
-  it('refused: a name already used, someone else’s tour, a bad commission, a bad address', async () => {
+  it('refused: a name already used, a bad commission', async () => {
     const s = await setup();
     const dup = await s.owner
       .post('/api/channels')
-      .send({ name: 'Mock OTA', commissionPercent: 10 });
+      .send({ name: 'Sojourna', commissionPercent: 10 });
     expect(dup.status).toBe(409);
     expect(dup.body.error.code).toBe('NAME_TAKEN');
-    const other = await ctx.seedOperator();
-    const theirs = await ctx.prisma.product.findFirstOrThrow({
-      where: { operatorId: other.operator.id },
+    for (const commissionPercent of [-1, 101, 12.345]) {
+      const r = await s.owner.post('/api/channels').send({ name: 'X Tours', commissionPercent });
+      expect(r.status).toBe(400);
+    }
+    const tripwell = await s.owner
+      .post('/api/channels')
+      .send({ name: 'Tripwell', commissionPercent: 10 });
+    const clash = await s.owner
+      .patch(`/api/channels/${tripwell.body.channel.id}`)
+      .send({ name: 'Sojourna' });
+    expect(clash.body.error.code).toBe('NAME_TAKEN');
+  });
+
+  it('tours one by one: off, on again; a draft can’t go on; another business’s is unknown', async () => {
+    const s = await setup();
+    const url = `/api/channels/${s.sojourna.id}/tours/${s.tarkwa.id}`;
+    const off = await s.owner.put(url).send({ on: false });
+    expect(off.status).toBe(200);
+    const tarkwaRow = off.body.channel.tours.find((/** @type {any} */ t) => t.id === s.tarkwa.id);
+    expect(tarkwaRow).toMatchObject({ on: false, note: 'Not on Sojourna' });
+    expect((await s.api.get('/octo/products')).body).toHaveLength(4);
+    expect((await s.owner.put(url).send({ on: true })).status).toBe(200);
+    expect((await s.owner.put(url).send({ on: true })).status).toBe(200); // twice: still on
+    expect((await s.api.get('/octo/products')).body).toHaveLength(5);
+
+    const street = await s.tour('lagos-street-food-crawl');
+    await s.owner.put(`/api/channels/${s.sojourna.id}/tours/${street.id}`).send({ on: false });
+    await ctx.prisma.product.update({ where: { id: street.id }, data: { status: 'draft' } });
+    const draft = await s.owner
+      .put(`/api/channels/${s.sojourna.id}/tours/${street.id}`)
+      .send({ on: true });
+    expect(draft.status).toBe(409);
+    expect(draft.body.error.code).toBe('NOT_ON_SALE');
+
+    const theirs = await ctx.seedOperator();
+    const theirTour = await ctx.prisma.product.findFirstOrThrow({
+      where: { operatorId: theirs.operator.id },
     });
     const foreign = await s.owner
-      .post('/api/channels')
-      .send({ name: 'X Tours', commissionPercent: 10, productIds: [theirs.id] });
-    expect(foreign.body.error.code).toBe('INVALID_TOUR');
-    for (const commissionPercent of [-1, 101, 12.345]) {
-      expect(
-        (await s.owner.post('/api/channels').send({ name: 'X Tours', commissionPercent })).status,
-      ).toBe(400);
-    }
-    expect(
-      (
-        await s.owner
-          .post('/api/channels')
-          .send({ name: 'X Tours', commissionPercent: 10, webhookUrl: 'ftp://x' })
-      ).status,
-    ).toBe(400);
+      .put(`/api/channels/${s.sojourna.id}/tours/${theirTour.id}`)
+      .send({ on: true });
+    expect(foreign.status).toBe(404);
+    expect((await s.manager.put(url).send({ on: false })).status).toBe(403);
   });
 
-  it('change: tours, commission (new sales only), the webhook; switched off, its key stops', async () => {
+  it('commission for new sales only; switched off: its key stops, its bookings stay', async () => {
     const s = await setup();
     const old = await s.sale('c-3');
-    const res = await s.owner.patch(`/api/channels/${s.mock.id}`).send({
-      productIds: [s.tarkwa.id],
-      commissionPercent: 25,
-      webhookUrl: 'http://localhost:4400/hook',
-    });
+    const res = await s.owner
+      .patch(`/api/channels/${s.sojourna.id}`)
+      .send({ commissionPercent: 25 });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(res.body.channel).toMatchObject({ toursLine: '1 of 5 tours', commission: '25%' });
-    expect((await s.api.get('/octo/products')).body).toHaveLength(1);
+    expect(res.body.channel.commission).toBe('25%');
     // The old sale keeps its 20%; a new one owes at 25%.
-    expect(
-      (await ctx.prisma.channelBooking.findUniqueOrThrow({ where: { bookingId: old.id } }))
-        .commissionBasisPoints,
-    ).toBe(2000);
-    await s.sale('c-4');
-    expect((await s.owner.get('/api/channels')).body.channels[0].owedKobo).toBe(
-      6_400_000 + 6_000_000,
-    );
-    // A new address: the last one's error is gone.
-    await ctx.prisma.channel.update({
-      where: { id: s.mock.id },
-      data: { lastPushError: 'it answered 503' },
+    const frozen = await ctx.prisma.channelBooking.findUniqueOrThrow({
+      where: { bookingId: old.id },
     });
-    await s.owner
-      .patch(`/api/channels/${s.mock.id}`)
-      .send({ webhookUrl: 'http://localhost:4401/hook' });
-    expect((await s.owner.get('/api/channels')).body.channels[0].pushLine).toBe(
-      'Updates start within 30 seconds.',
-    );
-    // A webhook cleared: it only asks again.
-    await s.owner.patch(`/api/channels/${s.mock.id}`).send({ webhookUrl: null });
-    expect((await s.owner.get('/api/channels')).body.channels[0].webhookUrl).toBeNull();
-    // Switched off: its key stops working at once.
-    await s.owner.patch(`/api/channels/${s.mock.id}`).send({ isActive: false });
+    expect(frozen.commissionBasisPoints).toBe(2000);
+    await s.sale('c-4');
+    const c = await s.page();
+    expect(c.owedKobo).toBe(6_400_000 + 6_000_000);
+    expect(c.money.shareLabel).toBe('Sojourna’s commission'); // two shares this month
+    expect(c.money.share).toBe('− ₦36,000');
+
+    // Their day has passed (both are on one departure): not upcoming any more.
+    await ctx.prisma.departure.update({
+      where: { id: old.departureId },
+      data: { startsAt: new Date(Date.now() - 3 * 86_400_000 + 7_777) },
+    });
+    const switched = await s.owner
+      .patch(`/api/channels/${s.sojourna.id}`)
+      .send({ isActive: false });
+    expect(switched.body.channel).toMatchObject({
+      status: 'Switched off',
+      summary: '25% · can’t see or sell anything',
+      month: { lead: '2 past bookings kept', strong: null },
+      keptLine: 'No upcoming bookings from Sojourna. Sojourna still owes ₦124,000.',
+    });
     expect((await s.api.get('/octo/supplier')).status).toBe(403);
-    expect((await s.owner.get('/api/channels')).body.channels[0].status).toBe('Switched off');
+    // The list: connected ones first.
+    await s.owner.post('/api/channels').send({ name: 'Tripwell', commissionPercent: 10 });
+    const names = (await s.owner.get('/api/channels')).body.channels.map(
+      (/** @type {any} */ x) => x.name,
+    );
+    expect(names).toEqual(['Tripwell', 'Sojourna']);
+    await s.owner.patch(`/api/channels/${s.sojourna.id}`).send({ isActive: true });
+    expect((await s.api.get('/octo/supplier')).status).toBe(200);
   });
 
-  it('a new key: the old one stops at once', async () => {
+  it('a new key: the old one stops at once; made now, not used yet', async () => {
     const s = await setup();
-    const res = await s.owner.post(`/api/channels/${s.mock.id}/key`);
+    // Used two days ago: the next request says "last used" now (at most one write a minute).
+    await ctx.prisma.channel.update({
+      where: { id: s.sojourna.id },
+      data: { apiKeyLastUsedAt: new Date(Date.now() - 2 * 86_400_000) },
+    });
+    expect((await s.page()).connection.keyLine).toMatch(
+      / · last used (Mon|Tue|Wed|Thu|Fri|Sat|Sun) /,
+    );
+    await s.api.get('/octo/supplier');
+    expect((await s.page()).connection.keyLine).toMatch(/ · last used \d\d:\d\d$/);
+    const res = await s.owner.post(`/api/channels/${s.sojourna.id}/key`);
     expect(res.status).toBe(200);
-    expect(res.body.apiKeyHint).toBe(`…${res.body.apiKey.slice(-4)}`);
+    expect(res.body.octoEndpoint).toBe('http://localhost:4000/octo');
+    expect(res.body.channel.connection.keyHint).toBe(res.body.apiKey.slice(-4));
+    expect(res.body.channel.connection.keyLine).toMatch(/ · not used yet$/);
     expect((await s.api.get('/octo/supplier')).status).toBe(403);
     expect((await octo(res.body.apiKey).get('/octo/supplier')).status).toBe(200);
-  });
-
-  it('the webhook address rule: https and public in production; localhost in development', () => {
-    expect(checkWebhookUrl(null, true)).toEqual({ ok: true, url: null });
-    expect(checkWebhookUrl('https://ota.example/hooks', true)).toEqual({
-      ok: true,
-      url: 'https://ota.example/hooks',
-    });
-    for (const bad of [
-      'http://ota.example/hooks',
-      'https://localhost/x',
-      'https://api.localhost/x',
-      'https://127.0.0.1/x',
-      'https://10.0.0.5/x',
-      'https://172.16.0.1/x',
-      'https://192.168.1.10/x',
-      'https://169.254.169.254/latest',
-      'https://[::1]/x',
-      'https://db.internal/x',
-    ]) {
-      expect(checkWebhookUrl(bad, true), bad).toEqual({
-        ok: false,
-        problem: 'Use the OTA’s public https:// address.',
-      });
-    }
-    expect(checkWebhookUrl('https://172.32.0.1/x', true).ok).toBe(true);
-    expect(checkWebhookUrl('http://localhost:4400/x', false)).toEqual({
-      ok: true,
-      url: 'http://localhost:4400/x',
-    });
-    expect(checkWebhookUrl('ftp://x', false)).toEqual({
-      ok: false,
-      problem: 'An address starting with https://',
-    });
-  });
-
-  it('what an OTA owes: each sale’s net less each refund’s, at the share frozen at the sale', () => {
-    expect(
-      owedBy([
-        {
-          commissionBasisPoints: 2000,
-          booking: {
-            payments: [{ provider: 'ota', status: 'succeeded', amountKobo: 8_000_000 }],
-            refunds: [{ provider: 'ota', status: 'processed', amountKobo: 4_000_000 }],
-          },
-        },
-        {
-          commissionBasisPoints: 1000,
-          booking: {
-            payments: [
-              { provider: 'ota', status: 'succeeded', amountKobo: 1_000_000 },
-              { provider: 'paystack', status: 'succeeded', amountKobo: 999 },
-            ],
-            refunds: [{ provider: 'ota', status: 'failed', amountKobo: 1_000_000 }],
-          },
-        },
-      ]),
-    ).toBe(6_400_000 - 3_200_000 + 900_000);
+    expect((await s.page()).connection.keyLine).toMatch(/ · last used \d\d:\d\d$/);
   });
 });
 
-describe('"via Mock OTA"', () => {
+describe('a payment from the OTA', () => {
+  it('pays off the oldest bookings first; the ledger; the words', async () => {
+    const s = await setup();
+    const first = await s.sale('p-1');
+    const second = await s.sale('p-2');
+    await ctx.prisma.channelBooking.update({
+      where: { bookingId: first.id },
+      data: { confirmedAt: new Date(Date.now() - 60_000) },
+    });
+    const res = await s.owner
+      .post(`/api/channels/${s.sojourna.id}/payments`)
+      .send({ amountKobo: 7_000_000, receivedOn: lagosToday(), reference: ' SOJ-PAYOUT-0193 ' });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    const c = res.body.channel;
+    expect(c.owedKobo).toBe(12_800_000 - 7_000_000);
+    expect(c.money.owed).toBe('₦58,000');
+    const row = (/** @type {string} */ id) =>
+      c.bookings.find((/** @type {any} */ b) => b.id === id);
+    expect(row(first.id)).toMatchObject({ state: 'Settled', tone: 'ok' });
+    expect(row(second.id)).toMatchObject({ state: 'Owes ₦58,000', tone: 'owes' });
+    const month = new Intl.DateTimeFormat('en-GB', {
+      month: 'long',
+      timeZone: 'Africa/Lagos',
+    }).format(new Date());
+    expect(c.money.lastPayment).toMatch(
+      new RegExp(
+        `^Last payment from Sojourna: ₦70,000 on \\w{3} \\d{1,2} \\w{3} \\(${month}’s sales\\)\\.$`,
+      ),
+    );
+    const saved = await ctx.prisma.channelPayment.findFirstOrThrow({
+      where: { channelId: s.sojourna.id },
+    });
+    expect(saved).toMatchObject({
+      amountKobo: 7_000_000,
+      reference: 'SOJ-PAYOUT-0193',
+      recordedById: s.ownerId,
+    });
+    // The ledger: into the bank, off what OTAs owe.
+    const balances = await accountBalances(ctx.prisma, s.operator.id);
+    const balance = (/** @type {string} */ key) =>
+      balances.find((/** @type {any} */ a) => a.key === key)?.balanceKobo;
+    expect(balance('BANK')).toBe(7_000_000);
+    expect(balance('OTA_RECEIVABLE')).toBe(12_800_000 - 7_000_000);
+
+    // A refund after it was paid: owed back.
+    await ctx.prisma.departure.update({
+      where: { id: first.departureId },
+      data: { startsAt: new Date(Date.now() + 100 * 3_600_000) },
+    });
+    expect((await s.api.post('/octo/bookings/p-1/cancel').send({})).status).toBe(200);
+    const after = await s.page();
+    expect(after.bookings.find((/** @type {any} */ b) => b.id === first.id)).toMatchObject({
+      state: 'Refunded after paying: owed ₦64,000 back',
+      tone: 'owes',
+    });
+    expect(after.owedKobo).toBe(5_800_000 - 6_400_000);
+    expect(after.owedLine).toBe('You owe ₦6,000 back');
+    // A cancelled sale isn't one of this month's sales any more.
+    expect(after.money).toMatchObject({ salesLabel: 'Sales this month (1)', sales: '₦80,000' });
+    expect(after.money).toMatchObject({
+      owedLabel: `${s.operator.name} owes Sojourna`,
+      owed: '₦6,000',
+    });
+  });
+
+  it('refused: more than it owes, a day not come yet, too little; managers can’t', async () => {
+    const s = await setup();
+    const today = lagosToday();
+    const url = `/api/channels/${s.sojourna.id}/payments`;
+    const none = await s.owner.post(url).send({ amountKobo: 100_000, receivedOn: today });
+    expect(none.status).toBe(409);
+    expect(none.body.error).toMatchObject({
+      code: 'MORE_THAN_OWED',
+      message: 'Sojourna owes nothing right now.',
+    });
+    // An older sale refunded in full (owes nothing): the payment passes it by.
+    const refunded = await s.sale('p-0');
+    await ctx.prisma.departure.update({
+      where: { id: refunded.departureId },
+      data: { startsAt: new Date(Date.now() + 100 * 3_600_000) },
+    });
+    expect((await s.api.post('/octo/bookings/p-0/cancel').send({})).status).toBe(200);
+    await s.sale('p-3');
+    const more = await s.owner.post(url).send({ amountKobo: 6_400_100, receivedOn: today });
+    expect(more.body.error.message).toBe('Sojourna owes ₦64,000: record up to that.');
+    const later = await s.owner.post(url).send({ amountKobo: 100_000, receivedOn: '2099-01-01' });
+    expect(later.status).toBe(400);
+    expect(later.body.error.code).toBe('IN_THE_FUTURE');
+    expect((await s.owner.post(url).send({ amountKobo: 50, receivedOn: today })).status).toBe(400);
+    const manager = await s.manager.post(url).send({ amountKobo: 100_000, receivedOn: today });
+    expect(manager.status).toBe(403);
+    // Exactly what it owes: all settled.
+    const all = await s.owner.post(url).send({ amountKobo: 6_400_000, receivedOn: today });
+    expect(all.body.channel).toMatchObject({ owedKobo: 0, owedLine: '₦0 owed' });
+    expect(all.body.channel.bookings[0]).toMatchObject({ state: 'Settled' });
+  });
+
+  it('the words, on their own', () => {
+    const people = [{ categoryKey: 'adult' }, { categoryKey: 'adult' }, { categoryKey: 'child' }];
+    expect(whoShort(people)).toBe('2A 1C');
+    expect(owedWords(0)).toBe('₦0 owed');
+    expect(owedWords(-150_000)).toBe('You owe ₦1,500 back');
+    const plain = { status: 'published', pickupPoints: [], depositBasisPoints: null };
+    expect(tourNote(plain, true, 'X')).toBe('On sale on X');
+    expect(tourNote(plain, false, 'X')).toBe('Not on X');
+    expect(tourNote({ status: 'archived' }, true, 'X')).toBe(
+      'Draft: only published tours can be on',
+    );
+    const cb = (/** @type {string} */ status, /** @type {number[]} */ allocated) => ({
+      commissionBasisPoints: 2000,
+      allocations: allocated.map((amountKobo) => ({ amountKobo })),
+      booking: {
+        status,
+        payments: [
+          { provider: 'ota', status: 'succeeded', amountKobo: 1_000_000 },
+          { provider: 'paystack', status: 'succeeded', amountKobo: 999_999 },
+          { provider: 'ota', status: 'failed', amountKobo: 999_999 },
+        ],
+        refunds:
+          status === 'cancelled'
+            ? [{ provider: 'ota', status: 'processed', amountKobo: 1_000_000 }]
+            : [],
+      },
+    });
+    expect(bookingMoney(cb('paid', []))).toEqual({ text: 'Owes ₦8,000', tone: 'owes' });
+    expect(bookingMoney(cb('paid', [800_000]))).toEqual({ text: 'Settled', tone: 'ok' });
+    expect(bookingMoney(cb('cancelled', []))).toEqual({
+      text: 'Cancelled · owes ₦0',
+      tone: 'muted',
+    });
+  });
+});
+
+describe('"via Sojourna"', () => {
   it('on the bookings desk, the booking’s page and the departure', async () => {
     const s = await setup();
     const booking = await s.sale('c-5');
     const list = await s.owner.get('/api/desk/bookings?filter=all');
     expect(list.body.list.rows.find((/** @type {any} */ r) => r.id === booking.id).via).toBe(
-      'via Mock OTA',
+      'via Sojourna',
     );
     const page = (await s.owner.get(`/api/desk/bookings/${booking.id}`)).body.booking;
-    expect(page.refLine).toContain(' · MOCK OTA · ');
+    expect(page.refLine).toContain(' · SOJOURNA · ');
     expect(page.money).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          label: expect.stringMatching(/^Paid by Mock OTA · /),
+          label: expect.stringMatching(/^Paid by Sojourna · /),
           value: '₦80,000 paid',
         }),
         expect.objectContaining({
-          label: 'Mock OTA owes you',
+          label: 'Sojourna owes you',
           value: '₦64,000 (₦80,000 less 20%)',
         }),
       ]),
     );
-    expect(page.timeline[0]).toMatch(/ · booked through Mock OTA$/);
+    expect(page.timeline[0]).toMatch(/ · booked through Sojourna$/);
     const dep = (await s.owner.get(`/api/departures/${booking.departureId}/overview`)).body;
     const row = dep.departure.rows.find((/** @type {any} */ r) => r.id === booking.id);
-    expect(row).toMatchObject({ via: 'via Mock OTA', pay: 'Paid by Mock OTA', payTone: 'paid' });
-  });
-});
-
-describe('the push (what changed, within 60 seconds)', () => {
-  /** A pretend OTA: what it was told, or a failure. */
-  const pretendOta = (fail = false) => {
-    /** @type {any[]} */
-    const told = [];
-    return {
-      told,
-      send: async (/** @type {any} */ _channel, /** @type {any} */ payload) => {
-        if (fail) throw new Error('it answered 503');
-        told.push(payload);
-      },
-    };
-  };
-
-  it('nothing without a webhook; the first time, everything; then only what changed', async () => {
-    const s = await setup();
-    const ota = pretendOta();
-    expect(
-      await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id }),
-    ).toEqual({
-      channels: 0,
-      sent: 0,
-      failed: 0,
-    });
-    await ctx.prisma.channel.update({
-      where: { id: s.mock.id },
-      data: { webhookUrl: 'http://localhost:4400/hook' },
-    });
-    const first = await pushChannelUpdates(ctx.prisma, {
-      send: ota.send,
-      operatorId: s.operator.id,
-    });
-    expect(first).toMatchObject({ channels: 1, failed: 0 });
-    expect(ota.told.filter((p) => p.event === 'product_update')).toHaveLength(5);
-    const lines = ota.told
-      .filter((p) => p.event === 'availability_update')
-      .flatMap((p) => p.availabilities);
-    expect(lines.length).toBeGreaterThan(50); // 60 days of five tours' departures
-    expect(lines[0]).toMatchObject({ status: 'AVAILABLE', available: true });
-    expect(ota.told[0]).toMatchObject({ supplierId: s.operator.id, sentAt: expect.any(String) });
-    expect(
-      (await ctx.prisma.channel.findUniqueOrThrow({ where: { id: s.mock.id } })).lastPushAt,
-    ).not.toBeNull();
-
-    // Nothing changed: nothing told.
-    ota.told.length = 0;
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told).toEqual([]);
-
-    // A sale on the website's side of things (a hold): that departure, its seats.
-    const d = await ctx.prisma.departure.findFirstOrThrow({
-      where: { productId: s.tarkwa.id, startsAt: { gt: new Date(Date.now() + 86_400_000) } },
-      orderBy: { startsAt: 'asc' },
-    });
-    await ctx.prisma.departure.update({ where: { id: d.id }, data: { seatsHeld: 7 } });
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told).toEqual([
-      expect.objectContaining({
-        event: 'availability_update',
-        productId: s.tarkwa.id,
-        optionId: 'DEFAULT',
-        availabilities: [
-          expect.objectContaining({
-            id: d.id,
-            vacancies: 5,
-            status: 'LIMITED',
-            available: true,
-            capacity: 12,
-          }),
-        ],
-      }),
-    ]);
-
-    // Full: sold out, not available.
-    ota.told.length = 0;
-    await ctx.prisma.departure.update({ where: { id: d.id }, data: { seatsHeld: 12 } });
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told[0].availabilities).toEqual([
-      expect.objectContaining({ id: d.id, vacancies: 0, status: 'SOLD_OUT', available: false }),
-    ]);
-
-    // A price change: that tour, fetch it again.
-    ota.told.length = 0;
-    await ctx.prisma.priceCategory.updateMany({
-      where: { productId: s.tarkwa.id, key: 'adult' },
-      data: { amountKobo: 4_500_000 },
-    });
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told).toEqual([
-      expect.objectContaining({ event: 'product_update', productId: s.tarkwa.id, available: true }),
-    ]);
-
-    // Called off: closed.
-    ota.told.length = 0;
-    await ctx.prisma.departure.update({ where: { id: d.id }, data: { status: 'cancelled' } });
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told[0].availabilities).toEqual([
-      expect.objectContaining({ id: d.id, status: 'CLOSED', available: false, vacancies: 0 }),
-    ]);
-
-    // Removed from the schedule (an empty one deleted): closed, then forgotten.
-    ota.told.length = 0;
-    const empty = await ctx.prisma.departure.findFirstOrThrow({
-      where: { productId: s.tarkwa.id, startsAt: { gt: new Date(Date.now() + 20 * 86_400_000) } },
-      orderBy: { startsAt: 'asc' },
-    });
-    await ctx.prisma.departure.delete({ where: { id: empty.id } });
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told).toEqual([
-      expect.objectContaining({
-        availabilities: [expect.objectContaining({ id: empty.id, status: 'CLOSED' })],
-      }),
-    ]);
-    expect(
-      await ctx.prisma.channelSyncState.count({
-        where: { channelId: s.mock.id, subject: `departure:${empty.id}` },
-      }),
-    ).toBe(0);
-    ota.told.length = 0;
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told).toEqual([]);
-
-    // One that's now in the past: nothing to tell, just forgotten.
-    const soon = await ctx.prisma.departure.findFirstOrThrow({
-      where: { productId: s.tarkwa.id, status: 'scheduled', startsAt: { gt: new Date() } },
-      orderBy: { startsAt: 'asc' },
-    });
-    await ctx.prisma.departure.update({
-      where: { id: soon.id },
-      data: { startsAt: new Date(Date.now() - 61_000), endsAt: new Date(Date.now() - 1_000) },
-    });
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told).toEqual([]);
-    expect(
-      await ctx.prisma.channelSyncState.count({
-        where: { channelId: s.mock.id, subject: `departure:${soon.id}` },
-      }),
-    ).toBe(0);
-  });
-
-  it('a tour off sale: told, every departure closed; taken off the channel: closed, then forgotten', async () => {
-    const s = await setup();
-    await ctx.prisma.channel.update({
-      where: { id: s.mock.id },
-      data: { webhookUrl: 'http://localhost:4400/hook' },
-    });
-    const ota = pretendOta();
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    ota.told.length = 0;
-    await ctx.prisma.product.update({ where: { id: s.tarkwa.id }, data: { status: 'draft' } });
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told[0]).toMatchObject({
-      event: 'product_update',
-      productId: s.tarkwa.id,
-      available: false,
-    });
-    const closed = ota.told.slice(1).flatMap((p) => p.availabilities);
-    expect(closed.length).toBeGreaterThan(5);
-    expect(closed.every((/** @type {any} */ l) => l.status === 'CLOSED')).toBe(true);
-    // Another tour taken off the channel: its departures closed, then nothing more about it.
-    const walk = await ctx.prisma.product.findFirstOrThrow({
-      where: { operatorId: s.operator.id, slug: 'lagos-island-heritage-walk' },
-    });
-    const walkDepartures = await ctx.prisma.channelSyncState.count({
-      where: { channelId: s.mock.id, subject: { startsWith: 'departure:' } },
-    });
-    ota.told.length = 0;
-    await ctx.prisma.channelProduct.deleteMany({ where: { productId: walk.id } });
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told.length).toBeGreaterThan(0);
-    expect(
-      ota.told.every((p) => p.productId === walk.id && p.event === 'availability_update'),
-    ).toBe(true);
-    const lines = ota.told.flatMap((p) => p.availabilities);
-    expect(
-      lines.every((/** @type {any} */ l) => l.status === 'CLOSED' && l.localDateTimeStart),
-    ).toBe(true);
-    expect(
-      await ctx.prisma.channelSyncState.count({
-        where: { channelId: s.mock.id, subject: `product:${walk.id}` },
-      }),
-    ).toBe(0);
-    expect(
-      await ctx.prisma.channelSyncState.count({
-        where: { channelId: s.mock.id, subject: { startsWith: 'departure:' } },
-      }),
-    ).toBe(walkDepartures - lines.length);
-    ota.told.length = 0;
-    await pushChannelUpdates(ctx.prisma, { send: ota.send, operatorId: s.operator.id });
-    expect(ota.told).toEqual([]);
-  });
-
-  it('an OTA that’s down: the error kept, nothing remembered, told again next time', async () => {
-    const s = await setup();
-    await ctx.prisma.channel.update({
-      where: { id: s.mock.id },
-      data: { webhookUrl: 'http://localhost:4400/hook' },
-    });
-    const down = pretendOta(true);
-    expect(
-      await pushChannelUpdates(ctx.prisma, { send: down.send, operatorId: s.operator.id }),
-    ).toMatchObject({
-      failed: 1,
-      sent: 0,
-    });
-    const c = await ctx.prisma.channel.findUniqueOrThrow({ where: { id: s.mock.id } });
-    expect(c).toMatchObject({ lastPushError: 'it answered 503', lastPushAt: null });
-    expect(await ctx.prisma.channelSyncState.count({ where: { channelId: s.mock.id } })).toBe(0);
-    expect((await s.owner.get('/api/channels')).body.channels[0].pushLine).toBe(
-      'Updates aren’t reaching it: it answered 503. Trying again every 30 seconds.',
-    );
-    const up = pretendOta();
-    await pushChannelUpdates(ctx.prisma, { send: up.send, operatorId: s.operator.id });
-    expect(up.told.length).toBeGreaterThan(5);
-    const after = await ctx.prisma.channel.findUniqueOrThrow({ where: { id: s.mock.id } });
-    expect(after.lastPushError).toBeNull();
-    expect((await s.owner.get('/api/channels')).body.channels[0].pushLine).toMatch(
-      /^Updates sent · last \d\d:\d\d$/,
-    );
-  });
-
-  it('a switched-off channel isn’t told; the signature is the OTA’s to check', async () => {
-    const s = await setup();
-    await ctx.prisma.channel.update({
-      where: { id: s.mock.id },
-      data: { webhookUrl: 'http://localhost:4400/hook', isActive: false },
-    });
-    expect(
-      (await pushChannelUpdates(ctx.prisma, { send: pretendOta().send, operatorId: s.operator.id }))
-        .channels,
-    ).toBe(0);
-    const secret = webhookSecret('a'.repeat(32), 'ch-1');
-    expect(secret).toBe(
-      createHmac('sha256', 'a'.repeat(32)).update('channel-webhook:ch-1').digest('hex'),
-    );
-    expect(webhookSecret('a'.repeat(32), 'ch-2')).not.toBe(secret);
-    const body = '{"event":"product_update"}';
-    expect(signWebhook(secret, 1_700_000_000, body)).toBe(
-      `t=1700000000,v1=${createHmac('sha256', secret).update(`1700000000.${body}`).digest('hex')}`,
-    );
-  });
-
-  it('what the OTA fetches after a price change matches', async () => {
-    const s = await setup();
-    await ctx.prisma.priceCategory.updateMany({
-      where: { productId: s.tarkwa.id, key: 'adult' },
-      data: { amountKobo: 4_500_000 },
-    });
-    const p = (await s.api.get(`/octo/products/${s.tarkwa.id}`)).body;
-    expect(ProductSchema.safeParse(p).success).toBe(true);
-    expect(p.options[0].units[0].pricingFrom[0].retail).toBe(4_500_000);
+    expect(row).toMatchObject({ via: 'via Sojourna', pay: 'Paid by Sojourna', payTone: 'paid' });
   });
 });

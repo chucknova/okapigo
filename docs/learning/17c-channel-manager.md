@@ -1,5 +1,11 @@
 # Stage 17c: the channel manager (server side)
 
+> **Changed in 17c-2** (`17c-2-channels-screen.md`): the owner no longer sets a webhook address.
+> The OTA subscribes its own through OCTO's standard notifications, and the messages are OCTO's
+> (small: what changed, not the details). Our signature header and the derived secret are gone
+> (the OTA asks for its own headers instead). The fingerprints and the 30-second job below
+> stayed; the mock OTA is now called Sojourna.
+
 | Part    | What                                                                                           |
 | ------- | ---------------------------------------------------------------------------------------------- |
 | 17a     | OCTO catalogue: supplier, products, units, availability, the calendar; channel keys; contracts |

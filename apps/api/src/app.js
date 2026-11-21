@@ -183,7 +183,16 @@ export function createApp({
   // reads its own JSON too (a broken body is answered OCTO's way), before the app's reader.
   app.use(
     '/octo',
-    octoRouter({ prisma, apiPublicUrl, log: logger, quotes, jobs, authSecret, webPublicUrl }),
+    octoRouter({
+      prisma,
+      apiPublicUrl,
+      log: logger,
+      quotes,
+      jobs,
+      authSecret,
+      webPublicUrl,
+      production: process.env.NODE_ENV === 'production',
+    }),
   );
   app.use('/api/sync/changes', express.json({ limit: '1mb' }));
   app.use(express.json({ limit: '100kb' }));
@@ -304,16 +313,8 @@ export function createApp({
   api.use(inboxRouter({ prisma })); // the inbox (16d)
   api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl, channels })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
-  // The channel manager (17c): OTAs selling through OCTO. Webhook addresses must be public
-  // https in production (so one can't be pointed at our own network).
-  api.use(
-    channelsRouter({
-      prisma,
-      apiPublicUrl,
-      authSecret,
-      production: process.env.NODE_ENV === 'production',
-    }),
-  );
+  // The channel manager (17c): OTAs selling through OCTO (Settings › Channels).
+  api.use(channelsRouter({ prisma, apiPublicUrl }));
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

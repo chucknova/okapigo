@@ -179,8 +179,16 @@ async function show(me, path) {
 describe('settings.js: staff', () => {
   it('who sees which sections (managers and guides don’t see Staff)', () => {
     const keys = (/** @type {any} */ me) => visibleSections(me).map((x) => x.key);
-    expect(keys(OWNER)).toEqual(['website', 'embed', 'messages', 'whatsapp', 'staff', 'tours']);
-    expect(keys(MANAGER)).toEqual(['website', 'embed', 'whatsapp', 'tours']);
+    expect(keys(OWNER)).toEqual([
+      'website',
+      'embed',
+      'messages',
+      'whatsapp',
+      'staff',
+      'tours',
+      'channels',
+    ]);
+    expect(keys(MANAGER)).toEqual(['website', 'embed', 'whatsapp', 'tours', 'channels']);
     expect(keys(GUIDE_ME)).toEqual(['tours']);
     expect(keys(null)).toEqual([]);
   });

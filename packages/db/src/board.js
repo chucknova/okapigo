@@ -187,7 +187,7 @@ export async function departureOverview(prisma, { operatorId, departureId, now =
         ...b.addOns.map((a) => `${a.quantity} × ${a.addOn.name.toLowerCase()}`),
         ...ownDiets,
       ].join(' · '),
-      // An OTA's guest paid the OTA (17c): "Paid by Mock OTA".
+      // An OTA's guest paid the OTA (17c): "Paid by Sojourna".
       via: b.channelBooking ? `via ${b.channelBooking.channel.name}` : null,
       pay:
         owed > 0

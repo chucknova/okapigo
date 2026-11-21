@@ -20,8 +20,6 @@ import {
   reconcile,
   queueBalanceNotices,
   pushChannelUpdates,
-  signWebhook,
-  webhookSecret,
 } from '@okapigo/db';
 import { JOBS } from '@okapigo/jobs';
 
@@ -30,34 +28,22 @@ import { JOBS } from '@okapigo/jobs';
  *   prisma: import('@prisma/client').PrismaClient,
  *   logger: import('pino').Logger,
  *   provider: import('@okapigo/payments').PaymentProvider,
- *   authSecret?: string,       signs what we tell OTAs (17c)
  *   fetch?: typeof fetch,      tests pass a pretend OTA
  * }} deps
  * @returns {Record<string, (data: any) => Promise<unknown>>} job name → handler
  */
-export function createProcessors({
-  prisma,
-  logger,
-  provider,
-  authSecret = '',
-  fetch: doFetch = fetch,
-}) {
+export function createProcessors({ prisma, logger, provider, fetch: doFetch = fetch }) {
   /**
-   * Tells one OTA one update: POST, JSON, signed (Octo-Webhook-Signature), 5 seconds at most.
-   * Anything but a 2xx answer is a failure (told again next run).
-   * @param {any} channel @param {any} payload
+   * Tells one OTA one notification at the address it subscribed: POST, JSON, with the headers
+   * it asked for (its own way of knowing it's us), 5 seconds at most. Anything but a 2xx answer
+   * is a failure (told again next run).
+   * @param {any} sub  a channel subscription @param {any} notification
    */
-  async function sendToChannel(channel, payload) {
-    const body = JSON.stringify(payload);
-    const signature = signWebhook(
-      webhookSecret(authSecret, channel.id),
-      Math.floor(Date.now() / 1000),
-      body,
-    );
-    const res = await doFetch(channel.webhookUrl, {
+  async function sendToChannel(sub, notification) {
+    const res = await doFetch(sub.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Octo-Webhook-Signature': signature },
-      body,
+      headers: { ...sub.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(notification),
       signal: AbortSignal.timeout(5_000),
       redirect: 'error', // never follow a redirect somewhere else
     }).catch((/** @type {any} */ err) => {
