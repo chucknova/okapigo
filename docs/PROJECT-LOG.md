@@ -144,7 +144,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | `4872ff2`           | 16e-4a         |
 | 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | `9b6483e`           | 16e-4b         |
 | 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | `8ee0e0f`           | 16e-4c         |
-| 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                              | (this commit)       | 17a            |
+| 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                              | `035902a`           | 17a            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -302,7 +302,7 @@ one; both `pricing` and `octo/pricing` accepted. The seed's mock OTA key is `oct
 
 ## 7. Where we are
 
-- **Last done:** 17a, the OCTO API's catalogue side. 16e-4c pushed.
+- **Last done:** 17a, the OCTO API's catalogue side, committed `035902a`. 16e-4c pushed.
 - **Next:** **17b**, OCTO bookings: hold (`POST /octo/bookings`, up to 30 minutes), confirm,
   cancel (under the business's policy), get; bookings carry their channel and what the OTA
   owes (ledger); a concurrency test across the website, WhatsApp and OCTO (zero oversells).
