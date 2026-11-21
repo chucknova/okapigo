@@ -139,7 +139,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                                             | `1daa498`           | 16d-2          |
 | 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                                      | `0506dbf`           | 16d-3          |
 | 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                                    | `72fadc7`           | 16e-1          |
-| 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | (this commit)       | 16e-2          |
+| 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | `f60623f`           | 16e-2          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -250,7 +250,7 @@ settings: edit (managers can't open it); WhatsApp needs channels: edit (managers
 
 ## 7. Where we are
 
-- **Last done:** 16e-2, settings: Messages and WhatsApp. 16e-1 pushed.
+- **Last done:** 16e-2, settings: Messages and WhatsApp, committed `f60623f`. 16e-1 pushed.
 - **Next:** **16e-3**, Staff and roles: invite by email (words to copy for phone-only staff),
   edit someone's role, at least one owner always, remove someone with upcoming departures
   (what happens to their guiding). Then **16e-4** Tours.
