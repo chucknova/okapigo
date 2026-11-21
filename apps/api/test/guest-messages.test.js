@@ -428,6 +428,8 @@ describe('the templates (staff API)', () => {
         subject: 'Reminder: ₦45,500 due by Sat 28 Nov',
         body: 'Hi Adaeze: ₦45,500 by Sat 28 Nov. https://okapigo.example/trip/…/pay',
       },
+      // No booking yet in this business: the made-up one (16e-2).
+      example: null,
       problems: [],
     });
     expect(

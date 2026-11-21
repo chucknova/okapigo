@@ -120,6 +120,23 @@ describe('the Requests tab', () => {
       where: { bookingId: g.id, kind: 'staff_message' },
     });
     expect(sent.map((n) => n.channel).sort()).toEqual(['email', 'whatsapp']);
+    // …and both really go (a staff message has no WhatsApp template: inside the guest's chat
+    // it's sent as written; a bug until 16e-2 made the WhatsApp half fail).
+    const result = await sendGuestMessages({
+      operatorId: s.operator.id,
+      prisma: ctx.prisma,
+      authSecret: TEST_AUTH_SECRET,
+      webPublicUrl: 'http://localhost:4000',
+      channels: createChannels(),
+      mailer: { name: 'fake', send: async () => ({ id: 'mail-1' }) },
+      emailFrom: 'bookings@okapigo.example',
+    });
+    expect(result.failed).toBe(0);
+    const chat = await ctx.prisma.chatMessage.findFirstOrThrow({
+      where: { conversation: { guestPhone: '+2348031234567', operatorId: s.operator.id } },
+      orderBy: { seq: 'desc' },
+    });
+    expect(chat.body).toEqual({ kind: 'text', text: reply });
     // The trip page: the reply instead of "sent".
     const trip = (await request(ctx.app).get(`/public/bookings/${g.token}`)).body.booking;
     expect(trip.openRequests).toEqual([]);

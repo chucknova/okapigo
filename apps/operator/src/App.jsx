@@ -123,7 +123,7 @@ function Shell() {
                 <Inbox tab="chats" />
               ))}
             </Route>
-            <Route path="/settings/:section?">
+            <Route path="/settings/:section?/:item?">
               {officeOnly(() => (
                 <Settings />
               ))}

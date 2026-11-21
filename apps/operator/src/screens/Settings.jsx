@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * O10 · Settings (designs: O10 Settings — Website; Embed on your site; phone; Staff and form
- * states. Stage 16e-1; Messages and WhatsApp come in 16e-2, Staff in 16e-3, Tours in 16e-4).
+ * states. Stage 16e-1; Messages and WhatsApp in 16e-2 (their own files: SettingsMessages.jsx,
+ * SettingsWhatsApp.jsx); Staff comes in 16e-3, Tours in 16e-4).
  *
  *   wide screen   the sections down the left, the open one on the right
  *   phone         More › Settings: the sections as a list (with how each stands); tap one
@@ -14,6 +15,8 @@ import { useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { LiveFrame } from '../components/LiveFrame.jsx';
 import { SaveBar, LeaveGuard } from '../components/SaveBar.jsx';
+import { MessagesSettings } from './SettingsMessages.jsx';
+import { WhatsAppSettings } from './SettingsWhatsApp.jsx';
 import { useLive } from '../lib/live.js';
 import { useEngine, useSync } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
@@ -39,7 +42,7 @@ import {
 } from '../lib/settings.js';
 
 export function Settings() {
-  const { section } = useParams();
+  const { section, item } = useParams();
   const s = useSync();
   const tz = s.me?.operator?.timeZone ?? 'Africa/Lagos';
   const open = SECTIONS.find((x) => x.key === section) ?? null;
@@ -69,7 +72,8 @@ export function Settings() {
         </ul>
       </nav>
       <section className="settings-page" aria-label={(open ?? SECTIONS[0]).label}>
-        {open && (
+        {/* Inside one message, its own "‹ Messages" is the way back. */}
+        {open && !item && (
           <Link href="/settings" className="back-link narrow-only">
             ‹ Settings
           </Link>
@@ -78,6 +82,12 @@ export function Settings() {
           <WebsiteSettings tz={tz} canEdit={mayEdit(s.me, 'marketing')} />
         )}
         {open?.key === 'embed' && <EmbedSettings tz={tz} canEdit={mayEdit(s.me, 'marketing')} />}
+        {open?.key === 'messages' && (
+          <MessagesSettings tz={tz} canEdit={mayEdit(s.me, 'settings')} kind={item ?? null} />
+        )}
+        {open?.key === 'whatsapp' && (
+          <WhatsAppSettings tz={tz} canEdit={mayEdit(s.me, 'channels')} />
+        )}
         {open && !open.built && (
           <p className="muted">{open.label} arrive in the next part of this stage.</p>
         )}

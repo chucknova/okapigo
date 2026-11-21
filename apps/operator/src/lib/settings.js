@@ -9,15 +9,19 @@
  *   stylePreview()       a style card's colours, from the same tokens the website uses
  *   embedSnippet()       the widget's snippet, exactly as an operator pastes it
  *   readableOn()         a text colour that stays readable on a chosen button colour
+ *   message…             Messages (16e-2): the list, the editor's form, inserting a detail, what
+ *                        a message must keep, the 24-hour rule in words
+ *   whatsapp…            WhatsApp (16e-2): how it stands, the Phone number ID's check
  */
 import { STYLES } from '@okapigo/shared/tokens';
 import { normalizeEmail, normalizePhone, formatPhoneForDisplay } from '@okapigo/shared/contact';
+import { checkTemplate } from '@okapigo/shared/message-templates';
 
 export const SECTIONS = /** @type {const} */ ([
   { key: 'website', label: 'Website', built: true },
   { key: 'embed', label: 'Embed on your site', built: true },
-  { key: 'messages', label: 'Messages', built: false },
-  { key: 'whatsapp', label: 'WhatsApp', built: false },
+  { key: 'messages', label: 'Messages', built: true },
+  { key: 'whatsapp', label: 'WhatsApp', built: true },
   { key: 'staff', label: 'Staff and roles', built: false },
   { key: 'tours', label: 'Tours', built: false },
 ]);
@@ -227,10 +231,137 @@ export const embedWarning = (domains) =>
   domains.length === 0 ? 'Add your website first, or the widget won’t show.' : null;
 
 /**
- * May this person change a section? Website and Embed need marketing: edit (the owner; a
- * manager can look). @param {any} me @param {'marketing' | 'settings' | 'products'} area
+ * May this person change a section? Website and Embed need marketing: edit, Messages settings:
+ * edit, WhatsApp channels: edit (the owner; a manager can look at Website, Embed and WhatsApp).
+ * @param {any} me @param {'marketing' | 'settings' | 'products' | 'channels'} area
  */
 export const mayEdit = (me, area) => me?.permissions?.[area] === 'edit';
 
 /** The line on a section someone can only look at. */
 export const LOOK_ONLY = 'Only the owner can change this. You can look.';
+
+// --- Messages (16e-2) -------------------------------------------------------------------------
+
+/** The details to insert, in staff's words (the chips above the editor). */
+export const DETAIL_LABELS = /** @type {const} */ ({
+  first_name: 'First name',
+  operator: 'Business name',
+  reference: 'Reference',
+  tour: 'Tour',
+  tour_short: 'Tour, short',
+  date: 'Date',
+  time: 'Time',
+  meeting_point: 'Meeting point',
+  travellers: 'Travellers',
+  trip_url: 'Trip page link',
+  deposit: 'Deposit',
+  balance: 'Balance',
+  due_date: 'Due date',
+  pay_url: 'Pay link',
+  amount: 'Amount',
+  link_for: 'What it’s for',
+  expiry: 'Expiry',
+  link_url: 'Payment link',
+  refund_line: 'Refund line',
+  refund: 'Refund',
+  from_date: 'Old date',
+});
+
+/** A placeholder's chip label ("Pay link"); an unknown one as it is. @param {string} name */
+export const detailLabel = (name) => /** @type {any} */ (DETAIL_LABELS)[name] ?? name;
+
+/**
+ * The list (designs: each message, "Default" or "Edited"), from GET /api/message-templates.
+ * @param {any} data
+ */
+export const messageRows = (data) =>
+  data.templates.map((/** @type {any} */ t) => ({
+    kind: t.kind,
+    name: t.name,
+    when: t.when,
+    tag: t.custom ? 'Edited' : 'Default',
+  }));
+
+/** @typedef {{ subject: string, body: string }} MessageForm */
+
+/** The words in force: the business's own, or OkapiGo's. @param {any} t @returns {MessageForm} */
+export const messageForm = (t) => ({
+  subject: (t.custom ?? t.default).subject,
+  body: (t.custom ?? t.default).body,
+});
+
+/**
+ * Puts {name} where the cursor is (replacing a selection), and says where the cursor goes next.
+ * @param {string} text @param {{ start: number, end: number }} at @param {string} name
+ */
+export function insertDetail(text, { start, end }, name) {
+  const token = `{${name}}`;
+  const a = Math.max(0, Math.min(start, text.length));
+  const b = Math.max(a, Math.min(end, text.length));
+  return { text: text.slice(0, a) + token + text.slice(b), caret: a + token.length };
+}
+
+/**
+ * What the message must keep (the link, the amount), each ticked or not ("Must keep: Pay link ✓").
+ * @param {any} t @param {string} body
+ */
+export const mustKeep = (t, body) =>
+  t.placeholders
+    .filter((/** @type {any} */ p) => p.required)
+    .map((/** @type {any} */ p) => ({
+      name: p.name,
+      label: detailLabel(p.name),
+      kept: body.includes(`{${p.name}}`),
+    }));
+
+/** What's wrong, in staff's words (the shared rules, the server's too). @param {string} kind @param {MessageForm} f */
+export const messageProblems = (kind, f) => checkTemplate(/** @type {any} */ (kind), f);
+
+/** "Unsaved changes: Subject, Message" @param {MessageForm} f @param {MessageForm} saved */
+export const messageChanges = (f, saved) =>
+  [f.subject !== saved.subject ? 'Subject' : null, f.body !== saved.body ? 'Message' : null].filter(
+    (x) => x !== null,
+  );
+
+/**
+ * WhatsApp's 24-hour rule, for this message: who gets the wording above, who gets the approved one.
+ * @param {any} t
+ */
+export const whatsappRule = (t) =>
+  t.approved
+    ? 'On WhatsApp, a guest who messaged you in the last 24 hours gets your wording. Anyone else gets the approved version below: WhatsApp only lets a business write first with wording Meta has approved. Email always uses your wording.'
+    : 'On WhatsApp, only a guest who messaged you in the last 24 hours can get this. Email always uses your wording.';
+
+/**
+ * Meta's approved text, its gaps labelled ("{balance}" → "[Balance]"): read, not edited.
+ * @param {string} text
+ */
+export const approvedText = (text) =>
+  text.replace(/\{([a-z_]+)\}/g, (_, name) => `[${detailLabel(name)}]`);
+
+/** Above the preview. @param {string | null} example "Funmi Adeyemi, ILT-3MZ8RB" */
+export const exampleLine = (example) =>
+  example
+    ? `With a real booking: ${example}`
+    : 'With a made-up booking (yours will show once you have one)';
+
+/** After a test is sent. @param {string} to "0809 244 0014" */
+export const testSentLine = (to) => `Sent to ${to}. Check your WhatsApp.`;
+
+// --- WhatsApp (16e-2) -------------------------------------------------------------------------
+
+/** The dot beside how it stands. @param {'simulator' | 'waiting' | 'connected'} state */
+export const whatsappTone = (state) =>
+  state === 'connected' ? 'success' : state === 'waiting' ? 'warning' : 'muted';
+
+/**
+ * The Phone number ID's check, as typed (the server's rule: digits only). null: fine.
+ * @param {string} typed
+ */
+export function phoneIdError(typed) {
+  const t = typed.trim();
+  if (!t) return 'Paste the Phone number ID from Meta’s API Setup page.';
+  if (!/^[0-9]{5,30}$/.test(t))
+    return 'Paste the Phone number ID: digits only, from Meta’s API Setup page.';
+  return null;
+}

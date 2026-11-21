@@ -2530,6 +2530,7 @@ span.filter {
 }
 .bubble-text {
   white-space: pre-wrap;
+  overflow-wrap: anywhere; /* a long link breaks instead of running out of the bubble */
 }
 .bubble-btns {
   display: flex;
@@ -2704,6 +2705,83 @@ span.filter {
   color: var(--color-surface);
   border-radius: var(--radius-input);
   font-size: var(--text-xs);
+}
+
+/* Messages and WhatsApp (16e-2). */
+.message-link {
+  min-height: 64px;
+  padding: 10px 14px;
+}
+.chip--edited {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+}
+.chip--detail {
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-primary-ink);
+  cursor: pointer;
+}
+.chip--detail:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.approved-text {
+  margin: 0;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-input);
+  font-size: var(--text-sm);
+}
+.email-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+}
+.email-preview p {
+  margin: 0;
+}
+.row-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.wa-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.wa-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
+}
+.wa-facts dt {
+  color: var(--color-text-muted);
+}
+.wa-facts dd {
+  margin: 0;
+  font-weight: 700;
+}
+.state-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-muted);
+}
+.state-dot--success {
+  background: var(--color-success);
+}
+.state-dot--warning {
+  background: var(--color-warning);
 }
 
 @media (min-width: 1024px) {

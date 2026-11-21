@@ -22,7 +22,7 @@
 import { compose } from './compose.js';
 import { deliver } from '../whatsapp/channels.js';
 import { renderEmail } from './email.js';
-import { fillTemplate } from '../whatsapp/templates.js';
+import { fillTemplate, WHATSAPP_TEMPLATES } from '../whatsapp/templates.js';
 import { MailError } from './mailers.js';
 import { readSite } from '@okapigo/shared/schemas/website';
 
@@ -136,14 +136,47 @@ export async function sendGuestMessages(deps) {
  * @param {{ body: string, values: any }} words @param {Date} now
  */
 async function toChat(deps, booking, kind, words, now) {
+  // The words as the business wrote them, and the approved template to send instead if
+  // WhatsApp's 24-hour window is closed (channels.js decides). A staff member's own message
+  // (16d) has no template: outside the window it can't go, and says so.
+  const template = /** @type {any} */ (WHATSAPP_TEMPLATES)[kind]
+    ? fillTemplate(/** @type {any} */ (kind), words.values)
+    : undefined;
+  return sendToPhone(deps, {
+    operator: booking.product.operator,
+    phone: booking.leadPhone,
+    name: booking.leadName ?? '',
+    body: { kind: 'text', text: words.body, ...(template && { template }) },
+    now,
+  });
+}
+
+/**
+ * Why a test message didn't go, in plain words (Settings' test sends, 16e-2).
+ * @param {string | null} error
+ */
+export function testProblem(error) {
+  if (!error) return null;
+  if (/^OUTSIDE_24H|131047/.test(error)) {
+    return 'WhatsApp only lets a business write first to someone who messaged it in the last 24 hours. Send any message to your business number from your phone, then try again.';
+  }
+  return `WhatsApp didn’t take it: ${error}`;
+}
+
+/**
+ * One message to one phone, in this business's chat with it (found, or a new one: real
+ * WhatsApp when connected, else the simulator). Used for guests' messages and for staff's
+ * test messages (Settings, 16e-2). Returns the chat message's id and why it failed, or null.
+ * @param {Pick<SendDeps, 'prisma' | 'channels'>} deps
+ * @param {{ operator: any, phone: string, name: string, body: any, now?: Date }} m
+ */
+export async function sendToPhone(deps, { operator, phone, name, body, now = new Date() }) {
   const { prisma } = deps;
-  const operator = booking.product.operator;
-  const guestPhone = booking.leadPhone;
   const existing = await prisma.conversation.findFirst({
-    where: { operatorId: operator.id, guestPhone },
+    where: { operatorId: operator.id, guestPhone: phone },
     orderBy: { lastMessageAt: 'desc' },
   });
-  // A guest who never wrote (a website booking): a REAL WhatsApp chat when this server and
+  // Someone who never wrote (a website guest): a REAL WhatsApp chat when this server and
   // this business are connected to WhatsApp (stage 14c), else the simulator's.
   const channel =
     deps.channels.whatsapp && operator.whatsappPhoneNumberId ? 'whatsapp' : 'simulator';
@@ -151,23 +184,16 @@ async function toChat(deps, booking, kind, words, now) {
     existing ??
     (await prisma.conversation.upsert({
       where: {
-        operatorId_channel_guestPhone: { operatorId: operator.id, channel, guestPhone },
+        operatorId_channel_guestPhone: { operatorId: operator.id, channel, guestPhone: phone },
       },
       create: {
         operatorId: operator.id,
         channel,
-        guestPhone,
-        guestName: (booking.leadName ?? '').slice(0, 80),
+        guestPhone: phone,
+        guestName: name.slice(0, 80),
       },
       update: {},
     }));
-  // The words as the business wrote them, and the approved template to send instead if
-  // WhatsApp's 24-hour window is closed (channels.js decides).
-  const body = {
-    kind: 'text',
-    text: words.body,
-    template: fillTemplate(kind, words.values),
-  };
 
   // The chat's own lock (conversations.js): never in the middle of the guest's turn.
   const stored = await prisma.$transaction(async (tx) => {
@@ -185,7 +211,7 @@ async function toChat(deps, booking, kind, words, now) {
     return m;
   });
 
-  await deliver(deps, {
+  await deliver(/** @type {any} */ (deps), {
     conversation,
     operator,
     messages: [{ id: stored.id, body: stored.body }],

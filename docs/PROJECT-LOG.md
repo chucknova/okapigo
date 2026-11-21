@@ -105,40 +105,41 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 
 ## 5. What's built, session by session
 
-| Session / stage | What                                                                                                                                                                  | Commit              | Note           |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------- |
-| 1               | monorepo, Docker (Postgres, Redis), Express + `/health`, CI                                                                                                           | `36aff2e`           | 01             |
-| 2               | Prisma schema: operators, roles, staff; Ìrìn seed                                                                                                                     | `f9a4d66`           | 02             |
-| 3               | one-time-code sign-in, sessions (30 days), roles and permissions                                                                                                      | `0e244ab`           | 03             |
-| 4               | catalogue: products, price categories, add-ons                                                                                                                        | `ef3724f`           | 04             |
-| 5               | schedules → departures, time zones                                                                                                                                    | `2e486e1`           | 05             |
-| 6               | pricing pipeline (kobo integers, VAT 7.5% included)                                                                                                                   | `7c37760`           | 06             |
-| 7               | holds with row locks, BullMQ expiry, no double-selling                                                                                                                | `e6840e3`           | 07             |
-| 8               | bookings: state machine, travellers, timeline                                                                                                                         | `339c395`           | 08             |
-| 9               | versioned cancellation policies, cancel, no-show, departure cancel                                                                                                    | `eb25fb7`           | 09             |
-| 10a–10e         | ledger (double-entry); payments + Paystack; webhooks; transfers + payment links; refunds + reconciliation                                                             | `caf0bdb`…`e7e1899` | 10a–10e        |
-| 11a–11e         | public catalogue; public checkout + guest links + rate limits; deposits; balance reminders + staff alerts; share pages                                                | `9dd7834`…`498eb92` | 11a–11e        |
-| 12a–12h-2       | guest web from the designs: tokens; catalogue/tour page + share card; checkout; after paying; trip hub (+ cancel, ask); website styles; operator site; booking widget | `74cdb67`…`5033a5a` | 12a–12h2       |
-| 13a–13c-3       | WhatsApp booking engine; paying + staff take-over; as designed; simulator app; real Cloud API                                                                         | `bb6b05d`…`2c62364` | 13a–13c-3      |
-| 14a–14c         | guest messages (templates, outbox); emails (Mailpit/Resend); WhatsApp templates                                                                                       | `f9a9919`…`6cfde28` | 14a–14c        |
-| brief 07        | the operator app's flow brief, with the user's decisions                                                                                                              | `56e4f17`           | —              |
-| 15a             | vans/boats, assigning guides (exclusion constraints), manifest + print, check-in, no-show                                                                             | `2fc4d0f`           | 15a            |
-| 15b             | sync API: offline package (ticket fingerprints), outbox once-only, conflicts, 72 h                                                                                    | `565205e`           | 15b            |
-| 15c-1           | operator app: PWA at /app/, sign-in, first run, strip, tabs, IndexedDB, outbox, Sync                                                                                  | `b5224da`           | 15c-1          |
-| 15c-2           | manifest (O3): states, names, two kinds of no-show, money owed, search, PDF                                                                                           | `cc016eb`           | 15c-2          |
-| 15c-3           | Scan (O4): camera (BarcodeDetector / jsQR), every result, search, Undo                                                                                                | `ae37bb7`           | 15c-3          |
-| 15c-4           | money on the day (payment QR, cash reports), pickup stops, A4 printed manifest                                                                                        | `862aa7f`           | 15c-4          |
-| 15d             | journey 6 end to end, network off                                                                                                                                     | `5bbb9ea`           | 15d            |
-| —               | tests get their own databases and queues                                                                                                                              | `21ad517`           | test-isolation |
-| 16a             | manager's shell (tabs/sidebar by role), staff states, manager's Today                                                                                                 | `07b04c9`           | 16a            |
-| 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                         | `d293b30`           | 16b            |
-| 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                   | `bf4d0d7`           | 16c-1          |
-| 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts     | `9c97f5a`           | 16c-2          |
-| 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                       | `105242e`           | 16c-3          |
-| 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | `a18ebab`           | 16d-1          |
-| 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                            | `1daa498`           | 16d-2          |
-| 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                     | `0506dbf`           | 16d-3          |
-| 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                   | `72fadc7`           | 16e-1          |
+| Session / stage | What                                                                                                                                                                                   | Commit              | Note           |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------- |
+| 1               | monorepo, Docker (Postgres, Redis), Express + `/health`, CI                                                                                                                            | `36aff2e`           | 01             |
+| 2               | Prisma schema: operators, roles, staff; Ìrìn seed                                                                                                                                      | `f9a4d66`           | 02             |
+| 3               | one-time-code sign-in, sessions (30 days), roles and permissions                                                                                                                       | `0e244ab`           | 03             |
+| 4               | catalogue: products, price categories, add-ons                                                                                                                                         | `ef3724f`           | 04             |
+| 5               | schedules → departures, time zones                                                                                                                                                     | `2e486e1`           | 05             |
+| 6               | pricing pipeline (kobo integers, VAT 7.5% included)                                                                                                                                    | `7c37760`           | 06             |
+| 7               | holds with row locks, BullMQ expiry, no double-selling                                                                                                                                 | `e6840e3`           | 07             |
+| 8               | bookings: state machine, travellers, timeline                                                                                                                                          | `339c395`           | 08             |
+| 9               | versioned cancellation policies, cancel, no-show, departure cancel                                                                                                                     | `eb25fb7`           | 09             |
+| 10a–10e         | ledger (double-entry); payments + Paystack; webhooks; transfers + payment links; refunds + reconciliation                                                                              | `caf0bdb`…`e7e1899` | 10a–10e        |
+| 11a–11e         | public catalogue; public checkout + guest links + rate limits; deposits; balance reminders + staff alerts; share pages                                                                 | `9dd7834`…`498eb92` | 11a–11e        |
+| 12a–12h-2       | guest web from the designs: tokens; catalogue/tour page + share card; checkout; after paying; trip hub (+ cancel, ask); website styles; operator site; booking widget                  | `74cdb67`…`5033a5a` | 12a–12h2       |
+| 13a–13c-3       | WhatsApp booking engine; paying + staff take-over; as designed; simulator app; real Cloud API                                                                                          | `bb6b05d`…`2c62364` | 13a–13c-3      |
+| 14a–14c         | guest messages (templates, outbox); emails (Mailpit/Resend); WhatsApp templates                                                                                                        | `f9a9919`…`6cfde28` | 14a–14c        |
+| brief 07        | the operator app's flow brief, with the user's decisions                                                                                                                               | `56e4f17`           | —              |
+| 15a             | vans/boats, assigning guides (exclusion constraints), manifest + print, check-in, no-show                                                                                              | `2fc4d0f`           | 15a            |
+| 15b             | sync API: offline package (ticket fingerprints), outbox once-only, conflicts, 72 h                                                                                                     | `565205e`           | 15b            |
+| 15c-1           | operator app: PWA at /app/, sign-in, first run, strip, tabs, IndexedDB, outbox, Sync                                                                                                   | `b5224da`           | 15c-1          |
+| 15c-2           | manifest (O3): states, names, two kinds of no-show, money owed, search, PDF                                                                                                            | `cc016eb`           | 15c-2          |
+| 15c-3           | Scan (O4): camera (BarcodeDetector / jsQR), every result, search, Undo                                                                                                                 | `ae37bb7`           | 15c-3          |
+| 15c-4           | money on the day (payment QR, cash reports), pickup stops, A4 printed manifest                                                                                                         | `862aa7f`           | 15c-4          |
+| 15d             | journey 6 end to end, network off                                                                                                                                                      | `5bbb9ea`           | 15d            |
+| —               | tests get their own databases and queues                                                                                                                                               | `21ad517`           | test-isolation |
+| 16a             | manager's shell (tabs/sidebar by role), staff states, manager's Today                                                                                                                  | `07b04c9`           | 16a            |
+| 16b             | schedule (O6), a departure (O7): assign guides and vans (tour transport, sales capped at the van), notes, cancel with refunds                                                          | `d293b30`           | 16b            |
+| 16c-1           | bookings desk: search and filters, a booking's page in every status, notes (on the manifest too), release held seats, desk no-shows                                                    | `bf4d0d7`           | 16c-1          |
+| 16c-2           | desk money: payment links (send or copy), cancel with the refund started, confirm a guide's cash (or not), retry or bank-transfer refunds; Cash and Bank accounts                      | `9c97f5a`           | 16c-2          |
+| 16c-3           | desk: change travellers (− and +, the booked price, seats, extra → link, fewer → the policy's refund confirmed)                                                                        | `105242e`           | 16c-3          |
+| 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email                               | `a18ebab`           | 16d-1          |
+| 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                                             | `1daa498`           | 16d-2          |
+| 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                                      | `0506dbf`           | 16d-3          |
+| 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                                    | `72fadc7`           | 16e-1          |
+| 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | (this commit)       | 16e-2          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -237,15 +238,22 @@ owner gets the words to copy and send. The widget may be framed by **OkapiGo's o
 lowering it would drop longer stored taglines). Website/Embed need marketing: edit (owner);
 others see them look-only.
 
+**With 16e-2 (2026-11-21):** the WhatsApp page shows **no tokens**: the access token and the
+verify token stay in the server's `.env` (the design's "verify token to copy" dropped). The
+editor says the **24-hour rule accurately** (the design's "Meta approves your edit" isn't how
+WhatsApp works): a guest who wrote in the last 24 hours gets your wording, anyone else Meta's
+approved version, email always yours. Test sends go to **the signed-in person's own phone**,
+marked `[Test]`; a refused one is **422 TEST_NOT_SENT** with the reason (a 5xx would read as
+"OkapiGo is having trouble"). The preview uses **the business's latest paid or confirmed
+booking**. Each message has its own address (`/settings/messages/:kind`). Messages need
+settings: edit (managers can't open it); WhatsApp needs channels: edit (managers look).
+
 ## 7. Where we are
 
-- **Last done:** 16e-1, settings: the menu, Website and Embed, committed `72fadc7`. 16d-3 pushed.
-- **Next:** **16e-2**, Messages and WhatsApp (designs: "O10 Settings — Messages", "WhatsApp and
-  staff", "phone"): the seven messages (Default/Edited; the editor with green details to insert;
-  "Must keep: …" checks; a preview with a real booking; Reset; "Send a test to my WhatsApp"; the
-  Meta note), the two template-only messages listed read-only, and WhatsApp (connected or not,
-  the webhook address and verify token to copy, send a test, disconnect). APIs since 14a/13c-3.
-  Then **16e-3** Staff, **16e-4** Tours.
+- **Last done:** 16e-2, settings: Messages and WhatsApp. 16e-1 pushed.
+- **Next:** **16e-3**, Staff and roles: invite by email (words to copy for phone-only staff),
+  edit someone's role, at least one owner always, remove someone with upcoming departures
+  (what happens to their guiding). Then **16e-4** Tours.
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
   (ILT-HP97TV)**.
 - **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta.
@@ -262,6 +270,8 @@ others see them look-only.
   operator app, regenerate tokens: `node apps/operator/scripts/write-tokens.js`.
 - **Generated token CSS** (`apps/*/src/styles/tokens.css`) is in `.prettierignore`; a test fails
   if stale.
+  Running `npx prettier --write src` **inside** `apps/operator` skips the root ignore file and
+  lowercases it (happened in 16e-2): fix with `pnpm --filter @okapigo/operator tokens`.
 - **Busy machine** (load 25–45 at times): screen tests in the operator app wait up to 10 s and
   run up to 60 s; the scanner's Undo note is lengthened in tests only (`SCAN_TIMING`).
 - **The in-app browser pane can't run service workers**: check offline behaviour in Chrome via
@@ -298,6 +308,7 @@ others see them look-only.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16e-2 settings: Messages and WhatsApp.
 - 2026-11-21 · 16e-1 settings menu, Website, Embed.
 - 2026-11-21 · 16d-3 inbox alerts (inbox done).
 - 2026-11-21 · 16d-2 requests and moving dates.

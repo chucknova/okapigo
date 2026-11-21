@@ -283,14 +283,14 @@ export function createApp({
   api.use(alertsRouter({ prisma }));
   api.use(guestRequestsRouter({ prisma })); // "Ask Ìrìn" from the trip hub (12f-2)
   api.use(websiteRouter({ prisma, webPublicUrl })); // the website's style and mode (12g)
-  api.use(messageTemplatesRouter({ prisma })); // the guest messages' wording (14a)
+  api.use(messageTemplatesRouter({ prisma, authSecret, webPublicUrl, channels })); // the guest messages' wording (14a)
   api.use(operationsRouter({ prisma, authSecret })); // resources, manifests, check-in (15a)
   api.use(syncRouter({ prisma, authSecret, webPublicUrl })); // the operator app offline: package, outbox (15b)
   api.use(todayRouter({ prisma })); // the manager's Today (16a)
   api.use(boardRouter({ prisma })); // the schedule and a departure's page (16b)
   api.use(deskRouter({ prisma, provider, webPublicUrl })); // the bookings desk (16c)
   api.use(inboxRouter({ prisma })); // the inbox (16d)
-  api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl })); // 13c-3
+  api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl, channels })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);

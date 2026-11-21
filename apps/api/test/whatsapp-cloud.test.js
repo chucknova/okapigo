@@ -446,6 +446,12 @@ describe('the business’s WhatsApp number (staff API)', () => {
       phoneNumberId,
       connected: true,
       webhookUrl: 'http://localhost:4000/webhooks/whatsapp',
+      // In words (16e-2): connected here, but Meta hasn't sent a message yet.
+      state: 'waiting',
+      stateText: 'Waiting for Meta to call the webhook',
+      why: null,
+      businessNumber: '0809 000 0123',
+      displayName: 'Ìrìn Lagos Tours',
     });
     const patch = (/** @type {any} */ body, token = ownerToken) =>
       request(app).patch('/api/whatsapp').set('Authorization', `Bearer ${token}`).send(body);
