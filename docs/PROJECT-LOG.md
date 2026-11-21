@@ -140,7 +140,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                                      | `0506dbf`           | 16d-3          |
 | 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                                    | `72fadc7`           | 16e-1          |
 | 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | `f60623f`           | 16e-2          |
-| 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | (this commit)       | 16e-3          |
+| 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | `b9781ed`           | 16e-3          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -263,7 +263,7 @@ never your own role or access.
 
 ## 7. Where we are
 
-- **Last done:** 16e-3, settings: Staff and roles. 16e-2 pushed.
+- **Last done:** 16e-3, settings: Staff and roles, committed `b9781ed`. 16e-2 pushed.
 - **Next:** **16e-4**, Tours (designs: "Settings — Tours"): basics, prices, schedule, extras,
   pickups, policy, deposit, transport, a new tour; the save bar on every page. Then OCTO, AI and
   dashboard, and the demo (numbering to confirm).
