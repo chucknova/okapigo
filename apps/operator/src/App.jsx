@@ -22,6 +22,7 @@ import { Schedule } from './screens/Schedule.jsx';
 import { Departure } from './screens/Departure.jsx';
 import { Bookings } from './screens/Bookings.jsx';
 import { Inbox } from './screens/Inbox.jsx';
+import { Settings } from './screens/Settings.jsx';
 import { Sheet } from './components/Sheet.jsx';
 import { useEngine, useSync } from './lib/engine.jsx';
 import { REFRESH_EVERY_MS } from './lib/sync.js';
@@ -122,9 +123,9 @@ function Shell() {
                 <Inbox tab="chats" />
               ))}
             </Route>
-            <Route path="/settings">
+            <Route path="/settings/:section?">
               {officeOnly(() => (
-                <Later title="Settings" what="Settings" stage="16e" />
+                <Settings />
               ))}
             </Route>
             <Route path="/more">

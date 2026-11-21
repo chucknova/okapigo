@@ -165,15 +165,15 @@ export const EmbedDomainsSchema = z
   .transform((list) => [...new Set(list)]);
 
 /**
- * The Content-Security-Policy that lets ONLY these sites show the widget in a frame. With
- * none, no site may (frame-ancestors 'none'): the browser refuses, whatever the page does.
+ * The Content-Security-Policy that lets ONLY these sites show the widget in a frame, and
+ * OkapiGo's own pages ('self': the Embed page's live preview in Settings, 16e-1). With no
+ * approved site, no other site may: the browser refuses, whatever the page does.
  * A real site is https; localhost (testing) is http.
  * @param {string[]} domains  already normalised
  */
 export function frameAncestors(domains) {
-  if (domains.length === 0) return "frame-ancestors 'none'";
   const sources = domains.map((d) => (d.startsWith('localhost') ? `http://${d}` : `https://${d}`));
-  return `frame-ancestors ${sources.join(' ')}`;
+  return `frame-ancestors ${["'self'", ...sources].join(' ')}`;
 }
 
 /**

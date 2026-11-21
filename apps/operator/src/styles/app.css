@@ -2580,6 +2580,174 @@ span.filter {
   }
 }
 
+/* Settings (O10), 16e. */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 96px; /* room for the save bar */
+}
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  color: var(--color-text);
+  font-weight: 700;
+  text-decoration: none;
+}
+.settings .plain-list {
+  gap: 8px;
+}
+/* A phone: the list, or one section. */
+.settings.desk--open .settings-nav {
+  display: none;
+}
+.settings:not(.desk--open) .settings-page {
+  display: none;
+}
+.field-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.upload-later {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-input);
+}
+.save-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 64px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--color-surface);
+  border-top: 2px solid var(--color-text);
+  font-weight: 700;
+}
+.style-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.style-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.style-card.is-on {
+  border: 3px solid var(--color-text);
+}
+.style-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+}
+.style-mini-hero {
+  padding: 12px 10px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: var(--text-sm);
+}
+.style-mini-btn {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: var(--text-xs);
+}
+.input--colour {
+  padding: 4px;
+  height: 48px;
+}
+.embed-preview {
+  width: 100%;
+  height: 460px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  background: var(--color-surface);
+}
+.embed-button-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.snippet {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--color-text);
+  color: var(--color-surface);
+  border-radius: var(--radius-input);
+  font-size: var(--text-xs);
+}
+
+@media (min-width: 1024px) {
+  .page.settings {
+    max-width: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 0;
+    min-height: 100%;
+  }
+  .settings.desk--open .settings-nav,
+  .settings:not(.desk--open) .settings-page {
+    display: block;
+  }
+  .settings-nav {
+    padding: 20px 16px;
+    border-right: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+  .settings-link {
+    border: 0;
+    background: transparent;
+    min-height: 44px;
+  }
+  .settings-link.is-open {
+    background: var(--color-primary-soft);
+  }
+  .settings-page {
+    padding: 20px 28px 96px;
+    max-width: 900px;
+  }
+  .field-pair {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .style-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .save-bar {
+    left: 220px;
+    bottom: 0;
+  }
+}
+
 /* The phone's header: the title keeps its room; the tour menu takes what's left. */
 .schedule-head h1 {
   flex: none;

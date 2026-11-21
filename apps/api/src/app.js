@@ -282,7 +282,7 @@ export function createApp({
   api.use(refundsRouter({ prisma, provider }));
   api.use(alertsRouter({ prisma }));
   api.use(guestRequestsRouter({ prisma })); // "Ask Ìrìn" from the trip hub (12f-2)
-  api.use(websiteRouter({ prisma })); // the website's style and mode (12g)
+  api.use(websiteRouter({ prisma, webPublicUrl })); // the website's style and mode (12g)
   api.use(messageTemplatesRouter({ prisma })); // the guest messages' wording (14a)
   api.use(operationsRouter({ prisma, authSecret })); // resources, manifests, check-in (15a)
   api.use(syncRouter({ prisma, authSecret, webPublicUrl })); // the operator app offline: package, outbox (15b)

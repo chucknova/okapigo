@@ -42,10 +42,10 @@ describe('EmbedDomainsSchema', () => {
 });
 
 describe('frameAncestors and originApproved', () => {
-  it('only the listed sites, https (http for localhost); none listed → none allowed', () => {
-    expect(frameAncestors([])).toBe("frame-ancestors 'none'");
+  it('only the listed sites, https (http for localhost), and OkapiGo itself (the preview)', () => {
+    expect(frameAncestors([])).toBe("frame-ancestors 'self'");
     expect(frameAncestors(['irin.com', 'localhost:4200'])).toBe(
-      'frame-ancestors https://irin.com http://localhost:4200',
+      "frame-ancestors 'self' https://irin.com http://localhost:4200",
     );
   });
   it('checks an Origin the same way', () => {

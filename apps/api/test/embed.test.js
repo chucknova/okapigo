@@ -56,8 +56,11 @@ describe('the frames', () => {
       const res = await request(ctx.app).get(path);
       expect(res.status, path).toBe(200);
       const csp = res.headers['content-security-policy'];
-      expect(csp).toContain('frame-ancestors https://irinlagostours.com http://localhost:4200');
-      expect(csp).not.toContain("frame-ancestors 'self'");
+      // The approved sites, and OkapiGo's own pages (Settings' preview, 16e-1); one rule only.
+      expect(csp).toContain(
+        "frame-ancestors 'self' https://irinlagostours.com http://localhost:4200",
+      );
+      expect(csp.match(/frame-ancestors/g)).toHaveLength(1);
       expect(csp).toContain("default-src 'self'"); // helmet's other rules are kept
       expect(res.headers['x-frame-options']).toBeUndefined();
       expect(res.text).toContain('data-embed');
@@ -65,10 +68,10 @@ describe('the frames', () => {
     }
   });
 
-  it('with no approved site, no site may frame them', async () => {
+  it('with no approved site, no other site may frame them (only OkapiGo’s own preview)', async () => {
     const { operator } = await ctx.seedOperator();
     const res = await request(ctx.app).get(`/embed/${operator.slug}`);
-    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'self';");
   });
 
   it('the ordinary pages still refuse to be framed anywhere', async () => {

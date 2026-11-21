@@ -138,6 +138,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | `a18ebab`           | 16d-1          |
 | 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                            | `1daa498`           | 16d-2          |
 | 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                     | `0506dbf`           | 16d-3          |
+| 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                   | (this commit)       | 16e-1          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -229,17 +230,24 @@ new date (both departures locked in id order), resets check-ins, and tells the g
 dismiss for money); the Inbox badge counts chats waiting + open requests + alerts; departures
 record who assigned the guide.
 
+**With 16e (2026-11-21):** settings in **four parts** (16e-1 menu, Website, Embed; 16e-2 Messages,
+WhatsApp; 16e-3 Staff; 16e-4 Tours). **Invitations are emailed**; for staff with only a phone, the
+owner gets the words to copy and send. The widget may be framed by **OkapiGo's own pages**
+(`'self'`) for the Embed preview. The tagline stays at **80** characters (the design said 60:
+lowering it would drop longer stored taglines). Website/Embed need marketing: edit (owner);
+others see them look-only.
+
 ## 7. Where we are
 
-- **Last done:** 16d-3, the inbox's alerts, which finishes the inbox, committed `0506dbf`. 16d-2
-  pushed.
-- **Next:** **16e**, settings (O10; designs: "O10 Settings — Website", "Embed on your site",
-  "Messages", "WhatsApp and staff", "phone", "Settings — Tours"): the website, the widget's
-  embed code, the seven messages (with "Date changed") and the two template-only WhatsApp
-  messages listed read-only, WhatsApp and staff, and tours (including each tour's transport,
-  from 16b). Ask the user how to split it first.
+- **Last done:** 16e-1, settings: the menu, Website and Embed (commit: see §9). 16d-3 pushed.
+- **Next:** **16e-2**, Messages and WhatsApp (designs: "O10 Settings — Messages", "WhatsApp and
+  staff", "phone"): the seven messages (Default/Edited; the editor with green details to insert;
+  "Must keep: …" checks; a preview with a real booking; Reset; "Send a test to my WhatsApp"; the
+  Meta note), the two template-only messages listed read-only, and WhatsApp (connected or not,
+  the webhook address and verify token to copy, send a test, disconnect). APIs since 14a/13c-3.
+  Then **16e-3** Staff, **16e-4** Tours.
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
-  (ILT-HP97TV)**, cancelled with money owed back and never started.
+  (ILT-HP97TV)**.
 - **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta.
 - A payment link for ₦45,500 was sent to Funmi Adeyemi (dev data) as Tunde at 21:27 on 20 Nov,
   to the simulator only; it may have come from my 16c-3 browser check (unconfirmed).
@@ -290,6 +298,7 @@ record who assigned the guide.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16e-1 settings menu, Website, Embed.
 - 2026-11-21 · 16d-3 inbox alerts (inbox done).
 - 2026-11-21 · 16d-2 requests and moving dates.
 - 2026-11-21 · 16d-1 inbox chats.

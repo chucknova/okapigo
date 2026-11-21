@@ -26,10 +26,14 @@ const htmlTag = (html) => /** @type {string} */ (html.match(/<html[^>]*>/)?.[0])
 
 describe('choosing the look', () => {
   it('starts as Lagoon, following the phone; the owner (marketing: edit) changes it', async () => {
-    const { owner } = await ctx.seedOperator();
+    const { owner, operator } = await ctx.seedOperator();
     const staff = as(await ctx.tokenFor(owner.id));
 
     expect((await staff.get('/api/website')).body.website).toMatchObject({
+      // Where the live site is, and what the embed snippet loads (Settings, 16e-1).
+      slug: operator.slug,
+      siteUrl: expect.stringMatching(new RegExp(`^https?://[^/]+/${operator.slug}$`)),
+      embedScriptUrl: expect.stringMatching(/^https?:\/\/[^/]+\/embed\.js$/),
       style: 'lagoon',
       mode: 'auto',
       styles: ['lagoon', 'classic', 'earth'],

@@ -38,8 +38,15 @@ const WebsiteSchema = z
   .strict()
   .refine((v) => Object.keys(v).length > 0, 'Send something to change.');
 
-/** @param {import('@prisma/client').Operator} o */
-const view = (o) => ({
+/**
+ * @param {import('@prisma/client').Operator} o
+ * @param {string} web  where the guest web lives ("https://okapigo.app")
+ */
+const view = (o, web) => ({
+  // The live site, and what the embed snippet loads (Settings, 16e-1).
+  slug: o.slug,
+  siteUrl: `${web}/${o.slug}`,
+  embedScriptUrl: `${web}/embed.js`,
   style: o.websiteStyle,
   mode: o.websiteMode,
   phone: o.phone,
@@ -50,8 +57,9 @@ const view = (o) => ({
   modes: MODES,
 });
 
-/** @param {{ prisma: import('@prisma/client').PrismaClient }} deps */
-export function websiteRouter({ prisma }) {
+/** @param {{ prisma: import('@prisma/client').PrismaClient, webPublicUrl?: string }} deps */
+export function websiteRouter({ prisma, webPublicUrl = '' }) {
+  const web = webPublicUrl.replace(/\/+$/, '');
   const router = Router();
   /** @returns {import('../middleware/auth.js').AuthContext} */
   // @ts-ignore: req.auth is set by requireAuth
@@ -61,7 +69,7 @@ export function websiteRouter({ prisma }) {
     const operator = await prisma.operator.findUniqueOrThrow({
       where: { id: authOf(req).operatorId },
     });
-    res.json({ website: view(operator) });
+    res.json({ website: view(operator, web) });
   });
 
   router.patch(
@@ -95,7 +103,7 @@ export function websiteRouter({ prisma }) {
           },
         });
       });
-      res.json({ website: view(operator) });
+      res.json({ website: view(operator, web) });
     },
   );
 

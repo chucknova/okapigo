@@ -323,3 +323,12 @@ brief didn't have. Decided:
 - Only whoever took a chat over replies; a colleague takes over on purpose.
 - **16d-2:** moving a booking keeps the booked price and needs seats on the new date; the guest
   gets a new message, "Date changed". A request's reply shows on the guest's trip page.
+
+## Settings in four parts (decided 2026-11-21)
+
+| Stage | Builds                                                                    |
+| ----- | ------------------------------------------------------------------------- |
+| 16e-1 | the menu, the save bar and form errors, Website, Embed on your site       |
+| 16e-2 | Messages and WhatsApp                                                     |
+| 16e-3 | Staff and roles; invitations emailed (words to copy for phone-only staff) |
+| 16e-4 | Tours                                                                     |

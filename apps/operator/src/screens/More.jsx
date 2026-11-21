@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * More (the office's fifth tab on a phone): the rest, in a list. Settings arrive in 16e.
+ * More (the office's fifth tab on a phone): the rest, in a list (Settings since 16e).
  */
 import { Link } from 'wouter';
 import { Icon } from '../components/Icon.jsx';
