@@ -141,6 +141,15 @@ owes ₦32,000 (₦40,000 less 20%)" rather than a guest payment.
 3. **Does an OTA cancellation follow Ìrìn's policy?** Suggestion: **yes**: the OTA refunds its
    guest; Ìrìn's books say the OTA owes the part the policy keeps.
 
+## Decided with 17b (2026-11-21)
+
+- **Question 2: no automatic messages to OTA guests.** The OTA tells its guest; it gets the QR
+  ticket and the trip page link through OCTO to pass on. Staff can still message the guest
+  from the booking.
+- **Question 3: an OTA's cancellation follows Ìrìn's policy, until the start.** The OTA refunds
+  its guest; Ìrìn's books say it owes that much less (and its commission on it comes back).
+- Still open: question 1, the mock OTA's name and look (with your designs).
+
 ## Session 17, in four parts (decided 2026-11-21)
 
 | Part    | What                                                                                                   |

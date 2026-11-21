@@ -39,11 +39,13 @@ describe('reading the books', () => {
       '1000', // Cash (16c-2)
       '1100',
       '1200', // Bank (16c-2)
+      '1300', // Owed by OTAs (17b)
       '2100',
       '2200',
       '4000',
       '4100',
       '5100',
+      '5200', // OTA commission (17b)
       '5900',
     ]);
     expect(res.body.accounts.every((a) => a.balanceKobo === 0)).toBe(true);

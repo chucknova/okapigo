@@ -111,3 +111,4 @@ export * from './traveller-change.js';
 export * from './move-booking.js';
 export * from './alerts.js';
 export * from './channels.js';
+export * from './channel-bookings.js';

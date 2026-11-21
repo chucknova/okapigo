@@ -123,12 +123,13 @@ async function refundFor(tx, booking, { kind, initiatedBy, refundOverrideKobo, n
 }
 
 /**
- * Cancels one booking inside the caller's transaction.
+ * Cancels one booking inside the caller's transaction (exported for OCTO, 17b: an OTA's
+ * cancellation and the refund it settles happen together).
  * @param {import('@prisma/client').Prisma.TransactionClient} tx
  * @param {import('@prisma/client').Booking} booking
  * @param {CancelOptions & { actor: Actor, now: Date }} opts
  */
-async function cancelBookingInTx(
+export async function cancelBookingInTx(
   tx,
   booking,
   { initiatedBy, reason, refundOverrideKobo, actor, now },

@@ -145,6 +145,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | `9b6483e`           | 16e-4b         |
 | 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | `8ee0e0f`           | 16e-4c         |
 | 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                              | `035902a`           | 17a            |
+| 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels    | (this commit)       | 17b            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -154,7 +155,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers | —                         |
 | ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                          | —                         |
 | ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                         | —                         |
-| **17**  | OCTO in four parts: ~~17a~~ catalogue; 17b bookings; 17c channel manager; 17d mock OTA (journey 3)       | DST-01–03                 |
+| **17**  | OCTO in four parts: ~~17a~~ catalogue; ~~17b~~ bookings; 17c channel manager; 17d mock OTA (journey 3)   | DST-01–03                 |
 | 18      | AI companion, posters, dashboard (journeys 7, 8)                                                         | GST-16, MKT-01/02, RPT-01 |
 | 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                               | step 10                   |
 
@@ -300,14 +301,26 @@ the OCTO docs contradict themselves: 400 for request errors, 401 without a key, 
 one; both `pricing` and `octo/pricing` accepted. The seed's mock OTA key is `octo_dev_<slug>`
 (or `MOCK_OTA_API_KEY`).
 
+**With 17b (2026-11-21):** **OTA guests get no automatic messages** from Ìrìn (the OTA tells
+them; OCTO gives it the QR ticket and the trip page link). **An OTA's cancellation follows the
+business's policy until the start**; OCTO's cutoff now says "until the start" with the policy
+in words. An OCTO booking is one of our bookings plus a `channel_bookings` row (the OTA's uuid,
+reference, unit items, **commission frozen at the sale**); its OCTO status is worked out, never
+stored. Confirming records a payment from the OTA (provider `ota`) and an `ota_sale` (Dr Owed by
+OTAs 1300 net + Dr OTA commission 5200 / Cr Tour sales); a cancellation's refund is settled with
+the OTA at once (Dr Refunds payable / Cr Owed by OTAs + Cr OTA commission). An OTA hold may have
+no contact yet (the lead-contact check allows it only for held or cancelled OTA bookings). OTA
+holds last up to 30 minutes. Pickups: the reserve's `pickupPointId` (the point's name, URL-safe);
+the rest of OCTO's pickups capability isn't built.
+
 ## 7. Where we are
 
-- **Last done:** 17a, the OCTO API's catalogue side, committed `035902a`. 16e-4c pushed.
-- **Next:** **17b**, OCTO bookings: hold (`POST /octo/bookings`, up to 30 minutes), confirm,
-  cancel (under the business's policy), get; bookings carry their channel and what the OTA
-  owes (ledger); a concurrency test across the website, WhatsApp and OCTO (zero oversells).
-  Waiting on you: designs for the brief `docs/flows/08-octo-and-channels.md` (needed for 17c and
-  17d) and its three questions.
+- **Last done:** 17b, OCTO bookings. 17a pushed.
+- **Next:** **17c**, the channel manager: Settings › Channels (your design, brief 08: connect a
+  channel and see its key once, tours on it, commission, its sales and what it owes, a new key,
+  switch off), "via Mock OTA" on bookings, and the 60-second webhook that tells connected OTAs
+  when seats or prices change. Waiting on you: the designs for brief 08 (O11 and M1–M5) and
+  the mock OTA's name.
 - **Your dev database** has no OTA channel until you run `pnpm db:reset` (the seed adds the
   Mock OTA with all five tours).
 - **The operator app's script is over 500 kB** since 16e-4c (Vite warns at build). Not urgent
@@ -378,6 +391,7 @@ one; both `pricing` and `octo/pricing` accepted. The seed's mock OTA key is `oct
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 17b OCTO bookings.
 - 2026-11-21 · 17a OCTO catalogue (session 17 begins).
 - 2026-11-21 · 16e-4c Tours: Extras, pickups, cancellation and deposit (Settings done).
 - 2026-11-21 · 16e-4b Tours: Prices, Schedule and seats.

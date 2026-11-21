@@ -34,6 +34,9 @@ const SOLD = ['confirmed', 'part_paid', 'paid', 'amended'];
  * }} m   only: just these channels (a staff message by email, 16d-1)
  */
 export async function planGuestMessage(tx, { booking, kind, key, data = {}, only }) {
+  // An OTA's guest hears from the OTA (decided 2026-11-21, 17b): nothing automatic from us,
+  // only what staff send on purpose (a message, a payment link).
+  if (booking.channel === 'ota' && kind !== 'staff_message' && kind !== 'payment_link') return 0;
   const chatHasIt =
     booking.channel === 'whatsapp' && (kind === 'booking_confirmed' || kind === 'deposit_received');
   const channels = [

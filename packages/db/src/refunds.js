@@ -19,6 +19,7 @@
  * The ledger is written only when the money actually leaves (markRefundProcessed), because
  * "we asked Paystack" is not "the guest has their money".
  */
+import { percentOf } from '@okapigo/shared/pricing';
 import { planGuestMessage } from './guest-messages.js';
 import { POSTINGS } from '@okapigo/shared/ledger';
 import { formatNaira } from '@okapigo/shared/money';
@@ -282,7 +283,21 @@ export async function processRefundInTx(tx, refundId, { processedAt = new Date()
       ? POSTINGS.receiptRefunded(refund.amountKobo)
       : refund.provider === 'bank_transfer'
         ? POSTINGS.refundPaidByTransfer(refund.amountKobo)
-        : POSTINGS.refundPaid(refund.amountKobo),
+        : refund.provider === 'ota'
+          ? // The OTA refunded its guest: it owes that much less, and hands back its
+            // commission on it, at the share frozen at the sale (17b).
+            POSTINGS.otaRefund(
+              refund.amountKobo,
+              percentOf(
+                refund.amountKobo,
+                (
+                  await tx.channelBooking.findUniqueOrThrow({
+                    where: { bookingId: refund.bookingId },
+                  })
+                ).commissionBasisPoints,
+              ),
+            )
+          : POSTINGS.refundPaid(refund.amountKobo),
     bookingId: refund.bookingId,
     paymentId: refund.paymentId,
   });

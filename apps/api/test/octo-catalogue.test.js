@@ -108,9 +108,10 @@ describe('the supplier and its products', () => {
           id: 'DEFAULT',
           default: true,
           availabilityLocalStartTimes: ['10:00'],
-          // Ìrìn's policy: a full refund 48 hours or more before.
-          cancellationCutoff: '48 hours before the start',
-          cancellationCutoffAmount: 48,
+          // Cancellable until the start, the refund by Ìrìn's policy (decided 17b).
+          cancellationCutoff:
+            'Until the start. Refund by the policy: Full refund 48 h+ · 50% 24–48 h · No refund under 24 h',
+          cancellationCutoffAmount: 0,
           cancellationCutoffUnit: 'hour',
         },
       ],

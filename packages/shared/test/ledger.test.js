@@ -27,6 +27,35 @@ describe('posting rules', () => {
     expect(() => assertBalanced(POSTINGS[name](12_500_00))).not.toThrow();
   });
 
+  it('an OTA’s sale and refund (17b): owed the net, its commission an expense, handed back pro rata', () => {
+    // ₦40,000 sold, the OTA keeps 20%.
+    expect(POSTINGS.otaSale(4_000_000, 800_000)).toEqual([
+      { account: 'OTA_RECEIVABLE', debitKobo: 3_200_000, creditKobo: 0 },
+      { account: 'OTA_COMMISSION', debitKobo: 800_000, creditKobo: 0 },
+      { account: 'TOUR_SALES', debitKobo: 0, creditKobo: 4_000_000 },
+    ]);
+    // Half refunded: it owes ₦16,000 less and hands back ₦4,000 of commission.
+    expect(POSTINGS.otaRefund(2_000_000, 400_000)).toEqual([
+      { account: 'REFUNDS_PAYABLE', debitKobo: 2_000_000, creditKobo: 0 },
+      { account: 'OTA_RECEIVABLE', debitKobo: 0, creditKobo: 1_600_000 },
+      { account: 'OTA_COMMISSION', debitKobo: 0, creditKobo: 400_000 },
+    ]);
+    // An OTA that keeps everything (or nothing): one line fewer, still balanced.
+    expect(POSTINGS.otaSale(100, 100).map((l) => l.account)).toEqual([
+      'OTA_COMMISSION',
+      'TOUR_SALES',
+    ]);
+    expect(POSTINGS.otaSale(100).map((l) => l.account)).toEqual(['OTA_RECEIVABLE', 'TOUR_SALES']);
+    expect(POSTINGS.otaRefund(100, 100).map((l) => l.account)).toEqual([
+      'REFUNDS_PAYABLE',
+      'OTA_COMMISSION',
+    ]);
+    for (const bad of [-1, 101, 1.5]) {
+      expect(() => POSTINGS.otaSale(100, bad)).toThrow('A commission must be 0 to the price');
+      expect(() => POSTINGS.otaRefund(100, bad)).toThrow('A commission must be 0 to the refund');
+    }
+  });
+
   it('a full story: paid ₦50,000, fee ₦750, cancelled with ₦25,000 owed, then refunded', () => {
     const story = [
       POSTINGS.paymentReceived(5_000_000),

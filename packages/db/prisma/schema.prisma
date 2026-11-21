@@ -598,21 +598,23 @@ model Booking {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  departure     Departure                  @relation(fields: [departureId, operatorId], references: [id, operatorId], onDelete: Cascade)
-  product       Product                    @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
-  hold          Hold                       @relation(fields: [holdId], references: [id], onDelete: Cascade)
-  policyVersion CancellationPolicyVersion? @relation(fields: [policyVersionId], references: [id], onDelete: Cascade)
-  travellers    Traveller[]
-  addOns        BookingAddOn[]
-  events        BookingEvent[]
-  ledgerEntries LedgerEntry[]
-  cashReports   CashReport[]
-  payments      Payment[]
-  paymentLinks  PaymentLink[]
-  refunds       Refund[]
-  notifications Notification[]
-  guestRequests GuestRequest[]
-  conversations Conversation[]
+  departure      Departure                  @relation(fields: [departureId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  product        Product                    @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  hold           Hold                       @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  policyVersion  CancellationPolicyVersion? @relation(fields: [policyVersionId], references: [id], onDelete: Cascade)
+  travellers     Traveller[]
+  addOns         BookingAddOn[]
+  events         BookingEvent[]
+  ledgerEntries  LedgerEntry[]
+  cashReports    CashReport[]
+  payments       Payment[]
+  paymentLinks   PaymentLink[]
+  refunds        Refund[]
+  notifications  Notification[]
+  guestRequests  GuestRequest[]
+  conversations  Conversation[]
+  // Sold by an OTA through OCTO (session 17b): its OCTO side.
+  channelBooking ChannelBooking?
 
   @@unique([operatorId, reference])
   @@index([operatorId, status])
@@ -1296,6 +1298,7 @@ model Channel {
 
   operator Operator         @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   products ChannelProduct[]
+  bookings ChannelBooking[]
 
   @@unique([operatorId, name])
   @@unique([id, operatorId])
@@ -1317,4 +1320,36 @@ model ChannelProduct {
   @@id([channelId, productId])
   @@index([productId])
   @@map("channel_products")
+}
+
+// A booking an OTA made through OCTO (session 17b): the OCTO side of one of our bookings.
+// Reserving creates our booking (held, with its hold) and this row; confirming records the
+// OTA's payment; cancelling follows the business's policy (decided 2026-11-21). The OCTO
+// booking's status is worked out from our booking and its hold, never stored twice.
+model ChannelBooking {
+  // The OCTO booking's "id" (ours: the supplier's).
+  id                    String    @id @default(uuid()) @db.Uuid
+  operatorId            String    @map("operator_id") @db.Uuid
+  channelId             String    @map("channel_id") @db.Uuid
+  bookingId             String    @unique @map("booking_id") @db.Uuid
+  // The OTA's own id for the booking (OCTO's "uuid"): how it asks about it again, and its
+  // idempotency key (the same uuid twice is the same booking). Unique per channel.
+  uuid                  String
+  // The OTA's own reference ("TW-48213"), given when it confirms.
+  resellerReference     String?   @map("reseller_reference")
+  // The OCTO unit items, in the travellers' order: [{ uuid, unitId }].
+  unitItems             Json      @map("unit_items")
+  // The OTA's share, frozen at the sale: later changes to the channel's commission never
+  // change what an old sale owes. CHECK: 0–10000.
+  commissionBasisPoints Int       @map("commission_basis_points")
+  confirmedAt           DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  channel Channel @relation(fields: [channelId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, uuid])
+  @@index([operatorId, channelId])
+  @@map("channel_bookings")
 }

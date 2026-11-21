@@ -237,6 +237,149 @@ export const AvailabilityCalendarBodySchema = z.object({
   currency: z.string().optional(),
 });
 
+// --- Bookings (17b) --------------------------------------------------------------------------
+
+export const BOOKING_STATUSES = /** @type {const} */ ([
+  'ON_HOLD',
+  'CONFIRMED',
+  'EXPIRED',
+  'CANCELLED',
+  'REDEEMED',
+  'PENDING',
+  'REJECTED',
+]);
+
+/** Every key present; all but `locales` may be null. */
+export const ContactSchema = z.object({
+  fullName: nullableString,
+  firstName: nullableString,
+  lastName: nullableString,
+  emailAddress: nullableString,
+  phoneNumber: nullableString,
+  locales: z.array(z.string()),
+  postalCode: nullableString,
+  country: nullableString,
+  notes: nullableString,
+});
+
+const TicketSchema = z.object({
+  redemptionMethod: z.enum(['DIGITAL', 'PRINT', 'MANIFEST']),
+  utcRedeemedAt: nullableString,
+  deliveryOptions: z.array(
+    z.object({
+      deliveryFormat: z.enum(['PDF_URL', 'QRCODE', 'CODE128', 'PKPASS_URL']),
+      deliveryValue: z.string(),
+    }),
+  ),
+});
+
+export const UnitItemSchema = z.object({
+  uuid: z.string(),
+  resellerReference: nullableString,
+  supplierReference: nullableString,
+  unitId: z.string(),
+  status: z.enum(BOOKING_STATUSES),
+  utcRedeemedAt: utcDateTime.nullable(),
+  contact: ContactSchema,
+  ticket: TicketSchema.nullable(),
+  pricing: PricingSchema.optional(),
+});
+
+export const BookingSchema = z.object({
+  id: z.string(),
+  uuid: z.string(),
+  testMode: z.boolean(),
+  resellerReference: nullableString,
+  supplierReference: nullableString,
+  status: z.enum(BOOKING_STATUSES),
+  utcCreatedAt: utcDateTime,
+  utcUpdatedAt: utcDateTime,
+  utcExpiresAt: utcDateTime.nullable(),
+  utcRedeemedAt: utcDateTime.nullable(),
+  utcConfirmedAt: utcDateTime.nullable(),
+  productId: z.string(),
+  optionId: z.string(),
+  cancellable: z.boolean(),
+  cancellation: z
+    .object({
+      refund: z.enum(['FULL', 'PARTIAL', 'NONE']),
+      reason: nullableString,
+      utcCancelledAt: utcDateTime,
+    })
+    .nullable(),
+  freesale: z.boolean(),
+  availabilityId: nullableString,
+  availability: AvailabilitySchema.nullable(),
+  contact: ContactSchema,
+  notes: nullableString,
+  deliveryMethods: z.array(z.enum(['VOUCHER', 'TICKET'])),
+  voucher: TicketSchema.nullable(),
+  unitItems: z.array(UnitItemSchema),
+  pricing: PricingSchema.optional(),
+});
+
+const BookingContactBodySchema = z.object({
+  fullName: z.string().max(200).optional(),
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
+  emailAddress: z.string().max(254).optional(),
+  phoneNumber: z.string().max(40).optional(),
+  locales: z.array(z.string()).optional(),
+  postalCode: z.string().max(40).optional(),
+  country: z.string().max(80).optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+/** POST /bookings: reserve (seats held). */
+export const BookingReservationBodySchema = z.object({
+  uuid: z.string().min(1).max(100).optional(),
+  productId: z.string(),
+  optionId: z.string(),
+  availabilityId: z.string(),
+  unitItems: z
+    .array(z.object({ unitId: z.string(), uuid: z.string().min(1).max(100).optional() }))
+    .min(1)
+    .max(50),
+  expirationMinutes: z.number().int().min(1).optional(),
+  notes: z.string().max(1000).optional(),
+  // The pickups capability, in part: which of the option's pickup points.
+  pickupRequested: z.boolean().optional(),
+  pickupPointId: z.string().optional(),
+  currency: z.string().optional(),
+});
+
+/** POST /bookings/{uuid}/confirm */
+export const BookingConfirmationBodySchema = z.object({
+  contact: BookingContactBodySchema,
+  resellerReference: z.string().max(100).optional(),
+  emailReceipt: z.boolean().optional(),
+  unitItems: z.array(z.object({ unitId: z.string(), uuid: z.string().optional() })).optional(),
+});
+
+/** POST /bookings/{uuid}/cancel */
+export const BookingCancellationBodySchema = z.object({
+  reason: z.string().max(500).optional(),
+  force: z.boolean().optional(),
+});
+
+/** POST /bookings/{uuid}/extend */
+export const BookingExtendBodySchema = z.object({
+  expirationMinutes: z.number().int().min(1).optional(),
+});
+
+/** PATCH /bookings/{uuid}: here, the reference, the notes and the contact. */
+export const BookingUpdateBodySchema = z.object({
+  resellerReference: z.string().max(100).optional(),
+  notes: z.string().max(1000).optional(),
+  contact: BookingContactBodySchema.optional(),
+  productId: z.string().optional(),
+  optionId: z.string().optional(),
+  availabilityId: z.string().optional(),
+  unitItems: z.array(z.object({ unitId: z.string(), uuid: z.string().optional() })).optional(),
+  expirationMinutes: z.number().int().min(1).optional(),
+  emailReceipt: z.boolean().optional(),
+});
+
 // --- Errors -----------------------------------------------------------------------------------
 
 export const ERROR_CODES = /** @type {const} */ ([

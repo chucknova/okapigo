@@ -24,6 +24,8 @@ export const ACCOUNTS = /** @type {const} */ ({
   PROVIDER_CLEARING: { code: '1100', name: 'Paystack clearing', type: 'asset', normal: 'debit' },
   // The business's own bank account: refunds sent by bank transfer (stage 16c-2).
   BANK: { code: '1200', name: 'Bank', type: 'asset', normal: 'debit' },
+  // What OTAs collected for us and owe: the sale less their commission (session 17b).
+  OTA_RECEIVABLE: { code: '1300', name: 'Owed by OTAs', type: 'asset', normal: 'debit' },
   REFUNDS_PAYABLE: { code: '2100', name: 'Refunds payable', type: 'liability', normal: 'credit' },
   UNALLOCATED_RECEIPTS: {
     code: '2200',
@@ -34,6 +36,8 @@ export const ACCOUNTS = /** @type {const} */ ({
   TOUR_SALES: { code: '4000', name: 'Tour sales', type: 'revenue', normal: 'credit' },
   SALES_REFUNDS: { code: '4100', name: 'Sales refunds', type: 'revenue', normal: 'debit' },
   PAYMENT_FEES: { code: '5100', name: 'Payment fees', type: 'expense', normal: 'debit' },
+  // What OTAs keep of each sale (session 17b).
+  OTA_COMMISSION: { code: '5200', name: 'OTA commission', type: 'expense', normal: 'debit' },
   ADJUSTMENTS: { code: '5900', name: 'Adjustments', type: 'expense', normal: 'debit' },
 });
 
@@ -105,6 +109,48 @@ export const POSTINGS = {
   refundPaidByTransfer(/** @type {number} */ kobo) {
     assertAmount(kobo);
     return [debit('REFUNDS_PAYABLE', kobo), credit('BANK', kobo)];
+  },
+
+  /**
+   * An OTA sold a booking and took the guest's money (session 17b): it owes us the price
+   * less its commission.     Dr Owed by OTAs (net) + Dr OTA commission / Cr Tour sales
+   * @param {number} kobo the price @param {number} commissionKobo its share (0 or more)
+   */
+  otaSale(kobo, commissionKobo = 0) {
+    assertAmount(kobo);
+    if (!Number.isSafeInteger(commissionKobo) || commissionKobo < 0 || commissionKobo > kobo) {
+      throw new LedgerError(
+        'INVALID_AMOUNT',
+        `A commission must be 0 to the price, got ${commissionKobo}.`,
+      );
+    }
+    const net = kobo - commissionKobo;
+    return [
+      ...(net > 0 ? [debit('OTA_RECEIVABLE', net)] : []),
+      ...(commissionKobo > 0 ? [debit('OTA_COMMISSION', commissionKobo)] : []),
+      credit('TOUR_SALES', kobo),
+    ];
+  },
+
+  /**
+   * An OTA refunded its guest (session 17b): it owes us that much less, and hands back its
+   * commission on it.        Dr Refunds payable / Cr Owed by OTAs (net) + Cr OTA commission
+   * @param {number} kobo the refund @param {number} commissionKobo its commission on it
+   */
+  otaRefund(kobo, commissionKobo = 0) {
+    assertAmount(kobo);
+    if (!Number.isSafeInteger(commissionKobo) || commissionKobo < 0 || commissionKobo > kobo) {
+      throw new LedgerError(
+        'INVALID_AMOUNT',
+        `A commission must be 0 to the refund, got ${commissionKobo}.`,
+      );
+    }
+    const net = kobo - commissionKobo;
+    return [
+      debit('REFUNDS_PAYABLE', kobo),
+      ...(net > 0 ? [credit('OTA_RECEIVABLE', net)] : []),
+      ...(commissionKobo > 0 ? [credit('OTA_COMMISSION', commissionKobo)] : []),
+    ];
   },
 
   /** Money arrived we can't match to a booking yet (a bank transfer, stage 10d).

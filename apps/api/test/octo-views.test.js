@@ -7,11 +7,14 @@ import {
   availabilityOf,
   cancellationCutoffOf,
   localIso,
+  contactOf,
   pricingOf,
+  refundKindOf,
+  splitName,
   statusOf,
   unitTypeOf,
 } from '../src/octo/views.js';
-import { hashApiKey, keyHint, makeApiKey } from '@okapigo/db';
+import { hashApiKey, holdMinutesFor, keyHint, makeApiKey, octoStatusOf } from '@okapigo/db';
 
 describe('units, status, times', () => {
   it('a price category’s unit type', () => {
@@ -43,37 +46,28 @@ describe('units, status, times', () => {
     );
   });
 
-  it('the cancellation cutoff: the free-cancellation tier, else until the start', () => {
+  it('the cancellation cutoff: until the start, the refund by the policy (decided 17b)', () => {
     expect(
       cancellationCutoffOf({
         rules: [
           { hoursBefore: 48, refundBasisPoints: 10_000 },
           { hoursBefore: 24, refundBasisPoints: 5_000 },
+          { hoursBefore: 0, refundBasisPoints: 0 },
         ],
       }),
     ).toEqual({
-      cancellationCutoff: '48 hours before the start',
-      cancellationCutoffAmount: 48,
-      cancellationCutoffUnit: 'hour',
-    });
-    // Two full-refund tiers: the later one (the latest a full refund is still given).
-    expect(
-      cancellationCutoffOf({
-        rules: [
-          { hoursBefore: 72, refundBasisPoints: 10_000 },
-          { hoursBefore: 24, refundBasisPoints: 10_000 },
-        ],
-      }).cancellationCutoffAmount,
-    ).toBe(24);
-    expect(cancellationCutoffOf(null)).toEqual({
-      cancellationCutoff: 'Until the start',
+      cancellationCutoff:
+        'Until the start. Refund by the policy: Full refund 48 h+ · 50% 24–48 h · No refund under 24 h',
       cancellationCutoffAmount: 0,
       cancellationCutoffUnit: 'hour',
     });
-    expect(
-      cancellationCutoffOf({ rules: [{ hoursBefore: 24, refundBasisPoints: 5_000 }] })
-        .cancellationCutoffAmount,
-    ).toBe(0);
+    for (const none of [null, { rules: [] }]) {
+      expect(cancellationCutoffOf(none)).toEqual({
+        cancellationCutoff: 'Until the start. No refunds are set: the business decides each one.',
+        cancellationCutoffAmount: 0,
+        cancellationCutoffUnit: 'hour',
+      });
+    }
   });
 });
 
@@ -136,5 +130,69 @@ describe('channel keys', () => {
     expect(hashApiKey(a)).toBe(hashApiKey(a));
     expect(hashApiKey(a)).not.toBe(hashApiKey(makeApiKey()));
     expect(keyHint('octo_abcdefk3Qz')).toBe('…k3Qz');
+  });
+});
+
+describe('bookings (17b)', () => {
+  const now = new Date('2026-12-01T10:00:00Z');
+  const later = new Date('2026-12-01T10:30:00Z');
+  const earlier = new Date('2026-12-01T09:30:00Z');
+
+  it('the OCTO status, from our booking and its hold', () => {
+    expect(octoStatusOf({ status: 'held' }, { status: 'active', expiresAt: later }, now)).toBe(
+      'ON_HOLD',
+    );
+    // Held, but its time is up (the sweeper hasn't been yet): expired already.
+    expect(octoStatusOf({ status: 'held' }, { status: 'active', expiresAt: earlier }, now)).toBe(
+      'EXPIRED',
+    );
+    expect(octoStatusOf({ status: 'held' }, { status: 'active', expiresAt: now }, now)).toBe(
+      'EXPIRED',
+    );
+    expect(
+      octoStatusOf({ status: 'cancelled' }, { status: 'expired', expiresAt: earlier }, now),
+    ).toBe('EXPIRED');
+    expect(
+      octoStatusOf({ status: 'cancelled' }, { status: 'released', expiresAt: later }, now),
+    ).toBe('CANCELLED');
+    expect(
+      octoStatusOf({ status: 'refunded' }, { status: 'converted', expiresAt: later }, now),
+    ).toBe('CANCELLED');
+    for (const sold of ['confirmed', 'paid', 'part_paid', 'amended', 'no_show']) {
+      expect(octoStatusOf({ status: sold }, { status: 'converted', expiresAt: earlier }, now)).toBe(
+        'CONFIRMED',
+      );
+    }
+    expect(
+      octoStatusOf({ status: 'completed' }, { status: 'converted', expiresAt: earlier }, now),
+    ).toBe('REDEEMED');
+  });
+
+  it('how long a hold: what was asked, 1 to 30 minutes; 30 when not said', () => {
+    expect(holdMinutesFor(undefined)).toBe(30);
+    expect(holdMinutesFor(5)).toBe(5);
+    expect(holdMinutesFor(30)).toBe(30);
+    expect(holdMinutesFor(31)).toBe(30);
+    expect(holdMinutesFor(0)).toBe(1);
+  });
+
+  it('the refund kind; a contact with every key; a name split in two', () => {
+    expect(refundKindOf(0, 8_000_000)).toBe('NONE');
+    expect(refundKindOf(4_000_000, 8_000_000)).toBe('PARTIAL');
+    expect(refundKindOf(8_000_000, 8_000_000)).toBe('FULL');
+    expect(refundKindOf(0, 0)).toBe('NONE');
+    expect(contactOf()).toEqual({
+      fullName: null,
+      firstName: null,
+      lastName: null,
+      emailAddress: null,
+      phoneNumber: null,
+      locales: [],
+      postalCode: null,
+      country: null,
+      notes: null,
+    });
+    expect(splitName(' Ada  Okafor Eze ')).toEqual({ firstName: 'Ada', lastName: 'Okafor Eze' });
+    expect(splitName('Ada')).toEqual({ firstName: 'Ada', lastName: null });
   });
 });

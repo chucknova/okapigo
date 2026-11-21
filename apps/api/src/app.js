@@ -180,7 +180,10 @@ export function createApp({
   // need more room. Parsed here first; the general parser then leaves it alone.
   // The OCTO API for OTAs (session 17): its own key per channel, its own error shape, so it
   // reads its own JSON too (a broken body is answered OCTO's way), before the app's reader.
-  app.use('/octo', octoRouter({ prisma, apiPublicUrl, log: logger }));
+  app.use(
+    '/octo',
+    octoRouter({ prisma, apiPublicUrl, log: logger, quotes, jobs, authSecret, webPublicUrl }),
+  );
   app.use('/api/sync/changes', express.json({ limit: '1mb' }));
   app.use(express.json({ limit: '100kb' }));
 

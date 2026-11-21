@@ -13,6 +13,7 @@
  */
 import { priceBasket } from '@okapigo/shared/pricing';
 import { percentOf, divideRoundToNaira } from '@okapigo/shared/pricing';
+import { policyLine } from '@okapigo/shared/tour-facts';
 
 export const OPTION_ID = 'DEFAULT';
 const CURRENCY = 'NGN';
@@ -112,17 +113,16 @@ export function unitsOf(categories, settings, commissionBasisPoints, pricing) {
 }
 
 /**
- * Until when an OTA may cancel for a full refund: the policy's free-cancellation tier ("48 hours
- * before"); none: until the start. @param {{ rules: any[] } | null} policy
+ * Until when an OTA may cancel: until the start, with the refund the business's policy gives
+ * (decided 2026-11-21: an OTA's cancellation follows the policy until the start).
+ * @param {{ rules: any[] } | null} policy
  */
 export function cancellationCutoffOf(policy) {
-  const free = (policy?.rules ?? [])
-    .filter((r) => r.refundBasisPoints >= 10_000)
-    .map((r) => r.hoursBefore);
-  const hours = free.length ? Math.min(...free) : 0;
   return {
-    cancellationCutoff: hours ? `${hours} hours before the start` : 'Until the start',
-    cancellationCutoffAmount: hours,
+    cancellationCutoff: policy?.rules?.length
+      ? `Until the start. Refund by the policy: ${policyLine(policy)}`
+      : 'Until the start. No refunds are set: the business decides each one.',
+    cancellationCutoffAmount: 0,
     cancellationCutoffUnit: /** @type {const} */ ('hour'),
   };
 }
@@ -245,5 +245,129 @@ export function availabilityOf(d, o) {
     openingHours: [],
     ...(o.unitPricing && { unitPricing: o.unitPricing }),
     ...(o.pricing && { pricing: o.pricing }),
+  };
+}
+
+// --- Bookings (17b) ---------------------------------------------------------------------------
+
+/** OCTO's contact, every key present. @param {Partial<Record<string, string | null>>} [c] */
+export const contactOf = (c = {}) => ({
+  fullName: c.fullName ?? null,
+  firstName: c.firstName ?? null,
+  lastName: c.lastName ?? null,
+  emailAddress: c.emailAddress ?? null,
+  phoneNumber: c.phoneNumber ?? null,
+  locales: [],
+  postalCode: null,
+  country: null,
+  notes: null,
+});
+
+/** "Funmi Adeyemi" → first and last. @param {string} name */
+export function splitName(name) {
+  const parts = name.trim().split(/\s+/);
+  return {
+    firstName: parts[0] ?? null,
+    lastName: parts.length > 1 ? parts.slice(1).join(' ') : null,
+  };
+}
+
+/**
+ * The refund OCTO reports for a cancellation: FULL (everything paid back), PARTIAL, NONE.
+ * @param {number} refundKobo @param {number} paidKobo
+ */
+export const refundKindOf = (refundKobo, paidKobo) =>
+  refundKobo <= 0 ? 'NONE' : refundKobo >= paidKobo ? 'FULL' : 'PARTIAL';
+
+/**
+ * One of our bookings as an OCTO Booking.
+ * @param {{
+ *   channelBooking: any,         the OCTO side (uuid, unit items, commission, confirmed)
+ *   booking: any,                with hold, departure, travellers (in order)
+ *   status: string,              its OCTO status (octoStatusOf)
+ *   cancelled: { reason: string | null, at: Date } | null,
+ *   timeZone: string,
+ *   seatsAvailable: number,      what's left on its departure now
+ *   ticketCode: string | null,   the signed QR code (given only once confirmed: the voucher)
+ *   tripUrl: string | null,      the guest's trip page, once confirmed
+ *   pricing: boolean,
+ *   taxName: string | null,
+ *   now: Date,
+ * }} o
+ */
+export function bookingOf(o) {
+  const { channelBooking: cb, booking: b } = o;
+  const lead = cb.confirmedAt
+    ? contactOf({
+        fullName: b.leadName,
+        ...splitName(b.leadName),
+        emailAddress: b.leadEmail,
+        phoneNumber: b.leadPhone,
+      })
+    : contactOf();
+  const items = /** @type {Array<{ uuid: string, unitId: string }>} */ (cb.unitItems);
+  return {
+    id: cb.id,
+    uuid: cb.uuid,
+    testMode: false,
+    resellerReference: cb.resellerReference ?? null,
+    supplierReference: b.reference,
+    status: o.status,
+    utcCreatedAt: cb.createdAt.toISOString(),
+    utcUpdatedAt: (b.updatedAt > cb.updatedAt ? b.updatedAt : cb.updatedAt).toISOString(),
+    utcExpiresAt: o.status === 'ON_HOLD' ? b.hold.expiresAt.toISOString() : null,
+    utcRedeemedAt: null,
+    utcConfirmedAt: cb.confirmedAt ? cb.confirmedAt.toISOString() : null,
+    productId: b.productId,
+    optionId: OPTION_ID,
+    cancellable:
+      (o.status === 'ON_HOLD' || o.status === 'CONFIRMED') && b.departure.startsAt > o.now,
+    cancellation:
+      o.status === 'CANCELLED' && o.cancelled
+        ? {
+            refund: refundKindOf(b.refundDueKobo, b.amountPaidKobo),
+            reason: o.cancelled.reason,
+            utcCancelledAt: o.cancelled.at.toISOString(),
+          }
+        : null,
+    freesale: false,
+    availabilityId: b.departureId,
+    availability: availabilityOf(
+      { ...b.departure, seatsAvailable: o.seatsAvailable },
+      { timeZone: o.timeZone, pax: 0 },
+    ),
+    contact: lead,
+    notes: b.notes || null,
+    deliveryMethods: ['TICKET'],
+    voucher: o.ticketCode
+      ? {
+          redemptionMethod: 'DIGITAL',
+          utcRedeemedAt: null,
+          deliveryOptions: [{ deliveryFormat: 'QRCODE', deliveryValue: o.ticketCode }],
+        }
+      : null,
+    unitItems: items.map((u, i) => {
+      const t = b.travellers[i];
+      return {
+        uuid: u.uuid,
+        resellerReference: null,
+        supplierReference: t?.id ?? null,
+        unitId: u.unitId,
+        status: o.status,
+        utcRedeemedAt: t?.checkedInAt ? t.checkedInAt.toISOString() : null,
+        contact: contactOf({ fullName: t?.name || null }),
+        ticket: null,
+      };
+    }),
+    ...(o.pricing && {
+      pricing: pricingOf(
+        b.totalKobo,
+        /** @type {any} */ (b.quote)?.taxKobo ?? 0,
+        cb.commissionBasisPoints,
+        o.taxName,
+      ),
+    }),
+    // Not in the spec (OTAs ignore what they don't know): the guest's trip page, to pass on.
+    ...(o.tripUrl && { tripUrl: o.tripUrl }),
   };
 }

@@ -78,13 +78,14 @@ describe('accounts', () => {
 
   it('the migrations that backfilled existing operators list exactly the same accounts', () => {
     // The migrations have their own copies of the account list (SQL can't import
-    // JavaScript): add_ledger's seven, then cash_and_bank's two (16c-2). This test fails if
-    // the code and the migrations ever drift apart.
+    // JavaScript): add_ledger's seven, then cash_and_bank's two (16c-2), then octo_bookings'
+    // two (17b). This test fails if the code and the migrations ever drift apart.
     const dir = new URL('../prisma/migrations/', import.meta.url);
     const folders = readdirSync(dir).filter(
-      (f) => f.endsWith('_add_ledger') || f.endsWith('_cash_and_bank'),
+      (f) =>
+        f.endsWith('_add_ledger') || f.endsWith('_cash_and_bank') || f.endsWith('_octo_bookings'),
     );
-    expect(folders).toHaveLength(2);
+    expect(folders).toHaveLength(3);
     const rows = folders.flatMap((folder) => {
       const sql = readFileSync(new URL(`${folder}/migration.sql`, dir), 'utf8');
       // \s* between columns: the SQL lines up its columns with extra spaces.
