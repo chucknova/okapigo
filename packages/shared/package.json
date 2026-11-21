@@ -34,7 +34,8 @@
     "./trip-hub": "./src/trip-hub.js",
     "./message-templates": "./src/message-templates.js",
     "./operator-tokens": "./src/operator-tokens.js",
-    "./map-pin": "./src/map-pin.js"
+    "./map-pin": "./src/map-pin.js",
+    "./octo": "./src/octo.js"
   },
   "scripts": {
     "test": "vitest run"

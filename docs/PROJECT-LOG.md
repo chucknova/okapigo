@@ -96,7 +96,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | ------- | -------------------------------------- | --------------------------------------------- |
 | 1       | book on the website and pay            | `apps/web/e2e/journey-1-book-and-pay.spec.js` |
 | 2       | book on WhatsApp, pay the link, ticket | `journey-2-whatsapp.spec.js`                  |
-| 3       | OTA booking via OCTO                   | not yet (OCTO session)                        |
+| 3       | OTA booking via OCTO                   | not yet (17d)                                 |
 | 4       | cancel yourself from the trip page     | `journey-4-cancel-yourself.spec.js`           |
 | 5       | deposit, then the balance by link      | `journey-5-deposit-then-balance.spec.js`      |
 | 6       | a guide checks in offline, then syncs  | `journey-6-guide-offline.spec.js`             |
@@ -144,9 +144,9 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | `4872ff2`           | 16e-4a         |
 | 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | `9b6483e`           | 16e-4b         |
 | 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | `8ee0e0f`           | 16e-4c         |
+| 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                              | (this commit)       | 17a            |
 
-**Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
-deploy "session 18"):
+**Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
 | Next    | What                                                                                                     | PRD                       |
 | ------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
@@ -154,9 +154,9 @@ deploy "session 18"):
 | ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers | —                         |
 | ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                          | —                         |
 | ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                         | —                         |
-| OCTO    | OCTO API + contract tests, channel manager, mock OTA (journey 3)                                         | DST-01–03                 |
-| AI etc. | AI companion, posters, dashboard (journeys 7, 8)                                                         | GST-16, MKT-01/02, RPT-01 |
-| Demo    | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                               | step 10                   |
+| **17**  | OCTO in four parts: ~~17a~~ catalogue; 17b bookings; 17c channel manager; 17d mock OTA (journey 3)       | DST-01–03                 |
+| 18      | AI companion, posters, dashboard (journeys 7, 8)                                                         | GST-16, MKT-01/02, RPT-01 |
+| 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                               | step 10                   |
 
 ## 6. Decisions (dated)
 
@@ -289,14 +289,27 @@ with the API). "None" means staff set each refund (guests can't self-cancel with
 The deposit is a whole percentage, 1–99; the balance's 7 days and the hold times (website: the
 business's setting; WhatsApp: 30 minutes) are business-wide and only shown.
 
+**With 17 (2026-11-21):** OCTO is **session 17** in four parts (17a catalogue, 17b bookings, 17c
+channel manager, 17d mock OTA); AI is 18, the demo 19. **The OTA takes the guest's money** and
+owes the business the price minus its commission (per channel; the mock OTA 20%). The mock
+OTA's storefront and Settings › Channels are **the user's to design** (brief
+`docs/flows/08-octo-and-channels.md`, three questions in it). On our side a tour is one OCTO
+product with one option ("DEFAULT"); a price category is a unit; a departure is an
+availability. Channel keys are `octo_` + 32 random bytes, **stored as SHA-256 only**. Where
+the OCTO docs contradict themselves: 400 for request errors, 401 without a key, 403 for a bad
+one; both `pricing` and `octo/pricing` accepted. The seed's mock OTA key is `octo_dev_<slug>`
+(or `MOCK_OTA_API_KEY`).
+
 ## 7. Where we are
 
-- **Last done:** 16e-4c, Tours: extras, pickup points, cancellation and deposit, committed
-  `8ee0e0f`. **Settings
-  (O10) is done**, and with it the operator app's screens 16a–16e. 16e-4b pushed.
-- **Next:** **OCTO** (the OCTO API with contract tests, a channel manager, the mock OTA:
-  journey 3). Its stage number is to be agreed (the docs call AI "session 17" and deploy
-  "session 18"). Then AI, posters and dashboard; then the demo.
+- **Last done:** 17a, the OCTO API's catalogue side. 16e-4c pushed.
+- **Next:** **17b**, OCTO bookings: hold (`POST /octo/bookings`, up to 30 minutes), confirm,
+  cancel (under the business's policy), get; bookings carry their channel and what the OTA
+  owes (ledger); a concurrency test across the website, WhatsApp and OCTO (zero oversells).
+  Waiting on you: designs for the brief `docs/flows/08-octo-and-channels.md` (needed for 17c and
+  17d) and its three questions.
+- **Your dev database** has no OTA channel until you run `pnpm db:reset` (the seed adds the
+  Mock OTA with all five tours).
 - **The operator app's script is over 500 kB** since 16e-4c (Vite warns at build). Not urgent
   for staff phones on a good connection; splitting Settings into its own chunk would fix it.
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
@@ -354,6 +367,9 @@ business's setting; WhatsApp: 30 minutes) are business-wide and only shown.
 - **A `<fieldset>` is never narrower than its widest child** (browsers give it
   `min-width: min-content`): one long menu option pushed a whole settings page sideways
   (16e-4c). `.plain-fieldset` now has `min-width: 0`.
+- **Journey 6 sometimes fails in a full e2e run, quickly** (about 5 s, not a timeout: 16e-2 and
+  17a). It passes alone and on the next full run. Cause not found yet; worth a look if it
+  becomes frequent (the guide's offline sync after the other journeys' bookings).
 - **Order ties are random**: rows with the same `sortOrder` and the same `createdAt` (seeded in
   one go) come back in id order, which is random. A full run caught archived prices tying with
   active ones (16e-4b); they now sort after them. Give every sorted row its own place.
@@ -362,6 +378,7 @@ business's setting; WhatsApp: 30 minutes) are business-wide and only shown.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 17a OCTO catalogue (session 17 begins).
 - 2026-11-21 · 16e-4c Tours: Extras, pickups, cancellation and deposit (Settings done).
 - 2026-11-21 · 16e-4b Tours: Prices, Schedule and seats.
 - 2026-11-21 · 16e-4a Settings › Tours: list, New tour, Basics.

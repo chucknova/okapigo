@@ -73,6 +73,8 @@ model Operator {
   roles                Role[]
   users                User[]
   products             Product[]
+  // The OTAs that sell its tours through OCTO (session 17).
+  channels             Channel[]
   cancellationPolicies CancellationPolicy[]
   ledgerAccounts       LedgerAccount[]
   ledgerTransactions   LedgerTransaction[]
@@ -308,10 +310,12 @@ model Product {
   schedules          Schedule[]
   departures         Departure[]
   bookings           Booking[]
-
-  @@unique([operatorId, slug])
   // Lets children reference (product id + operator id) together: same tenant-safety
   // trick as users → roles in session 2.
+  // The OTAs allowed to sell it (session 17).
+  channels           ChannelProduct[]
+
+  @@unique([operatorId, slug])
   @@unique([id, operatorId])
   @@map("products")
 }
@@ -1267,4 +1271,50 @@ model CashReport {
   @@index([bookingId])
   @@index([reportedById, status])
   @@map("cash_reports")
+}
+
+// A sales channel connected to a business (session 17, DST-01/02): an online travel agency
+// (OTA) that sells its tours through the OCTO API. It signs in with its own API key, shown to
+// the owner once; only the key's SHA-256 is kept, like sessions' tokens. The OTA takes the
+// guest's money and owes the business the price minus its commission (decided 2026-11-21).
+model Channel {
+  id                    String   @id @default(uuid()) @db.Uuid
+  operatorId            String   @map("operator_id") @db.Uuid
+  // "Mock OTA", "Viator"…: unique per business.
+  name                  String
+  // How it connects. Only OCTO for now. CHECK: 'octo'.
+  kind                  String   @default("octo")
+  apiKeyHash            String   @unique @map("api_key_hash")
+  // The key's last 4 characters, so the owner can tell keys apart ("…k3Qz").
+  apiKeyHint            String   @map("api_key_hint")
+  // What the OTA keeps of each sale, in basis points (2000 = 20%). CHECK: 0–10000.
+  commissionBasisPoints Int      @default(2000) @map("commission_basis_points")
+  // Switched off: its key stops working, and it sells nothing.
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  operator Operator         @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  products ChannelProduct[]
+
+  @@unique([operatorId, name])
+  @@unique([id, operatorId])
+  @@map("channels")
+}
+
+// Which tours a channel may sell (the PRD's "channel mapping": on our side the OCTO product is
+// the tour itself, so the mapping is which tours each OTA gets). Composite keys keep both in
+// the same business.
+model ChannelProduct {
+  channelId  String   @map("channel_id") @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  operatorId String   @map("operator_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  channel Channel @relation(fields: [channelId, operatorId], references: [id, operatorId], onDelete: Cascade)
+  product Product @relation(fields: [productId, operatorId], references: [id, operatorId], onDelete: Cascade)
+
+  @@id([channelId, productId])
+  @@index([productId])
+  @@map("channel_products")
 }

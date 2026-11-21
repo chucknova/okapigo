@@ -18,6 +18,7 @@ import { authRouter } from './routes/auth.js';
 import { meRouter } from './routes/me.js';
 import { rolesRouter } from './routes/roles.js';
 import { staffRouter } from './routes/staff.js';
+import { octoRouter } from './octo/router.js';
 import { productsRouter } from './routes/products.js';
 import { schedulesRouter } from './routes/schedules.js';
 import { quotesRouter } from './routes/quotes.js';
@@ -177,6 +178,9 @@ export function createApp({
   // Parse JSON request bodies. The size limit stops someone sending a 1 GB body.
   // Except a phone's outbox after a long day offline: up to 500 changes (stage 15b), which
   // need more room. Parsed here first; the general parser then leaves it alone.
+  // The OCTO API for OTAs (session 17): its own key per channel, its own error shape, so it
+  // reads its own JSON too (a broken body is answered OCTO's way), before the app's reader.
+  app.use('/octo', octoRouter({ prisma, apiPublicUrl, log: logger }));
   app.use('/api/sync/changes', express.json({ limit: '1mb' }));
   app.use(express.json({ limit: '100kb' }));
 

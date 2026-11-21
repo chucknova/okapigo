@@ -15,6 +15,7 @@
  *
  * Later sessions extend this file with schedules, bookings and resources.
  */
+import { createChannel, API_KEY_PREFIX } from '../channels.js';
 import { MESSAGES } from '@okapigo/shared/message-templates';
 import { createOperatorWithPresetRoles } from '../operators.js';
 import { TOURS } from './tours.js';
@@ -193,6 +194,21 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
       await tx.product.updateMany({
         where: { operatorId: operator.id },
         data: { cancellationPolicyId: policy.id },
+      });
+
+      // The mock OTA (session 17): an online travel agency selling every tour through OCTO,
+      // keeping 20%. Its key is fixed so the mock OTA app can use it: from the settings for
+      // the demo business (MOCK_OTA_API_KEY), otherwise one per business (tests). Dev only.
+      const tours = await tx.product.findMany({ where: { operatorId: operator.id } });
+      await createChannel(tx, {
+        operatorId: operator.id,
+        name: 'Mock OTA',
+        commissionBasisPoints: 2000,
+        productIds: tours.map((t) => t.id),
+        apiKey:
+          slug === DEFAULT_SLUG && process.env.MOCK_OTA_API_KEY
+            ? process.env.MOCK_OTA_API_KEY
+            : `${API_KEY_PREFIX}dev_${slug}`,
       });
 
       return { operator, scheduleIds };

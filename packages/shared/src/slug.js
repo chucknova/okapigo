@@ -35,6 +35,7 @@ export const RESERVED_OPERATOR_SLUGS = new Set([
   'api',
   'auth',
   'health',
+  'octo',
   'pay',
   'payments',
   'public',

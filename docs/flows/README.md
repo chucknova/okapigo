@@ -14,6 +14,7 @@ must respect. Business logic already exists in the API; screens only display dat
 | [05 Trip hub](05-trip-hub.md)                             | One light page per booking: itinerary, map, what to bring, QR ticket                              | GST-04                                         |
 | [06 WhatsApp booking](06-whatsapp-booking.md)             | The booking conversation, the WhatsApp simulator, staff taking over                               | BKG-09, journey 2 (session 13)                 |
 | [07 Operator app](07-operator-app.md)                     | The staff app: tour day offline (manifest, scan, no-shows), schedule, bookings, inboxes, settings | OPS-01, 07, 08, 09, journey 6 (sessions 15–16) |
+| [08 OTAs: OCTO and channels](08-octo-and-channels.md)     | The mock OTA's storefront (M1–M5) and Settings › Channels (O11)                                   | DST-01, 02, 03, journey 3 (session 17)         |
 
 **Designs received (2026-11-17):** see [`docs/designs/`](../designs/README.md), which also
 holds the stage plan for building them (session 12).
