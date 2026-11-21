@@ -124,6 +124,25 @@ afterEach(() => {
 });
 
 describe('before the trip', () => {
+  it('a pin the business hasn’t set yet (only its city’s): no map, no directions', async () => {
+    clock('2026-11-17 10:00');
+    const t = trip();
+    fakeApi([
+      200,
+      {
+        booking: {
+          ...t,
+          tour: { ...t.tour, meetingPoint: { ...t.tour.meetingPoint, approximate: true } },
+        },
+      },
+    ]);
+    renderHub();
+    expect(await screen.findByText('Tinubu Square', { selector: 'p' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Google Maps' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Apple Maps' })).toBeNull();
+    expect(document.querySelector('.okg-trip-map, img[src*="openstreetmap"]')).toBeNull();
+  });
+
   it('upcoming: banner, countdown, ticket, meeting point, route, travellers, payment', async () => {
     clock('2026-11-17 10:00');
     fakeApi([200, { booking: trip() }]);

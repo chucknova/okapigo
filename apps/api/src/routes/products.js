@@ -2,7 +2,8 @@
 /**
  * The catalogue API (INV-01, INV-05, INV-10): products, their price categories and add-ons.
  *
- *   GET   /api/products                          products: view   (?status=published)
+ *   GET   /api/products                          products: view   (?status=published), each
+ *                                                with `runs` ("Daily 09:00 · 15 seats", 16e-4)
  *   GET   /api/products/:id                      products: view
  *   POST  /api/products                          products: edit
  *   PATCH /api/products/:id                      products: edit
@@ -29,6 +30,7 @@ import {
   PRODUCT_STATUSES,
 } from '@okapigo/shared/schemas/products';
 import { findAgeOverlap } from '@okapigo/shared/catalogue';
+import { scheduleSummary } from '@okapigo/shared/tour-facts';
 import { slugify, RESERVED_TOUR_SLUGS } from '@okapigo/shared/slug';
 import { requirePermission } from '../middleware/auth.js';
 import { validate, IdParamsSchema } from '../middleware/validate.js';
@@ -48,6 +50,44 @@ const withChildren = {
 };
 
 const ListQuerySchema = z.object({ status: z.enum(PRODUCT_STATUSES).optional() });
+
+/**
+ * Where a city is, for a meeting point with no pin yet (16e-4): the trip page then shows no
+ * map until the owner pastes the real one. Lagos when the city isn't known.
+ */
+const CITY_PINS = /** @type {Record<string, [number, number]>} */ ({
+  lagos: [6.4541, 3.3947],
+  abuja: [9.0579, 7.4951],
+  ibadan: [7.3775, 3.947],
+  'port harcourt': [4.8156, 7.0498],
+  calabar: [4.9757, 8.3417],
+  kano: [12.0022, 8.592],
+  enugu: [6.4584, 7.5464],
+  'benin city': [6.335, 5.6037],
+});
+
+/**
+ * The meeting point as stored: its own pin when given; otherwise the city's, marked
+ * approximate. @param {any} mp @param {string | null} city
+ */
+function withPin(mp, city) {
+  if (!mp) return mp;
+  const { approximate: _ignored, ...rest } = mp;
+  if (Number.isFinite(mp.lat) && Number.isFinite(mp.lng)) return rest;
+  const [lat, lng] = CITY_PINS[(city ?? '').trim().toLowerCase()] ?? CITY_PINS.lagos;
+  return { ...rest, lat, lng, approximate: true };
+}
+
+/**
+ * When it runs and how many seats, for the tour list (designs: "Daily 09:00 · 15 seats",
+ * "Not scheduled yet"). @param {any} p  with its ACTIVE schedules only
+ */
+function runsLine(p) {
+  const active = p.schedules ?? []; // only the active ones are loaded (GET /api/products)
+  if (active.length === 0) return 'Not scheduled yet';
+  const seats = active[0].capacity ?? p.defaultCapacity;
+  return `${scheduleSummary(active) ?? 'Several schedules'} · ${seats} ${seats === 1 ? 'seat' : 'seats'}`;
+}
 
 /** @param {{ prisma: import('@prisma/client').PrismaClient }} deps */
 export function productsRouter({ prisma }) {
@@ -101,7 +141,7 @@ export function productsRouter({ prisma }) {
       throw new HttpError(
         400,
         'NOT_READY_TO_PUBLISH',
-        'Add at least one active price before publishing.',
+        'Add at least one price before putting it on sale.',
       );
     }
   }
@@ -114,10 +154,10 @@ export function productsRouter({ prisma }) {
 
     const products = await prisma.product.findMany({
       where: { operatorId: operatorIdOf(req), status: query.data.status },
-      include: withChildren,
+      include: { ...withChildren, schedules: { where: { isActive: true } } },
       orderBy: [{ title: 'asc' }, { id: 'asc' }],
     });
-    res.json({ products: products.map(serializeProduct) });
+    res.json({ products: products.map((p) => ({ ...serializeProduct(p), runs: runsLine(p) })) });
   });
 
   router.get('/products/:id', canView, validate({ params: IdParamsSchema }), async (req, res) => {
@@ -139,8 +179,14 @@ export function productsRouter({ prisma }) {
     }
     await assertOwnPolicy(operatorId, req.body.cancellationPolicyId);
 
+    const operator = await prisma.operator.findUniqueOrThrow({ where: { id: operatorId } });
     const product = await prisma.product.create({
-      data: { ...req.body, slug, operatorId },
+      data: {
+        ...req.body,
+        meetingPoint: withPin(req.body.meetingPoint, operator.city),
+        slug,
+        operatorId,
+      },
       include: withChildren,
     });
     res.status(201).json({ product: serializeProduct(product) });
@@ -163,9 +209,16 @@ export function productsRouter({ prisma }) {
           throw new HttpError(409, 'SLUG_TAKEN', 'Another product already uses that link.');
       }
 
+      const data = { ...req.body };
+      if (req.body.meetingPoint) {
+        const operator = await prisma.operator.findUniqueOrThrow({
+          where: { id: product.operatorId },
+        });
+        data.meetingPoint = withPin(req.body.meetingPoint, operator.city);
+      }
       const updated = await prisma.product.update({
         where: { id: product.id },
-        data: req.body,
+        data,
         include: withChildren,
       });
       res.json({ product: serializeProduct(updated) });

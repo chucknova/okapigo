@@ -141,6 +141,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                                    | `72fadc7`           | 16e-1          |
 | 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | `f60623f`           | 16e-2          |
 | 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | `b9781ed`           | 16e-3          |
+| 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | (this commit)       | 16e-4a         |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -261,12 +262,22 @@ form adds a **name** (the design had none). The settings menu lists only what a 
 (managers and guides don't see Staff, or Messages). You can edit your own name and contact,
 never your own role or access.
 
+**With 16e-4 (2026-11-21):** Tours in **three parts** (16e-4a list, New tour, Basics; 16e-4b
+Prices and Schedule; 16e-4c Extras, pickups, cancellation, deposit). The meeting point's pin is
+**pasted** (a Google Maps link or coordinates, read by `readMapPin()`, no map service called;
+short links are refused with how to get the full one). Without one, the server stores the
+**city's pin marked `approximate`**, and guest pages show **no map or directions** (the
+confirmation's "Open in Maps" searches the address) until the real pin. Putting a tour on sale
+still needs only a price (dates aren't required). The text lists are written one per line
+(stops with a dash, FAQs question/answer with a blank line between).
+
 ## 7. Where we are
 
-- **Last done:** 16e-3, settings: Staff and roles, committed `b9781ed`. 16e-2 pushed.
-- **Next:** **16e-4**, Tours (designs: "Settings — Tours"): basics, prices, schedule, extras,
-  pickups, policy, deposit, transport, a new tour; the save bar on every page. Then OCTO, AI and
-  dashboard, and the demo (numbering to confirm).
+- **Last done:** 16e-4a, Settings › Tours: the list, New tour, Basics. 16e-3 pushed.
+- **Next:** **16e-4b**, Prices (categories, ages, "counts as an adult", "You changed Adult from
+  ₦65,000 to ₦70,000. New bookings pay ₦70,000; the 26 existing bookings keep their price")
+  and Schedule and seats (days, start time, seats, until, not-running dates, one-off
+  departures). Then **16e-4c**: extras, pickup points, cancellation policy, deposit.
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
   (ILT-HP97TV)**.
 - **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta.
@@ -321,6 +332,7 @@ never your own role or access.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16e-4a Settings › Tours: list, New tour, Basics.
 - 2026-11-21 · 16e-3 settings: Staff and roles.
 - 2026-11-21 · 16e-2 settings: Messages and WhatsApp.
 - 2026-11-21 · 16e-1 settings menu, Website, Embed.

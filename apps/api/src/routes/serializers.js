@@ -78,6 +78,8 @@ export function serializeProduct(p) {
     status: p.status,
     durationMinutes: p.durationMinutes,
     activityLabel: p.activityLabel,
+    transport: p.transport,
+    arriveMinutesEarly: p.arriveMinutesEarly,
     defaultCapacity: p.defaultCapacity,
     meetingPoint: p.meetingPoint,
     stops: p.stops,

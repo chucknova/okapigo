@@ -33,7 +33,8 @@
     "./tour-facts": "./src/tour-facts.js",
     "./trip-hub": "./src/trip-hub.js",
     "./message-templates": "./src/message-templates.js",
-    "./operator-tokens": "./src/operator-tokens.js"
+    "./operator-tokens": "./src/operator-tokens.js",
+    "./map-pin": "./src/map-pin.js"
   },
   "scripts": {
     "test": "vitest run"

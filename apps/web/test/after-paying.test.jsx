@@ -112,6 +112,31 @@ describe('C → D: confirming, then confirmed', () => {
     );
   });
 
+  it('Open in Maps: the pin; or, when it’s only the city’s (not set yet), the address', async () => {
+    fakeApi({ [`/public/bookings/${T}`]: () => [200, { booking: booking() }] });
+    renderAt(`/trip/${T}/confirm?reference=${REF}`);
+    expect((await screen.findByRole('link', { name: 'Open in Maps' })).getAttribute('href')).toBe(
+      'https://www.google.com/maps/search/?api=1&query=6.5,3.37',
+    );
+    cleanup();
+    const b = booking();
+    fakeApi({
+      [`/public/bookings/${T}`]: () => [
+        200,
+        {
+          booking: {
+            ...b,
+            tour: { ...b.tour, meetingPoint: { ...b.tour.meetingPoint, approximate: true } },
+          },
+        },
+      ],
+    });
+    renderAt(`/trip/${T}/confirm?reference=${REF}`);
+    expect((await screen.findByRole('link', { name: 'Open in Maps' })).getAttribute('href')).toBe(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Ìrìn office, Yaba, Commercial Avenue')}`,
+    );
+  });
+
   it('a deposit: the balance and its due date, with Pay balance now', async () => {
     fakeApi({
       [`/public/bookings/${T}`]: () => [

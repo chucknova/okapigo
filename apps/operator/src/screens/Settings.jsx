@@ -2,7 +2,7 @@
 /**
  * O10 · Settings (designs: O10 Settings — Website; Embed on your site; phone; Staff and form
  * states. Stage 16e-1; Messages and WhatsApp in 16e-2 (their own files: SettingsMessages.jsx,
- * SettingsWhatsApp.jsx); Staff and roles in 16e-3 (SettingsStaff.jsx); Tours in 16e-4).
+ * SettingsWhatsApp.jsx); Staff and roles in 16e-3 (SettingsStaff.jsx); Tours in 16e-4 (SettingsTours.jsx).
  *
  *   wide screen   the sections down the left, the open one on the right
  *   phone         More › Settings: the sections as a list (with how each stands); tap one
@@ -18,6 +18,7 @@ import { SaveBar, LeaveGuard } from '../components/SaveBar.jsx';
 import { MessagesSettings } from './SettingsMessages.jsx';
 import { WhatsAppSettings } from './SettingsWhatsApp.jsx';
 import { StaffSettings } from './SettingsStaff.jsx';
+import { ToursSettings } from './SettingsTours.jsx';
 import { useLive } from '../lib/live.js';
 import { useEngine, useSync } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
@@ -90,6 +91,9 @@ export function Settings() {
           <MessagesSettings tz={tz} canEdit={mayEdit(s.me, 'settings')} kind={item ?? null} />
         )}
         {open?.key === 'staff' && <StaffSettings tz={tz} canEdit={mayEdit(s.me, 'settings')} />}
+        {open?.key === 'tours' && (
+          <ToursSettings tz={tz} canEdit={mayEdit(s.me, 'products')} item={item ?? null} />
+        )}
         {open?.key === 'whatsapp' && (
           <WhatsAppSettings tz={tz} canEdit={mayEdit(s.me, 'channels')} />
         )}

@@ -17,12 +17,20 @@ const kobo = z.number().int().nonnegative().max(2_000_000_000);
 
 export const PRODUCT_STATUSES = /** @type {const} */ (['draft', 'published', 'archived']);
 
-/** Where guests meet the guide. lat/lng put the pin on the trip hub map (GST-04). */
+/** How a tour travels (16b): on foot needs no vehicle; a van or a boat is assigned per departure. */
+export const TRANSPORTS = /** @type {const} */ (['on_foot', 'van', 'boat']);
+
+/**
+ * Where guests meet the guide. lat/lng put the pin on the trip hub map (GST-04). Settings may
+ * leave them out (16e-4: "paste a map link"): the server then uses the business's city and
+ * marks the pin `approximate`, and the trip hub shows no map or directions until a real one.
+ */
 export const MeetingPointSchema = z.object({
   name: text(120),
   address: text(300),
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  approximate: z.boolean().optional(),
   // How to find the guide once there: "Look for the guide in the green Ìrìn cap, by the
   // fountain." Optional (stage 12b).
   note: text(300).optional(),
@@ -85,6 +93,11 @@ const productFields = {
   cancellationPolicyId: z.uuid().nullable(),
   // Deposit share in basis points (3000 = 30%); null = pay in full (BKG-06).
   depositBasisPoints: z.number().int().min(1).max(9999).nullable(),
+  // How it travels (16b; set in Settings › Tours, 16e-4): only that kind of vehicle can be
+  // assigned to its departures.
+  transport: z.enum(TRANSPORTS),
+  // "Arrive by 08:50" on the trip page: minutes before the start; null hides the line.
+  arriveMinutesEarly: z.number().int().min(0).max(120).nullable(),
 };
 
 /** POST /api/products. Content lists default to empty; new products start as drafts. */
@@ -103,6 +116,8 @@ export const CreateProductSchema = z.object({
   depositBasisPoints: productFields.depositBasisPoints.default(null),
   activityLabel: productFields.activityLabel.default(null),
   shortTitle: productFields.shortTitle.default(null),
+  transport: productFields.transport.default('on_foot'),
+  arriveMinutesEarly: productFields.arriveMinutesEarly.default(null),
 });
 
 /** PATCH /api/products/:id. Any subset of fields; lists are replaced as a whole. */

@@ -466,7 +466,9 @@ function MeetingPoint({ b, prominent = false }) {
           tz,
         )
       : null;
-  const hasPin = Number.isFinite(mp.lat) && Number.isFinite(mp.lng);
+  // A pin the business hasn't set yet (only its city's, 16e-4) would send guests to the wrong
+  // place: no map and no directions until it's the real one.
+  const hasPin = Number.isFinite(mp.lat) && Number.isFinite(mp.lng) && !mp.approximate;
   const details = [mp.address, mp.note, arriveBy ? `Arrive by ${arriveBy}.` : null]
     .filter(Boolean)
     .map((t) => (/[.!?]$/.test(t) ? t : `${t}.`))

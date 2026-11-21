@@ -31,7 +31,7 @@ export const SECTIONS = /** @type {const} */ ([
   { key: 'messages', label: 'Messages', built: true, needs: 'settings' },
   { key: 'whatsapp', label: 'WhatsApp', built: true, needs: 'channels' },
   { key: 'staff', label: 'Staff and roles', built: true, needs: 'settings' },
-  { key: 'tours', label: 'Tours', built: false, needs: 'products' },
+  { key: 'tours', label: 'Tours', built: true, needs: 'products' },
 ]);
 
 /** The sections this person may open (a role with "none" for an area doesn't see it). @param {any} me */

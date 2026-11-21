@@ -232,8 +232,9 @@ function Confirmed({ b, token, contacts }) {
   const balance = b.balanceKobo;
   const deposit = balance > 0;
   const place = b.pickupPoint ?? b.tour.meetingPoint;
+  // The pin, unless it's only the city's (16e-4: not set yet); then the place's name and address.
   const mapsUrl =
-    'lat' in place
+    'lat' in place && !place.approximate
       ? `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.name}, ${place.address}`)}`;
   const tourUrl = `${window.location.origin}/${b.operator.slug}/${b.tour.slug}`;
