@@ -148,7 +148,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels                                                                                                       | `87aa54a`           | 17b            |
 | 17c             | channel manager, server side: the channels API in words (sales, owed, keys once), "via Mock OTA" on bookings, the 30-second signed push to OTA webhooks (fingerprints), SSRF guard                                                                                                        | `a52461d`           | 17c            |
 | 17c-2           | Settings › Channels (O11) as designed: cards, tours one by one, latest bookings, money, commission, key (once, made, last used), switch off; OCTO notifications; payments from the OTA (oldest first); Sojourna                                                                           | `d6ba212`           | 17c-2          |
-| 17c-3           | "via Sojourna" everywhere: desk tag, "Paid by Sojourna", channel filter; the OTA booking page (money, messages, buttons, a fixed cancel); OTA refunds settled on every cancel path; departure counts and Channel column; manifest tag; trip page "use Sojourna"; the Trip page link email | `(this commit)`     | 17c-3          |
+| 17c-3           | "via Sojourna" everywhere: desk tag, "Paid by Sojourna", channel filter; the OTA booking page (money, messages, buttons, a fixed cancel); OTA refunds settled on every cancel path; departure counts and Channel column; manifest tag; trip page "use Sojourna"; the Trip page link email | `ddd1303`           | 17c-3          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -361,7 +361,7 @@ The bookings list filters by channel (web, WhatsApp, staff, or one OTA).
 
 ## 7. Where we are
 
-- **Last done:** 17c-3, "via Sojourna" everywhere, committed `(this commit)`.
+- **Last done:** 17c-3, "via Sojourna" everywhere, committed `ddd1303`.
 - **Next:** **17d**, Sojourna, the mock OTA (your designs M1–M5 and its states): a storefront of
   Ìrìn's tours from OCTO, a tour page with the calendar and who's coming, checkout with a 15-minute
   hold, the booked page with the ticket, its back office (bookings, cancel with the refund), and
