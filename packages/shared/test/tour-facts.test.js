@@ -6,6 +6,7 @@ import {
   priceNote,
   freeCancellationUntil,
   policyDeadlines,
+  policyLine,
 } from '../src/tour-facts.js';
 
 describe('formatDurationShort', () => {
@@ -159,5 +160,30 @@ describe('policyDeadlines', () => {
       'After that, or no-show: no refund',
       'If Ìrìn cancels: full refund',
     ]);
+  });
+});
+
+describe('policyLine (16e-4c)', () => {
+  it('a policy in one line, for choosing one', () => {
+    const standard = [
+      { hoursBefore: 48, refundBasisPoints: 10_000 },
+      { hoursBefore: 24, refundBasisPoints: 5_000 },
+      { hoursBefore: 0, refundBasisPoints: 0 },
+    ];
+    expect(policyLine({ rules: standard })).toBe(
+      'Full refund 48 h+ · 50% 24–48 h · No refund under 24 h',
+    );
+    // Rules in any order; a lowest tier above 0 hours ends with "none under".
+    expect(
+      policyLine({
+        rules: [
+          { hoursBefore: 24, refundBasisPoints: 2_500 },
+          { hoursBefore: 72, refundBasisPoints: 10_000 },
+        ],
+      }),
+    ).toBe('Full refund 72 h+ · 25% 24–72 h · none under 24 h');
+    expect(policyLine({ rules: [{ hoursBefore: 0, refundBasisPoints: 10_000 }] })).toBe(
+      'Full refund any time',
+    );
   });
 });

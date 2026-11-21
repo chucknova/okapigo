@@ -11,6 +11,7 @@
  *   POST  /api/products/:id/price-categories     products: edit
  *   PATCH /api/price-categories/:id              products: edit
  *   PUT   /api/products/:id/price-categories     products: edit   all of them at once (16e-4b)
+ *   PUT   /api/products/:id/add-ons              products: edit   all of them at once (16e-4c)
  *   POST  /api/products/:id/add-ons              products: edit
  *   PATCH /api/add-ons/:id                       products: edit
  *
@@ -30,9 +31,12 @@ import {
   CreateAddOnSchema,
   UpdateAddOnSchema,
   PutPriceCategoriesSchema,
+  PutAddOnsSchema,
   PRODUCT_STATUSES,
 } from '@okapigo/shared/schemas/products';
 import { SEAT_CONSUMING_STATUSES } from '@okapigo/shared/booking-status';
+import { BALANCE_DUE_DAYS_BEFORE } from '@okapigo/shared/deposits';
+import { WHATSAPP_HOLD_MINUTES } from '../whatsapp/engine.js';
 import { findAgeOverlap } from '@okapigo/shared/catalogue';
 import { scheduleSummary } from '@okapigo/shared/tour-facts';
 import { slugify, RESERVED_TOUR_SLUGS } from '@okapigo/shared/slug';
@@ -194,6 +198,9 @@ export function productsRouter({ prisma }) {
         ...serializeProduct(product),
         pricesNote: taxLine(/** @type {any} */ (operator.pricing)?.tax),
         upcomingBookings,
+        // Business-wide, not per tour (designs: under Cancellation and deposit, 16e-4c).
+        balanceDueDays: BALANCE_DUE_DAYS_BEFORE,
+        holdsLine: `Seats are held ${operator.holdMinutes} minutes on the website and ${WHATSAPP_HOLD_MINUTES} minutes on WhatsApp, for every tour.`,
       },
     });
   });
@@ -376,6 +383,49 @@ export function productsRouter({ prisma }) {
   );
 
   // --- Add-ons (INV-10) --------------------------------------------------------------
+
+  // The tour's extras as a whole (Settings › Tours › Extras, 16e-4c): one change, all or
+  // nothing. Left out = archived, after the active ones.
+  router.put(
+    '/products/:id/add-ons',
+    canEdit,
+    validate({ params: IdParamsSchema, body: PutAddOnsSchema }),
+    async (req, res) => {
+      const product = await findOwnProduct(req, req.params.id);
+      /** @type {any[]} */
+      const sent = req.body.addOns;
+      const known = new Set(product.addOns.map((a) => a.id));
+      for (const a of sent) {
+        if (a.id && !known.has(a.id)) throw new HttpError(404, 'NOT_FOUND', 'Extra not found.');
+      }
+      const kept = new Set(sent.filter((a) => a.id).map((a) => a.id));
+      await prisma.$transaction(async (tx) => {
+        for (const [i, a] of sent.entries()) {
+          const data = {
+            name: a.name,
+            description: a.description,
+            priceKobo: a.priceKobo,
+            stockPerDeparture: a.stockPerDeparture,
+            sortOrder: i,
+            isActive: true,
+          };
+          if (a.id) await tx.addOn.update({ where: { id: a.id }, data });
+          else {
+            await tx.addOn.create({
+              data: { ...data, productId: product.id, operatorId: product.operatorId },
+            });
+          }
+        }
+        for (const [i, a] of product.addOns.filter((x) => !kept.has(x.id)).entries()) {
+          await tx.addOn.update({
+            where: { id: a.id },
+            data: { isActive: false, sortOrder: sent.length + i },
+          });
+        }
+      });
+      res.json({ product: serializeProduct(await findOwnProduct(req, product.id)) });
+    },
+  );
 
   router.post(
     '/products/:id/add-ons',

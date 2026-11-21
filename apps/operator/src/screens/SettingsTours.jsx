@@ -9,7 +9,7 @@
  *                description, duration, how it travels, the meeting point and its pin, arrive
  *                by, and the text lists (stops, included, not included, what to bring, FAQs);
  *                Prices and Schedule and seats (16e-4b, SettingsTourSections.jsx); one save
- *                bar for all of them. Extras, pickups, cancellation and deposit: 16e-4c.
+ *                bar for all of them. Extras, Pickup points, Cancellation and deposit (16e-4c).
  *
  * Owners edit; a manager can look (products: view). The rules are in lib/tours.js.
  */
@@ -19,7 +19,7 @@ import { LiveFrame } from '../components/LiveFrame.jsx';
 import { SaveBar, LeaveGuard } from '../components/SaveBar.jsx';
 import { useLive } from '../lib/live.js';
 import { useSaveParts, useSavePart } from '../lib/save-parts.js';
-import { Prices, Schedule } from './SettingsTourSections.jsx';
+import { Prices, Schedule, Extras, Pickups, Terms } from './SettingsTourSections.jsx';
 import { useEngine } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
 import { localTime } from '@okapigo/shared/time';
@@ -261,10 +261,20 @@ function TourPage({ product, tz, canEdit }) {
           canEdit={canEdit}
           part={parts.part('schedule')}
         />
+        <Extras
+          key={`extras-${product.id}`}
+          product={product}
+          tz={tz}
+          part={parts.part('extras')}
+        />
+        <Pickups
+          key={`pickups-${product.id}`}
+          product={product}
+          tz={tz}
+          part={parts.part('pickups')}
+        />
+        <Terms key={`terms-${product.id}`} product={product} tz={tz} part={parts.part('terms')} />
       </fieldset>
-      <p className="small muted">
-        Extras, pickup points, the cancellation policy and the deposit come in the next part.
-      </p>
       <SaveBar
         changed={parts.changed}
         saving={parts.saving}

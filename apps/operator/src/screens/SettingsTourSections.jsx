@@ -11,6 +11,10 @@
  *   Schedule   the days, the start times, seats per departure, until when, the dates it doesn't
  *              run; "Next 60 days are on sale". After saving, the booked departures the change
  *              couldn't remove, with links. A one-off departure, added straight away.
+ *   Extras     each extra: name, price, a limit per departure, a line about it (16e-4c)
+ *   Pickups    each pickup point: the area, the place, the time (16e-4c)
+ *   Terms      the cancellation policy, the deposit, when the balance is due, how long seats
+ *              are held (16e-4c)
  */
 import { useState } from 'react';
 import { Link } from 'wouter';
@@ -23,6 +27,25 @@ import { fixLine } from '../lib/settings.js';
 import {
   WEEK,
   agesLine,
+  blankExtra,
+  blankPickup,
+  depositLine,
+  extraChanges,
+  extraErrors,
+  extraLine,
+  extraRows,
+  extrasBody,
+  noPickupsLine,
+  pickupChanges,
+  pickupErrors,
+  pickupRows,
+  pickupsBody,
+  policyChoices,
+  termsBody,
+  termsChanges,
+  termsErrors,
+  termsForm,
+  termsWords,
   blankPrice,
   countsAsAdult,
   dayChip,
@@ -522,5 +545,349 @@ function OneOffs({ product, tz, canEdit, seats }) {
         </div>
       )}
     </div>
+  );
+}
+
+// --- Extras (16e-4c) --------------------------------------------------------------------------
+
+/** @param {{ product: any, tz: string, part: import('../lib/save-parts.js').SavePart }} props */
+export function Extras({ product, tz, part }) {
+  const engine = useEngine();
+  const [saved, setSaved] = useState(() => extraRows(product));
+  const [rows, setRows] = useState(saved);
+  const [note, setNote] = useState(/** @type {{ ok: boolean, text: string } | null} */ (null));
+  const errors = extraErrors(rows);
+  const changed = extraChanges(rows, saved);
+  /** @param {number} i @param {keyof import('../lib/tours.js').ExtraRow} k */
+  const set = (i, k) => (/** @type {any} */ e) =>
+    setRows(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
+
+  const save = async () => {
+    if (errors.count) return false;
+    setNote(null);
+    const r = await act(engine, `/api/products/${product.id}/add-ons`, {
+      method: 'PUT',
+      body: extrasBody(rows),
+    });
+    if (!r.ok) {
+      setNote({ ok: false, text: failed(r.error) });
+      return false;
+    }
+    const now = extraRows(r.body.product);
+    setSaved(now);
+    setRows(now);
+    setNote({ ok: true, text: `Saved · ${localTime(new Date(), tz)}.` });
+    return true;
+  };
+  useSavePart(part, changed, errors.count > 0, save, () => {
+    setRows(saved);
+    setNote(null);
+  });
+
+  return (
+    <section className="panel panel--pad stack-sm" aria-label="Extras">
+      <div className="row-between">
+        <h3 className="h-md">Extras</h3>
+        <button
+          type="button"
+          className="text-link"
+          onClick={() => setRows([...rows, blankExtra()])}
+        >
+          Add an extra
+        </button>
+      </div>
+      {rows.length === 0 && (
+        <p className="small muted">No extras. Guests can add things like lunch at checkout.</p>
+      )}
+      {errors.count > 0 && (
+        <p role="alert" className="field-error">
+          {fixLine(errors.count)}
+        </p>
+      )}
+      <ul className="plain-list price-rows" aria-label="Extras">
+        {rows.map((r, i) => {
+          const e = errors.rows[i] ?? {};
+          const label = r.name.trim() || `Extra ${i + 1}`;
+          return (
+            <li key={r.id ?? `new-${i}`} className="price-row extra-row">
+              <label className="field">
+                Extra
+                <input
+                  className="input"
+                  type="text"
+                  value={r.name}
+                  onChange={set(i, 'name')}
+                  aria-invalid={Boolean(e.name)}
+                />
+                <span className="small muted plain">{extraLine(r)}</span>
+                {e.name && <span className="field-error plain">{e.name}</span>}
+              </label>
+              <label className="field">
+                Limit per departure
+                <input
+                  className="input input--age"
+                  inputMode="numeric"
+                  placeholder="none"
+                  value={r.limit}
+                  onChange={set(i, 'limit')}
+                  aria-invalid={Boolean(e.limit)}
+                />
+                {e.limit && <span className="field-error plain">{e.limit}</span>}
+              </label>
+              <label className="field">
+                Price (₦)
+                <input
+                  className="input"
+                  inputMode="decimal"
+                  value={r.naira}
+                  onChange={set(i, 'naira')}
+                  aria-invalid={Boolean(e.naira)}
+                />
+                {e.naira && <span className="field-error plain">{e.naira}</span>}
+              </label>
+              <button
+                type="button"
+                className="text-link price-remove"
+                aria-label={`Remove ${label}`}
+                onClick={() => setRows(rows.filter((_, j) => j !== i))}
+              >
+                Remove
+              </button>
+              <label className="field extra-about">
+                About it (optional)
+                <input
+                  className="input"
+                  type="text"
+                  value={r.description}
+                  onChange={set(i, 'description')}
+                  aria-invalid={Boolean(e.description)}
+                />
+                {e.description && <span className="field-error plain">{e.description}</span>}
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+      <Note note={note} />
+    </section>
+  );
+}
+
+// --- Pickup points (16e-4c) -------------------------------------------------------------------
+
+/** @param {{ product: any, tz: string, part: import('../lib/save-parts.js').SavePart }} props */
+export function Pickups({ product, tz, part }) {
+  const engine = useEngine();
+  const [saved, setSaved] = useState(() => pickupRows(product));
+  const [rows, setRows] = useState(saved);
+  const [note, setNote] = useState(/** @type {{ ok: boolean, text: string } | null} */ (null));
+  const errors = pickupErrors(rows);
+  const changed = pickupChanges(rows, saved);
+  /** @param {number} i @param {keyof import('../lib/tours.js').PickupRow} k */
+  const set = (i, k) => (/** @type {any} */ e) =>
+    setRows(rows.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)));
+
+  const save = async () => {
+    if (errors.count) return false;
+    setNote(null);
+    const r = await act(engine, `/api/products/${product.id}`, {
+      method: 'PATCH',
+      body: pickupsBody(rows),
+    });
+    if (!r.ok) {
+      setNote({ ok: false, text: failed(r.error) });
+      return false;
+    }
+    const now = pickupRows(r.body.product);
+    setSaved(now);
+    setRows(now);
+    setNote({ ok: true, text: `Saved · ${localTime(new Date(), tz)}.` });
+    return true;
+  };
+  useSavePart(part, changed, errors.count > 0, save, () => {
+    setRows(saved);
+    setNote(null);
+  });
+
+  return (
+    <section className="panel panel--pad stack-sm" aria-label="Pickup points">
+      <div className="row-between">
+        <h3 className="h-md">Pickup points</h3>
+        <button
+          type="button"
+          className="text-link"
+          onClick={() => setRows([...rows, blankPickup()])}
+        >
+          Add a pickup point
+        </button>
+      </div>
+      {rows.length === 0 && <p className="small muted">{noPickupsLine(product)}</p>}
+      {rows.length > 0 && (
+        <p className="small muted">
+          Guests choose one at checkout. Bookings keep the pickup they chose, even if you change it
+          here.
+        </p>
+      )}
+      {errors.count > 0 && (
+        <p role="alert" className="field-error">
+          {fixLine(errors.count)}
+        </p>
+      )}
+      <ul className="plain-list price-rows" aria-label="Pickup points">
+        {rows.map((r, i) => {
+          const e = errors.rows[i] ?? {};
+          const label = r.area.trim() || `Pickup ${i + 1}`;
+          return (
+            <li key={i} className="price-row pickup-row">
+              <label className="field">
+                Area
+                <input
+                  className="input"
+                  type="text"
+                  value={r.area}
+                  onChange={set(i, 'area')}
+                  aria-invalid={Boolean(e.area)}
+                />
+                {e.area && <span className="field-error plain">{e.area}</span>}
+              </label>
+              <label className="field">
+                Time
+                <input
+                  className="input input--time"
+                  placeholder="07:15"
+                  value={r.time}
+                  onChange={set(i, 'time')}
+                  aria-invalid={Boolean(e.time)}
+                />
+                {e.time && <span className="field-error plain">{e.time}</span>}
+              </label>
+              <label className="field">
+                Place
+                <input
+                  className="input"
+                  type="text"
+                  value={r.place}
+                  onChange={set(i, 'place')}
+                  aria-invalid={Boolean(e.place)}
+                />
+                {e.place && <span className="field-error plain">{e.place}</span>}
+              </label>
+              <button
+                type="button"
+                className="text-link price-remove"
+                aria-label={`Remove ${label}`}
+                onClick={() => setRows(rows.filter((_, j) => j !== i))}
+              >
+                Remove
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <Note note={note} />
+    </section>
+  );
+}
+
+// --- Cancellation and deposit (16e-4c) --------------------------------------------------------
+
+/** @param {{ product: any, tz: string, part: import('../lib/save-parts.js').SavePart }} props */
+export function Terms({ product, tz, part }) {
+  const engine = useEngine();
+  const live = useLive('/api/cancellation-policies');
+  const choices = policyChoices(live.entry.data?.policies ?? []);
+  const [saved, setSaved] = useState(() => termsForm(product));
+  const [form, setForm] = useState(saved);
+  const [note, setNote] = useState(/** @type {{ ok: boolean, text: string } | null} */ (null));
+  const errors = termsErrors(form);
+  const problems = Object.keys(errors).length;
+  const changed = termsChanges(form, saved);
+  const words = termsWords(form, saved, product.upcomingBookings ?? 0);
+
+  const save = async () => {
+    if (problems) return false;
+    setNote(null);
+    const r = await act(engine, `/api/products/${product.id}`, {
+      method: 'PATCH',
+      body: termsBody(form, saved),
+    });
+    if (!r.ok) {
+      setNote({ ok: false, text: failed(r.error) });
+      return false;
+    }
+    const now = termsForm(r.body.product);
+    setSaved(now);
+    setForm(now);
+    setNote({ ok: true, text: `Saved · ${localTime(new Date(), tz)}.` });
+    return true;
+  };
+  useSavePart(part, changed, problems > 0, save, () => {
+    setForm(saved);
+    setNote(null);
+  });
+
+  return (
+    <section className="panel panel--pad stack-sm" aria-label="Cancellation and deposit">
+      <h3 className="h-md">Cancellation and deposit</h3>
+      <label className="field">
+        Cancellation policy
+        <select
+          className="input"
+          value={form.policyId}
+          onChange={(e) => setForm({ ...form, policyId: e.target.value })}
+        >
+          <option value="">None: you set each refund yourself</option>
+          {choices.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        {/* The menu may cut a long policy short: the chosen one in full. */}
+        <span className="small muted plain">
+          {choices.find((c) => c.id === form.policyId)?.label ??
+            'Without a policy, guests can’t cancel for a refund themselves; you decide each one.'}
+        </span>
+      </label>
+      <fieldset className="plain-fieldset stack-xs">
+        <legend className="strong">Deposit</legend>
+        <label className="check-row">
+          <input
+            type="radio"
+            name="deposit"
+            checked={form.deposit === 'none'}
+            onChange={() => setForm({ ...form, deposit: 'none' })}
+          />
+          <span>No deposit</span>
+        </label>
+        <label className="check-row">
+          <input
+            type="radio"
+            name="deposit"
+            checked={form.deposit === 'allowed'}
+            onChange={() => setForm({ ...form, deposit: 'allowed' })}
+          />
+          <span>Allow a deposit</span>
+        </label>
+        {form.deposit === 'allowed' && (
+          <label className="field field--inline">
+            <input
+              className="input input--age"
+              inputMode="numeric"
+              aria-label="Deposit percentage"
+              value={form.percent}
+              onChange={(e) => setForm({ ...form, percent: e.target.value })}
+              aria-invalid={Boolean(errors.percent)}
+            />
+            % of the total
+          </label>
+        )}
+        {errors.percent && <span className="field-error">{errors.percent}</span>}
+        <span className="small muted">{depositLine(form, product.balanceDueDays ?? 7)}</span>
+      </fieldset>
+      {words && <p className="unavailable unavailable--warning">{words}</p>}
+      <p className="small muted">{product.holdsLine}</p>
+      <Note note={note} />
+    </section>
   );
 }

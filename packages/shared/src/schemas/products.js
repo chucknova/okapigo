@@ -202,6 +202,24 @@ export const CreateAddOnSchema = z.object({
   isActive: addOnFields.isActive.default(true),
 });
 
+/**
+ * PUT /api/products/:id/add-ons (Settings › Tours › Extras, 16e-4c): the tour's extras as a
+ * whole, in order. With an id: changed; without: added; left out: archived (bookings keep them).
+ */
+export const PutAddOnsSchema = z.object({
+  addOns: z
+    .array(
+      z.object({
+        id: z.uuid().optional(),
+        name: addOnFields.name,
+        description: addOnFields.description.default(''),
+        priceKobo: addOnFields.priceKobo,
+        stockPerDeparture: addOnFields.stockPerDeparture,
+      }),
+    )
+    .max(20),
+});
+
 export const UpdateAddOnSchema = z
   .object(addOnFields)
   .partial()

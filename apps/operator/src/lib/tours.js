@@ -13,6 +13,8 @@
  *                     existing bookings keep their price."), what PUT gets
  *   schedule…         Schedule and seats (16e-4b): days, start times, seats, until, the dates
  *                     it doesn't run; a one-off departure
+ *   extra… pickup…    Extras and pickup points (16e-4c)
+ *   policy…           Cancellation and deposit (16e-4c): the policy chosen, the deposit allowed
  *
  * The pin is read by @okapigo/shared/map-pin ("paste a map link", decided 2026-11-21).
  */
@@ -20,7 +22,7 @@ import { readMapPin, pinText } from '@okapigo/shared/map-pin';
 import { findAgeOverlap } from '@okapigo/shared/catalogue';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatLocalDay } from '@okapigo/shared/preview';
-import { scheduleSummary } from '@okapigo/shared/tour-facts';
+import { scheduleSummary, policyLine } from '@okapigo/shared/tour-facts';
 
 /** How a tour travels (16b). */
 export const TRANSPORT_CHOICES = /** @type {const} */ ([
@@ -617,3 +619,194 @@ export function oneOffErrors(f, today) {
   if (Number.isNaN(whole(f.seats, 1, 500))) e.seats = 'From 1 to 500 seats.';
   return e;
 }
+
+// --- Extras (16e-4c) --------------------------------------------------------------------------
+
+/** @typedef {{ id: string | null, name: string, description: string, naira: string, limit: string }} ExtraRow */
+
+/** The tour's extras as rows to edit (active ones, in order). @param {any} p @returns {ExtraRow[]} */
+export const extraRows = (p) =>
+  (p.addOns ?? [])
+    .filter((/** @type {any} */ a) => a.isActive)
+    .map((/** @type {any} */ a) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description ?? '',
+      naira: String(a.priceKobo / 100),
+      limit: a.stockPerDeparture == null ? '' : String(a.stockPerDeparture),
+    }));
+
+/** @returns {ExtraRow} */
+export const blankExtra = () => ({ id: null, name: '', description: '', naira: '', limit: '' });
+
+/** "₦8,000 each · No limit per departure" (designs) or "· 10 per departure". @param {ExtraRow} r */
+export function extraLine(r) {
+  const kobo = koboOf(r.naira);
+  const price = Number.isNaN(kobo) ? '' : kobo === 0 ? 'Free' : `${formatNaira(kobo)} each`;
+  const n = r.limit.trim() === '' ? null : whole(r.limit, 0, 10_000);
+  const limit = n === null ? 'No limit per departure' : Number.isNaN(n) ? '' : `${n} per departure`;
+  return [price, limit].filter(Boolean).join(' · ');
+}
+
+/** @param {ExtraRow[]} rows */
+export function extraErrors(rows) {
+  const each = rows.map((r) => {
+    /** @type {Partial<Record<'name' | 'description' | 'naira' | 'limit', string>>} */
+    const e = {};
+    if (!r.name.trim()) e.name = 'Name it, like “Lunch”.';
+    else if (r.name.trim().length > 100) e.name = 'Keep it under 100 characters.';
+    if (r.description.trim().length > 500) e.description = 'Keep it under 500 characters.';
+    if (Number.isNaN(koboOf(r.naira))) e.naira = 'A price in naira, like 8,000 (0 for free).';
+    if (r.limit.trim() && Number.isNaN(whole(r.limit, 0, 10_000)))
+      e.limit = 'A number, or empty for no limit.';
+    return e;
+  });
+  return { rows: each, count: each.reduce((n, e) => n + Object.keys(e).length, 0) };
+}
+
+/** What PUT /api/products/:id/add-ons gets. @param {ExtraRow[]} rows */
+export const extrasBody = (rows) => ({
+  addOns: rows.map((r) => ({
+    ...(r.id && { id: r.id }),
+    name: r.name.trim(),
+    description: r.description.trim(),
+    priceKobo: koboOf(r.naira),
+    stockPerDeparture: r.limit.trim() === '' ? null : Number(r.limit),
+  })),
+});
+
+/** "Unsaved changes: Lunch, New extra: Palm wine, Removed: Boat ride" @param {ExtraRow[]} rows @param {ExtraRow[]} saved */
+export function extraChanges(rows, saved) {
+  const same = (/** @type {ExtraRow} */ r) =>
+    JSON.stringify([r.name.trim(), r.description.trim(), koboOf(r.naira), r.limit.trim()]);
+  const before = new Map(saved.map((r) => [r.id, r]));
+  /** @type {string[]} */
+  const out = [];
+  for (const r of rows) {
+    const was = r.id ? before.get(r.id) : null;
+    if (!was) out.push(`New extra: ${r.name.trim() || 'unnamed'}`);
+    else if (same(r) !== same(was)) out.push(was.name);
+  }
+  const kept = new Set(rows.map((r) => r.id));
+  for (const r of saved) if (!kept.has(r.id)) out.push(`Removed: ${r.name}`);
+  if (out.length === 0 && rows.map((r) => r.id).join() !== saved.map((r) => r.id).join())
+    out.push('Extras order');
+  return out;
+}
+
+// --- Pickup points (16e-4c) -------------------------------------------------------------------
+
+/** @typedef {{ area: string, place: string, time: string }} PickupRow */
+
+/** Area ("Victoria Island"), place ("Eko Hotel main gate"), time. @param {any} p @returns {PickupRow[]} */
+export const pickupRows = (p) =>
+  (p.pickupPoints ?? []).map((/** @type {any} */ x) => ({
+    area: x.name,
+    place: x.address,
+    time: x.time ?? '',
+  }));
+
+/** @returns {PickupRow} */
+export const blankPickup = () => ({ area: '', place: '', time: '' });
+
+/** @param {PickupRow[]} rows */
+export function pickupErrors(rows) {
+  const each = rows.map((r) => {
+    /** @type {Partial<Record<'area' | 'place' | 'time', string>>} */
+    const e = {};
+    if (!r.area.trim()) e.area = 'The area, like “Victoria Island”.';
+    else if (r.area.trim().length > 120) e.area = 'Keep it under 120 characters.';
+    if (!r.place.trim()) e.place = 'Where exactly, like “Eko Hotel main gate”.';
+    else if (r.place.trim().length > 300) e.place = 'Keep it under 300 characters.';
+    if (r.time.trim() && !/^([01]\d|2[0-3]):[0-5]\d$/.test(r.time.trim()))
+      e.time = 'A 24-hour time, like 07:15.';
+    return e;
+  });
+  return { rows: each, count: each.reduce((n, e) => n + Object.keys(e).length, 0) };
+}
+
+/** What PATCH gets (the list replaced whole). @param {PickupRow[]} rows */
+export const pickupsBody = (rows) => ({
+  pickupPoints: rows.map((r) => ({
+    name: r.area.trim(),
+    address: r.place.trim(),
+    ...(r.time.trim() && { time: r.time.trim() }),
+  })),
+});
+
+/** @param {PickupRow[]} rows @param {PickupRow[]} saved */
+export const pickupChanges = (rows, saved) =>
+  JSON.stringify(pickupsBody(rows)) === JSON.stringify(pickupsBody(saved)) ? [] : ['Pickup points'];
+
+/** With none: where guests meet instead (designs). @param {any} p */
+export const noPickupsLine = (p) =>
+  `No pickup points: guests meet at ${p.meetingPoint?.name ?? 'the meeting point'}.`;
+
+// --- Cancellation and deposit (16e-4c) --------------------------------------------------------
+
+/** @typedef {{ policyId: string, deposit: 'none' | 'allowed', percent: string }} TermsForm */
+
+/** @param {any} p @returns {TermsForm} */
+export const termsForm = (p) => ({
+  policyId: p.cancellationPolicyId ?? '',
+  deposit: p.depositBasisPoints == null ? 'none' : 'allowed',
+  percent: p.depositBasisPoints == null ? '30' : String(p.depositBasisPoints / 100),
+});
+
+/** @param {TermsForm} f */
+export function termsErrors(f) {
+  /** @type {Partial<Record<'percent', string>>} */
+  const e = {};
+  if (f.deposit === 'allowed' && Number.isNaN(whole(f.percent, 1, 99)))
+    e.percent = 'A whole percentage from 1 to 99.';
+  return e;
+}
+
+/** @param {TermsForm} f @param {TermsForm} saved */
+export function termsChanges(f, saved) {
+  /** @type {string[]} */
+  const out = [];
+  if (f.policyId !== saved.policyId) out.push('Cancellation policy');
+  const bp = (/** @type {TermsForm} */ x) =>
+    x.deposit === 'none' ? null : Number(x.percent) * 100;
+  if (bp(f) !== bp(saved)) out.push('Deposit');
+  return out;
+}
+
+/** What PATCH /api/products/:id gets. @param {TermsForm} f @param {TermsForm} saved */
+export function termsBody(f, saved) {
+  const ch = termsChanges(f, saved);
+  /** @type {Record<string, unknown>} */
+  const body = {};
+  if (ch.includes('Cancellation policy')) body.cancellationPolicyId = f.policyId || null;
+  if (ch.includes('Deposit'))
+    body.depositBasisPoints = f.deposit === 'none' ? null : Number(f.percent) * 100;
+  return body;
+}
+
+/** The menu: "Standard: Full refund 48 h+ · 50% 24–48 h · …" @param {any[]} policies */
+export const policyChoices = (policies) =>
+  policies
+    .filter((/** @type {any} */ x) => x.current)
+    .map((/** @type {any} */ x) => ({ id: x.id, label: `${x.name}: ${policyLine(x.current)}` }));
+
+/**
+ * What a change of terms means for bookings (like the prices': bookings keep what they
+ * booked). null when nothing changed. @param {TermsForm} f @param {TermsForm} saved @param {number} upcoming
+ */
+export function termsWords(f, saved, upcoming) {
+  if (termsChanges(f, saved).length === 0) return null;
+  const keep =
+    upcoming === 0
+      ? 'No booking is waiting on the old terms.'
+      : upcoming === 1
+        ? 'The 1 existing booking keeps the terms it was made with.'
+        : `The ${upcoming} existing bookings keep the terms they were made with.`;
+  return `New bookings get these terms. ${keep}`;
+}
+
+/** Under the deposit choice. @param {TermsForm} f @param {number} days */
+export const depositLine = (f, days) =>
+  f.deposit === 'none'
+    ? 'Guests pay in full when they book.'
+    : `Guests may pay ${Number.isNaN(whole(f.percent, 1, 99)) ? '…' : `${Number(f.percent)}%`} now; the balance is due ${days} days before the trip. Booking later than that, they pay in full.`;

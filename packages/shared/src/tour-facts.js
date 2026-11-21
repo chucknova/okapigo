@@ -121,6 +121,31 @@ export function describePolicy(policy, operatorShortName) {
 }
 
 /**
+ * A policy in one line, for choosing one (Settings › Tours, 16e-4c; designs: "Standard: full
+ * 48 h · 50% 24–48 h"): "Full refund 48 h+ · 50% 24–48 h · none under 24 h".
+ * @param {{ rules: Array<{ hoursBefore: number, refundBasisPoints: number }> }} version
+ */
+export function policyLine(version) {
+  const rules = [...version.rules].sort((a, b) => b.hoursBefore - a.hoursBefore);
+  /** @param {number} bp */
+  const short = (bp) => (bp >= 10_000 ? 'Full refund' : bp <= 0 ? 'No refund' : `${bp / 100}%`);
+  const parts = rules.map((r, i) => {
+    const above = rules[i - 1];
+    if (r.hoursBefore === 0) {
+      return above
+        ? `${short(r.refundBasisPoints)} under ${above.hoursBefore} h`
+        : `${short(r.refundBasisPoints)} any time`;
+    }
+    return above
+      ? `${short(r.refundBasisPoints)} ${r.hoursBefore}–${above.hoursBefore} h`
+      : `${short(r.refundBasisPoints)} ${r.hoursBefore} h+`;
+  });
+  const lowest = rules.at(-1);
+  if (lowest && lowest.hoursBefore > 0) parts.push(`none under ${lowest.hoursBefore} h`);
+  return parts.join(' · ');
+}
+
+/**
  * The words next to the "from" price: "per adult" (short) and the other categories
  * ("child ₦12,500", "infant free") for the desktop booking card. Category names lose their
  * age range for this: "Child (3–12)" → "child".

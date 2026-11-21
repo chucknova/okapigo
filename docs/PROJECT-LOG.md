@@ -143,6 +143,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | `b9781ed`           | 16e-3          |
 | 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | `4872ff2`           | 16e-4a         |
 | 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | `9b6483e`           | 16e-4b         |
+| 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | (this commit)       | 16e-4c         |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -150,9 +151,9 @@ deploy "session 18"):
 | Next    | What                                                                                                     | PRD                       |
 | ------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
 | ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                           | OPS-01                    |
-| **16c** | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers | —                         |
-| 16d     | inbox (O9): chats (take over), requests, alerts                                                          | —                         |
-| 16e     | settings (O10): website, embed, messages, WhatsApp, staff, tours                                         | —                         |
+| ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers | —                         |
+| ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                          | —                         |
+| ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                         | —                         |
 | OCTO    | OCTO API + contract tests, channel manager, mock OTA (journey 3)                                         | DST-01–03                 |
 | AI etc. | AI companion, posters, dashboard (journeys 7, 8)                                                         | GST-16, MKT-01/02, RPT-01 |
 | Demo    | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                               | step 10                   |
@@ -281,13 +282,22 @@ The schedule shown is the first switched-on one; booked departures a change leav
 with links (`sync.attention`), never removed. One-off departures are added straight away, not
 through the save bar.
 
+**With 16e-4c (2026-11-21):** a tour's extras are saved as a whole like its prices (`PUT
+…/add-ons`). Pickup points are area, place and time (stored as name, address, time).
+Policies are **chosen**, not written, in Settings (the design only chooses; writing them stays
+with the API). "None" means staff set each refund (guests can't self-cancel without a policy).
+The deposit is a whole percentage, 1–99; the balance's 7 days and the hold times (website: the
+business's setting; WhatsApp: 30 minutes) are business-wide and only shown.
+
 ## 7. Where we are
 
-- **Last done:** 16e-4b, Settings › Tours: Prices and Schedule and seats, committed `9b6483e`. 16e-4a pushed.
-- **Next:** **16e-4c**: Extras (name, price, limit per departure), pickup points (area, place,
-  time), the cancellation policy (pick one; "Standard: full 48 h · 50% 24–48 h"), the deposit
-  (allowed %, or none; balance due 7 days before), and the holds line. That finishes Settings
-  (O10). Then OCTO, AI and dashboard, and the demo (numbering to confirm).
+- **Last done:** 16e-4c, Tours: extras, pickup points, cancellation and deposit. **Settings
+  (O10) is done**, and with it the operator app's screens 16a–16e. 16e-4b pushed.
+- **Next:** **OCTO** (the OCTO API with contract tests, a channel manager, the mock OTA:
+  journey 3). Its stage number is to be agreed (the docs call AI "session 17" and deploy
+  "session 18"). Then AI, posters and dashboard; then the demo.
+- **The operator app's script is over 500 kB** since 16e-4c (Vite warns at build). Not urgent
+  for staff phones on a good connection; splitting Settings into its own chunk would fix it.
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
   (ILT-HP97TV)**.
 - **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta.
@@ -340,6 +350,9 @@ through the save bar.
 - **`vi.waitFor` gives up after 1 s**; Testing Library's `waitFor` and `findBy…` wait 10 s
   (`apps/operator/test/setup.js`). Under a full run's load, use Testing Library's (16e-4b's
   "one save bar" test flaked on `vi.waitFor`). Older tests (inbox, board) still use `vi.waitFor`.
+- **A `<fieldset>` is never narrower than its widest child** (browsers give it
+  `min-width: min-content`): one long menu option pushed a whole settings page sideways
+  (16e-4c). `.plain-fieldset` now has `min-width: 0`.
 - **Order ties are random**: rows with the same `sortOrder` and the same `createdAt` (seeded in
   one go) come back in id order, which is random. A full run caught archived prices tying with
   active ones (16e-4b); they now sort after them. Give every sorted row its own place.
@@ -348,6 +361,7 @@ through the save bar.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16e-4c Tours: Extras, pickups, cancellation and deposit (Settings done).
 - 2026-11-21 · 16e-4b Tours: Prices, Schedule and seats.
 - 2026-11-21 · 16e-4a Settings › Tours: list, New tour, Basics.
 - 2026-11-21 · 16e-3 settings: Staff and roles.

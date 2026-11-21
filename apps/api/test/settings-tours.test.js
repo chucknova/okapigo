@@ -4,6 +4,7 @@
  *   - how it travels and "arrive by", editable
  *   - a meeting point without a pin: the business's city, marked approximate, until a real one
  *   - putting a tour on sale needs a price (said plainly)
+ * Stage 16e-4c: the extras as a whole; the holds line and the balance's days.
  * Stage 16e-4b: the prices as a whole (added, changed, archived; all or nothing), whether they
  * include the tax, how many bookings keep the old price; a schedule change's booked departures
  * in words.
@@ -339,6 +340,69 @@ describe('the schedule', () => {
     const tight = await s.api.patch(`/api/schedules/${rule.id}`).send({ capacity: 2 });
     expect(tight.body.sync.attention.map((/** @type {any} */ a) => a.text)).toContainEqual(
       expect.stringMatching(/ · 3 guests · more guests than the new seats$/),
+    );
+  });
+});
+
+describe('extras (16e-4c)', () => {
+  it('all at once: changed, added, left out (archived after the active ones)', async () => {
+    const s = await setup();
+    const p = await ctx.prisma.product.findFirstOrThrow({
+      where: { operatorId: s.operator.id, slug: 'lagos-street-food-crawl' },
+      include: { addOns: { orderBy: { sortOrder: 'asc' } } },
+    });
+    const [plate, wine] = p.addOns;
+    const res = await s.api.put(`/api/products/${p.id}/add-ons`).send({
+      addOns: [
+        { name: 'Lunch', priceKobo: 800_000, stockPerDeparture: null },
+        {
+          id: wine.id,
+          name: 'Palm wine',
+          description: 'Fresh',
+          priceKobo: 300_000,
+          stockPerDeparture: 6,
+        },
+      ],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(
+      res.body.product.addOns.map((/** @type {any} */ a) => [
+        a.name,
+        a.priceKobo,
+        a.stockPerDeparture,
+        a.isActive,
+      ]),
+    ).toEqual([
+      ['Lunch', 800_000, null, true],
+      ['Palm wine', 300_000, 6, true],
+      [plate.name, plate.priceKobo, plate.stockPerDeparture, false],
+    ]);
+    const other = await ctx.seedOperator();
+    const theirs = await ctx.prisma.addOn.findFirstOrThrow({
+      where: { operatorId: other.operator.id },
+    });
+    const stolen = await s.api.put(`/api/products/${p.id}/add-ons`).send({
+      addOns: [{ id: theirs.id, name: 'X', priceKobo: 1, stockPerDeparture: null }],
+    });
+    expect(stolen.status).toBe(404);
+    expect(
+      (await s.managerApi.put(`/api/products/${p.id}/add-ons`).send({ addOns: [] })).status,
+    ).toBe(403);
+  });
+
+  it('a tour says how long seats are held, and when balances are due', async () => {
+    const s = await setup();
+    const p = await ctx.prisma.product.findFirstOrThrow({ where: { operatorId: s.operator.id } });
+    const res = await s.api.get(`/api/products/${p.id}`);
+    expect(res.body.product).toMatchObject({
+      balanceDueDays: 7,
+      holdsLine:
+        'Seats are held 15 minutes on the website and 30 minutes on WhatsApp, for every tour.',
+    });
+    // The website's comes from the business's own setting.
+    await ctx.prisma.operator.update({ where: { id: s.operator.id }, data: { holdMinutes: 20 } });
+    expect((await s.api.get(`/api/products/${p.id}`)).body.product.holdsLine).toMatch(
+      /^Seats are held 20 minutes on the website/,
     );
   });
 });
