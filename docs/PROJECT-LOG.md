@@ -147,7 +147,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                                                       | `035902a`           | 17a            |
 | 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels                             | `87aa54a`           | 17b            |
 | 17c             | channel manager, server side: the channels API in words (sales, owed, keys once), "via Mock OTA" on bookings, the 30-second signed push to OTA webhooks (fingerprints), SSRF guard                              | `a52461d`           | 17c            |
-| 17c-2           | Settings › Channels (O11) as designed: cards, tours one by one, latest bookings, money, commission, key (once, made, last used), switch off; OCTO notifications; payments from the OTA (oldest first); Sojourna | `(this commit)`     | 17c-2          |
+| 17c-2           | Settings › Channels (O11) as designed: cards, tours one by one, latest bookings, money, commission, key (once, made, last used), switch off; OCTO notifications; payments from the OTA (oldest first); Sojourna | `d6ba212`           | 17c-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -348,7 +348,7 @@ designs' `okg_live_…` and `/octo/v1` were illustrative).
 
 ## 7. Where we are
 
-- **Last done:** 17c-2, Settings › Channels, committed `(this commit)` (on top of 17c,
+- **Last done:** 17c-2, Settings › Channels, committed `d6ba212` (on top of 17c,
   `a52461d`).
 - **Next:** **17c-3**, "via Sojourna" everywhere else (your designs: the bookings list's channel
   filter and tag, the OTA booking's page with its money and messages, the guide's manifest tag,
