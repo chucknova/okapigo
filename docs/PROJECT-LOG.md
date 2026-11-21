@@ -146,7 +146,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | `8ee0e0f`           | 16e-4c         |
 | 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                              | `035902a`           | 17a            |
 | 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels    | `87aa54a`           | 17b            |
-| 17c             | channel manager, server side: the channels API in words (sales, owed, keys once), "via Mock OTA" on bookings, the 30-second signed push to OTA webhooks (fingerprints), SSRF guard     | `(this commit)`     | 17c            |
+| 17c             | channel manager, server side: the channels API in words (sales, owed, keys once), "via Mock OTA" on bookings, the 30-second signed push to OTA webhooks (fingerprints), SSRF guard     | `a52461d`           | 17c            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -329,7 +329,7 @@ Off sale or taken off the channel: departures told CLOSED, then forgotten. "via 
 
 ## 7. Where we are
 
-- **Last done:** 17c, the channel manager's server side, committed `(this commit)`. 17b pushed.
+- **Last done:** 17c, the channel manager's server side, committed `a52461d`. 17b pushed.
 - **Next:** **17d**, the mock OTA app (`apps/mock-ota`, journey 3) and **Settings › Channels**
   (O11), both once your designs for brief 08 (O11 and M1–M5) and the mock OTA's name arrive.
   The API for O11 is ready (`/api/channels`). If the designs aren't ready, session 18 (AI,
