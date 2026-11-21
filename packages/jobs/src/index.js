@@ -32,6 +32,8 @@ export const JOBS = /** @type {const} */ ({
   sweepWebhooks: 'sweep-webhooks',
   reconcile: 'reconcile',
   balanceReminders: 'balance-reminders',
+  // Tell connected OTAs what changed (17c, DST-02: within 60 seconds).
+  pushChannels: 'push-channels',
 });
 
 /**

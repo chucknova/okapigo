@@ -15,6 +15,7 @@
  * Changing a booking goes through the rules already there (bookings.js, cancellations.js,
  * refunds.js, payment-links.js, cash.js, operations.js).
  */
+import { percentOf } from '@okapigo/shared/pricing';
 import { formatNaira } from '@okapigo/shared/money';
 import { formatPhoneForDisplay } from '@okapigo/shared/contact';
 import { localDate, localTime, addDays, zonedTimeToUtc } from '@okapigo/shared/time';
@@ -131,6 +132,8 @@ const ROW_INCLUDE = /** @type {const} */ ({
   hold: true,
   refunds: { select: { status: true, amountKobo: true } },
   cashReports: { select: { status: true } },
+  // Sold by an OTA (17c): its name, for "via Mock OTA".
+  channelBooking: { select: { channel: { select: { name: true } } } },
 });
 
 /**
@@ -186,6 +189,7 @@ export async function deskList(prisma, { operatorId, filter = 'today', q = '', n
         reference: b.reference,
         tour: `${shortOf(b.product)} · ${dayOf(b.departure.startsAt, tz)}`,
         phone: b.leadPhone ? formatPhoneForDisplay(b.leadPhone) : null,
+        via: b.channelBooking ? `via ${b.channelBooking.channel.name}` : null,
         chip: { ...chip, expiresAt: chip.expiresAt?.toISOString() ?? null },
       };
     });
@@ -260,13 +264,15 @@ function messageName(n) {
 
 /**
  * One line of the timeline, in words. @param {any} e @param {Map<string, string>} names
+ * @param {{ channelName?: string | null }} [o]  an OTA's name: "booked through Mock OTA" (17c)
  */
-export function eventText(e, names) {
+export function eventText(e, names, o = {}) {
   const who = e.actorUserId ? (names.get(e.actorUserId) ?? 'someone in the office') : null;
   const d = e.data ?? {};
   const money = (/** @type {number} */ k) => formatNaira(k ?? 0);
   switch (e.type) {
     case 'created':
+      if (d.channel === 'ota' && o.channelName) return `booked through ${o.channelName}`;
       return d.channel === 'staff' && who ? `booked by ${who}` : (BOOKED_ON[d.channel] ?? 'booked');
     case 'status_changed': {
       if (e.toStatus === 'cancelled') {
@@ -462,9 +468,14 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
       cashReports: { orderBy: { createdAt: 'asc' }, include: { reportedBy: true } },
       notifications: { where: { audience: 'guest' }, orderBy: { createdAt: 'asc' } },
       events: { orderBy: { createdAt: 'asc' } },
+      channelBooking: { include: { channel: { select: { name: true } } } },
     },
   });
   if (!b) throw new BookingError('NOT_FOUND', 'Booking not found.');
+  // Sold by an OTA (17c): its name, and its share frozen at the sale.
+  const ota = b.channelBooking
+    ? { name: b.channelBooking.channel.name, bp: b.channelBooking.commissionBasisPoints }
+    : null;
   const tz = b.product.operator.timeZone;
   const cats = new Map(b.product.priceCategories.map((c) => [c.key, c]));
   const userIds = [
@@ -505,7 +516,13 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
     { label: priceLine(b.quote) || people, value: formatNaira(b.totalKobo), tone: 'ink' },
     ...b.payments.map((p) => ({
       label: [
-        p.purpose === 'deposit' ? 'Deposit' : p.purpose === 'balance' ? 'Balance' : 'Payment',
+        p.provider === 'ota' && ota
+          ? `Paid by ${ota.name}`
+          : p.purpose === 'deposit'
+            ? 'Deposit'
+            : p.purpose === 'balance'
+              ? 'Balance'
+              : 'Payment',
         // How it was actually paid (Paystack says: card, bank transfer…); checkout asks for "any".
         METHOD[p.channel ?? ''] ?? METHOD[p.method] ?? null,
         shortDay(p.paidAt ?? p.createdAt, tz),
@@ -515,6 +532,18 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
       value: `${formatNaira(p.amountKobo)} paid`,
       tone: 'ok',
     })),
+    // What the OTA owes for it: the price less its share ("₦64,000 (₦80,000 less 20%)").
+    ...b.payments
+      .filter((p) => p.provider === 'ota' && ota)
+      .map((p) => {
+        const kept = p.amountKobo - p.refundedKobo;
+        const net = kept - percentOf(kept, /** @type {any} */ (ota).bp);
+        return {
+          label: `${/** @type {any} */ (ota).name} owes you`,
+          value: `${formatNaira(net)} (${formatNaira(kept)} less ${/** @type {any} */ (ota).bp / 100}%)`,
+          tone: 'muted',
+        };
+      }),
     ...pendingCash.map((c) => ({
       label: `Cash · reported by ${firstName(c.reportedBy.name)} · ${shortDay(c.reportedAt, tz)}`,
       value: `${formatNaira(c.amountKobo)} pending`,
@@ -682,7 +711,7 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
     holdId: b.holdId,
     refLine: [
       b.reference,
-      CHANNEL[b.channel] ?? b.channel.toUpperCase(),
+      ota ? ota.name.toUpperCase() : (CHANNEL[b.channel] ?? b.channel.toUpperCase()),
       b.status === 'held'
         ? `STARTED ${localTime(b.createdAt, tz)}`
         : `BOOKED ${dayOf(b.createdAt, tz).toUpperCase()}`,
@@ -731,7 +760,9 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
       what: messageName(n),
       ...deliveryOf(n, chats),
     })),
-    timeline: b.events.map((e) => `${stamp(e.createdAt, tz)} · ${eventText(e, names)}`),
+    timeline: b.events.map(
+      (e) => `${stamp(e.createdAt, tz)} · ${eventText(e, names, { channelName: ota?.name })}`,
+    ),
     actions,
     // For "Mark no-show": what the policy this booking was sold with gives back.
     cancel,

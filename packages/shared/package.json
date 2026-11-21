@@ -9,6 +9,7 @@
     "./contact": "./src/contact.js",
     "./schemas/auth": "./src/schemas/auth.js",
     "./schemas/roles": "./src/schemas/roles.js",
+    "./schemas/channels": "./src/schemas/channels.js",
     "./slug": "./src/slug.js",
     "./money": "./src/money.js",
     "./catalogue": "./src/catalogue.js",

@@ -156,6 +156,7 @@ function DeskRow({ r, open }) {
       </span>
       <span className="small muted">
         {r.reference} · {r.tour}
+        {r.via && ` · ${r.via}`}
       </span>
       {r.phone && <span className="small muted narrow-only">{r.phone}</span>}
     </Link>

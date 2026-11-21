@@ -157,7 +157,11 @@ export async function departureOverview(prisma, { operatorId, departureId, now =
       bookings: {
         where: { status: { in: SOLD } },
         orderBy: { createdAt: 'asc' },
-        include: { travellers: true, addOns: { include: { addOn: true } } },
+        include: {
+          travellers: true,
+          addOns: { include: { addOn: true } },
+          channelBooking: { include: { channel: { select: { name: true } } } },
+        },
       },
     },
   });
@@ -183,7 +187,14 @@ export async function departureOverview(prisma, { operatorId, departureId, now =
         ...b.addOns.map((a) => `${a.quantity} × ${a.addOn.name.toLowerCase()}`),
         ...ownDiets,
       ].join(' · '),
-      pay: owed > 0 ? `${formatNaira(owed)} to pay` : 'Paid',
+      // An OTA's guest paid the OTA (17c): "Paid by Mock OTA".
+      via: b.channelBooking ? `via ${b.channelBooking.channel.name}` : null,
+      pay:
+        owed > 0
+          ? `${formatNaira(owed)} to pay`
+          : b.channelBooking
+            ? `Paid by ${b.channelBooking.channel.name}`
+            : 'Paid',
       payTone: owed > 0 ? 'owes' : 'paid',
     };
   });

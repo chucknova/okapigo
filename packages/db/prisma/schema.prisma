@@ -1280,25 +1280,32 @@ model CashReport {
 // the owner once; only the key's SHA-256 is kept, like sessions' tokens. The OTA takes the
 // guest's money and owes the business the price minus its commission (decided 2026-11-21).
 model Channel {
-  id                    String   @id @default(uuid()) @db.Uuid
-  operatorId            String   @map("operator_id") @db.Uuid
+  id                    String    @id @default(uuid()) @db.Uuid
+  operatorId            String    @map("operator_id") @db.Uuid
   // "Mock OTA", "Viator"…: unique per business.
   name                  String
   // How it connects. Only OCTO for now. CHECK: 'octo'.
-  kind                  String   @default("octo")
-  apiKeyHash            String   @unique @map("api_key_hash")
+  kind                  String    @default("octo")
+  apiKeyHash            String    @unique @map("api_key_hash")
   // The key's last 4 characters, so the owner can tell keys apart ("…k3Qz").
-  apiKeyHint            String   @map("api_key_hint")
+  apiKeyHint            String    @map("api_key_hint")
   // What the OTA keeps of each sale, in basis points (2000 = 20%). CHECK: 0–10000.
-  commissionBasisPoints Int      @default(2000) @map("commission_basis_points")
+  commissionBasisPoints Int       @default(2000) @map("commission_basis_points")
   // Switched off: its key stops working, and it sells nothing.
-  isActive              Boolean  @default(true) @map("is_active")
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  isActive              Boolean   @default(true) @map("is_active")
+  // Where we tell the OTA that seats or prices changed (17c, DST-02: within 60 seconds).
+  // Null: it only asks (OCTO availability), we don't tell.
+  webhookUrl            String?   @map("webhook_url")
+  // The last time an update reached it, and why the last one didn't (null when it did).
+  lastPushAt            DateTime? @map("last_push_at") @db.Timestamptz(3)
+  lastPushError         String?   @map("last_push_error")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  operator Operator         @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  operator Operator           @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   products ChannelProduct[]
   bookings ChannelBooking[]
+  pushed   ChannelSyncState[]
 
   @@unique([operatorId, name])
   @@unique([id, operatorId])
@@ -1352,4 +1359,19 @@ model ChannelBooking {
   @@unique([channelId, uuid])
   @@index([operatorId, channelId])
   @@map("channel_bookings")
+}
+
+// What we last told a channel about one thing (17c): a departure's seats and status
+// ("departure:<id>"), or a tour's prices ("product:<id>"), as a fingerprint. The sync job
+// compares what is now with what was last told, and tells only the differences.
+model ChannelSyncState {
+  channelId   String   @map("channel_id") @db.Uuid
+  subject     String
+  fingerprint String
+  pushedAt    DateTime @map("pushed_at") @db.Timestamptz(3)
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, subject])
+  @@map("channel_sync_states")
 }

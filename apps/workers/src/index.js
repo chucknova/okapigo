@@ -10,6 +10,7 @@
  *        verify-ledger     every night at 03:00 Lagos time
  *        sweep-webhooks    every 60 seconds
  *        reconcile         every 10 minutes (payments and refunds webhooks missed)
+ *        push-channels     every 30 seconds (tell connected OTAs what changed: 17c)
  *   2. starts a BullMQ Worker per queue that runs jobs as they become due
  *   3. shuts down gracefully, finishing the current job before exiting
  *
@@ -55,7 +56,13 @@ const provider = createPaymentProvider({
   simulatorStore: redisStore(redis),
   simulatorSecret: process.env.SIMULATOR_WEBHOOK_SECRET || undefined,
 });
-const processors = createProcessors({ prisma, logger, provider });
+// AUTH_SECRET: signs what we tell OTAs (the same secret as the API's: 17c).
+const processors = createProcessors({
+  prisma,
+  logger,
+  provider,
+  authSecret: process.env.AUTH_SECRET ?? '',
+});
 
 // --- 1. Timetabled jobs -----------------------------------------------------------------
 // upsertJobScheduler = "create, or update if it already exists". Safe on every start.
@@ -91,6 +98,12 @@ await maintenance.upsertJobScheduler(
   JOBS.reconcile,
   { every: 10 * 60_000 },
   { name: JOBS.reconcile, opts: { removeOnComplete: 100, removeOnFail: 1000 } },
+);
+await maintenance.upsertJobScheduler(
+  JOBS.pushChannels,
+  // Every 30 seconds: a sale anywhere reaches every OTA within the PRD's 60.
+  { every: 30_000 },
+  { name: JOBS.pushChannels, opts: { removeOnComplete: 100, removeOnFail: 1000 } },
 );
 await maintenance.close();
 

@@ -14,6 +14,9 @@
 import { priceBasket } from '@okapigo/shared/pricing';
 import { percentOf, divideRoundToNaira } from '@okapigo/shared/pricing';
 import { policyLine } from '@okapigo/shared/tour-facts';
+import { localIso, statusOf } from '@okapigo/shared/octo';
+
+export { localIso, statusOf };
 
 export const OPTION_ID = 'DEFAULT';
 const CURRENCY = 'NGN';
@@ -186,41 +189,6 @@ export function productOf(p, o) {
     ],
   };
 }
-
-/**
- * A moment as local ISO 8601 with its offset: "2026-12-05T09:00:00+01:00" (OCTO's
- * localDateTimeStart). @param {Date} at @param {string} timeZone
- */
-export function localIso(at, timeZone) {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat('en-GB', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hourCycle: 'h23',
-    })
-      .formatToParts(at)
-      .map((x) => [x.type, x.value]),
-  );
-  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
-  const offset = Math.round((asUtc - Math.floor(at.getTime() / 1000) * 1000) / 60_000);
-  const sign = offset < 0 ? '-' : '+';
-  const abs = Math.abs(offset);
-  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
-  const mm = String(abs % 60).padStart(2, '0');
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}${sign}${hh}:${mm}`;
-}
-
-/**
- * How a departure stands, in OCTO's words: SOLD_OUT, LIMITED (under half left), AVAILABLE.
- * @param {number} left @param {number} capacity
- */
-export const statusOf = (left, capacity) =>
-  left <= 0 ? 'SOLD_OUT' : left * 2 < capacity ? 'LIMITED' : 'AVAILABLE';
 
 /**
  * A departure as an OCTO Availability.

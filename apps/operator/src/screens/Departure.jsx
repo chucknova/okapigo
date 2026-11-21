@@ -172,7 +172,10 @@ function DeparturePage({ d, options }) {
                 <tbody>
                   {d.rows.map((/** @type {any} */ r) => (
                     <tr key={r.id}>
-                      <td className="strong">{r.lead}</td>
+                      <td className="strong">
+                        {r.lead}
+                        {r.via && <span className="sm muted block">{r.via}</span>}
+                      </td>
                       <td className="muted">{r.people}</td>
                       <td className="muted">{r.extras}</td>
                       <td

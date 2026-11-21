@@ -146,18 +146,19 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | `8ee0e0f`           | 16e-4c         |
 | 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                              | `035902a`           | 17a            |
 | 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels    | `87aa54a`           | 17b            |
+| 17c             | channel manager, server side: the channels API in words (sales, owed, keys once), "via Mock OTA" on bookings, the 30-second signed push to OTA webhooks (fingerprints), SSRF guard     | `(this commit)`     | 17c            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
-| Next    | What                                                                                                     | PRD                       |
-| ------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
-| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                           | OPS-01                    |
-| ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers | —                         |
-| ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                          | —                         |
-| ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                         | —                         |
-| **17**  | OCTO in four parts: ~~17a~~ catalogue; ~~17b~~ bookings; 17c channel manager; 17d mock OTA (journey 3)   | DST-01–03                 |
-| 18      | AI companion, posters, dashboard (journeys 7, 8)                                                         | GST-16, MKT-01/02, RPT-01 |
-| 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                               | step 10                   |
+| Next    | What                                                                                                                 | PRD                       |
+| ------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                                       | OPS-01                    |
+| ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers             | —                         |
+| ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                                      | —                         |
+| ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                     | —                         |
+| **17**  | OCTO in four parts: ~~17a~~ catalogue; ~~17b~~ bookings; 17c channel manager (screen waits on designs); 17d mock OTA | DST-01–03                 |
+| 18      | AI companion, posters, dashboard (journeys 7, 8)                                                                     | GST-16, MKT-01/02, RPT-01 |
+| 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                                           | step 10                   |
 
 ## 6. Decisions (dated)
 
@@ -313,14 +314,26 @@ no contact yet (the lead-contact check allows it only for held or cancelled OTA 
 holds last up to 30 minutes. Pickups: the reserve's `pickupPointId` (the point's name, URL-safe);
 the rest of OCTO's pickups capability isn't built.
 
+**With 17c (2026-11-21):** the channel manager's **server side is built before its screen**
+(Settings › Channels waits for your design; brief 08). The API answers in words (tours, this
+month's sales, what the OTA owes at each sale's frozen share, the push's state); keys and the
+webhook signing secret are **shown once** (the secret is derived from `AUTH_SECRET` and the
+channel id, so nothing new is stored). **The push compares fingerprints every 30 seconds**
+(`channel_sync_states`) instead of hooking every place seats change: what differs is POSTed to
+the OTA's webhook (`availability_update`, `product_update`), remembered only once accepted; a
+failure is kept in words and retried next run. Signed `Octo-Webhook-Signature: t=…,v1=…`
+(HMAC-SHA256 of "t.body"). In production a webhook must be public https (no localhost, private
+ranges, 169.254, .internal, IPv6 literals); redirects are never followed; 5 seconds at most.
+Off sale or taken off the channel: departures told CLOSED, then forgotten. "via Mock OTA",
+"Paid by Mock OTA" and "Mock OTA owes you" show on the desk, the booking and the departure.
+
 ## 7. Where we are
 
-- **Last done:** 17b, OCTO bookings, committed `87aa54a`. 17a pushed.
-- **Next:** **17c**, the channel manager: Settings › Channels (your design, brief 08: connect a
-  channel and see its key once, tours on it, commission, its sales and what it owes, a new key,
-  switch off), "via Mock OTA" on bookings, and the 60-second webhook that tells connected OTAs
-  when seats or prices change. Waiting on you: the designs for brief 08 (O11 and M1–M5) and
-  the mock OTA's name.
+- **Last done:** 17c, the channel manager's server side, committed `(this commit)`. 17b pushed.
+- **Next:** **17d**, the mock OTA app (`apps/mock-ota`, journey 3) and **Settings › Channels**
+  (O11), both once your designs for brief 08 (O11 and M1–M5) and the mock OTA's name arrive.
+  The API for O11 is ready (`/api/channels`). If the designs aren't ready, session 18 (AI,
+  posters, dashboard) can go first.
 - **Your dev database** has no OTA channel until you run `pnpm db:reset` (the seed adds the
   Mock OTA with all five tours).
 - **The operator app's script is over 500 kB** since 16e-4c (Vite warns at build). Not urgent
@@ -386,11 +399,15 @@ the rest of OCTO's pickups capability isn't built.
 - **Order ties are random**: rows with the same `sortOrder` and the same `createdAt` (seeded in
   one go) come back in id order, which is random. A full run caught archived prices tying with
   active ones (16e-4b); they now sort after them. Give every sorted row its own place.
+- **The channel push (17c) runs in the workers app**, not the API: my check API on :4300
+  doesn't push. A test that seeds a whole business and pushes 60 days of departures needs the
+  60-second test timeout under load (the workers' default 20 s timed out in a full run).
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 17c channel manager (server side).
 - 2026-11-21 · 17b OCTO bookings.
 - 2026-11-21 · 17a OCTO catalogue (session 17 begins).
 - 2026-11-21 · 16e-4c Tours: Extras, pickups, cancellation and deposit (Settings done).

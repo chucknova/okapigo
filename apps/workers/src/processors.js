@@ -19,6 +19,9 @@ import {
   sweepWebhookEvents,
   reconcile,
   queueBalanceNotices,
+  pushChannelUpdates,
+  signWebhook,
+  webhookSecret,
 } from '@okapigo/db';
 import { JOBS } from '@okapigo/jobs';
 
@@ -27,10 +30,44 @@ import { JOBS } from '@okapigo/jobs';
  *   prisma: import('@prisma/client').PrismaClient,
  *   logger: import('pino').Logger,
  *   provider: import('@okapigo/payments').PaymentProvider,
+ *   authSecret?: string,       signs what we tell OTAs (17c)
+ *   fetch?: typeof fetch,      tests pass a pretend OTA
  * }} deps
  * @returns {Record<string, (data: any) => Promise<unknown>>} job name → handler
  */
-export function createProcessors({ prisma, logger, provider }) {
+export function createProcessors({
+  prisma,
+  logger,
+  provider,
+  authSecret = '',
+  fetch: doFetch = fetch,
+}) {
+  /**
+   * Tells one OTA one update: POST, JSON, signed (Octo-Webhook-Signature), 5 seconds at most.
+   * Anything but a 2xx answer is a failure (told again next run).
+   * @param {any} channel @param {any} payload
+   */
+  async function sendToChannel(channel, payload) {
+    const body = JSON.stringify(payload);
+    const signature = signWebhook(
+      webhookSecret(authSecret, channel.id),
+      Math.floor(Date.now() / 1000),
+      body,
+    );
+    const res = await doFetch(channel.webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Octo-Webhook-Signature': signature },
+      body,
+      signal: AbortSignal.timeout(5_000),
+      redirect: 'error', // never follow a redirect somewhere else
+    }).catch((/** @type {any} */ err) => {
+      throw new Error(
+        err?.name === 'TimeoutError' ? 'no answer in 5 seconds' : 'could not reach it',
+      );
+    });
+    if (!res.ok) throw new Error(`it answered ${res.status}`);
+  }
+
   return {
     /** One hold's time is up: give its seats back (if nobody already did). */
     async [JOBS.expireHold]({ holdId }) {
@@ -118,6 +155,20 @@ export function createProcessors({ prisma, logger, provider }) {
     async [JOBS.balanceReminders](data) {
       const result = await queueBalanceNotices(prisma, { operatorId: data?.operatorId });
       logger.info(result, 'balance-reminders');
+      return result;
+    },
+
+    /**
+     * Every 30 seconds: tell connected OTAs what changed (seats, prices) since they were last
+     * told (17c). An OTA that's down is told again next time.
+     * @param {{ operatorId?: string }} [data]
+     */
+    async [JOBS.pushChannels](data) {
+      const result = await pushChannelUpdates(prisma, {
+        send: sendToChannel,
+        operatorId: data?.operatorId,
+      });
+      if (result.failed > 0) logger.warn(result, 'push-channels: an OTA didn’t take an update');
       return result;
     },
   };

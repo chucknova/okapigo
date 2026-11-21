@@ -19,6 +19,7 @@ import { meRouter } from './routes/me.js';
 import { rolesRouter } from './routes/roles.js';
 import { staffRouter } from './routes/staff.js';
 import { octoRouter } from './octo/router.js';
+import { channelsRouter } from './routes/channels.js';
 import { productsRouter } from './routes/products.js';
 import { schedulesRouter } from './routes/schedules.js';
 import { quotesRouter } from './routes/quotes.js';
@@ -303,6 +304,16 @@ export function createApp({
   api.use(inboxRouter({ prisma })); // the inbox (16d)
   api.use(whatsappSettingsRouter({ prisma, connected: Boolean(whatsapp), apiPublicUrl, channels })); // 13c-3
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
+  // The channel manager (17c): OTAs selling through OCTO. Webhook addresses must be public
+  // https in production (so one can't be pointed at our own network).
+  api.use(
+    channelsRouter({
+      prisma,
+      apiPublicUrl,
+      authSecret,
+      production: process.env.NODE_ENV === 'production',
+    }),
+  );
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 
