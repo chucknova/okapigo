@@ -145,7 +145,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | `9b6483e`           | 16e-4b         |
 | 16e-4c          | Tours: Extras (all at once), pickup points, cancellation policy (one line each), deposit, holds line. **Settings done**                                                                | `8ee0e0f`           | 16e-4c         |
 | 17a             | OCTO catalogue: supplier, products (units, cutoff), availability and calendar, prices with the OTA's net; channel keys (hashed); contract tests; brief 08                              | `035902a`           | 17a            |
-| 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels    | (this commit)       | 17b            |
+| 17b             | OCTO bookings: reserve, confirm, cancel (policy until the start), extend, look up; the OTA's payment and sale in the ledger; no messages to OTA guests; no oversell across channels    | `87aa54a`           | 17b            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -315,7 +315,7 @@ the rest of OCTO's pickups capability isn't built.
 
 ## 7. Where we are
 
-- **Last done:** 17b, OCTO bookings. 17a pushed.
+- **Last done:** 17b, OCTO bookings, committed `87aa54a`. 17a pushed.
 - **Next:** **17c**, the channel manager: Settings › Channels (your design, brief 08: connect a
   channel and see its key once, tours on it, commission, its sales and what it owes, a new key,
   switch off), "via Mock OTA" on bookings, and the 60-second webhook that tells connected OTAs
