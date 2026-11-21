@@ -25,6 +25,7 @@ import { MESSAGES } from '@okapigo/shared/message-templates';
 import { BookingError } from './booking-lifecycle.js';
 import { firstName, peopleLine, shortOf } from './board.js';
 import { previewCancellation } from './cancellations.js';
+import { owedFor } from './channel-money.js';
 
 /** Seats sold: the booking is on (from booking-status.js). */
 const LIVE = ['confirmed', 'part_paid', 'paid', 'amended'];
@@ -123,7 +124,9 @@ export function deskStatus(b) {
     return { key: 'cash', text: 'Cash to confirm', tone: 'info' };
   const owed = b.totalKobo - b.amountPaidKobo;
   if (owed > 0) return { key: 'owes', text: `Owes ${formatNaira(owed)}`, tone: 'warning' };
-  return { key: 'paid', text: 'Paid', tone: 'ok' };
+  // An OTA's booking (17c-3): its guest paid the OTA.
+  const ota = b.channelBooking?.channel?.name;
+  return { key: 'paid', text: ota ? `Paid by ${ota}` : 'Paid', tone: 'ok' };
 }
 
 const ROW_INCLUDE = /** @type {const} */ ({
@@ -136,12 +139,26 @@ const ROW_INCLUDE = /** @type {const} */ ({
   channelBooking: { select: { channel: { select: { name: true } } } },
 });
 
+/** Where a booking came from, for the list's channel filter (an OTA is its channel's id). */
+export const BOOKING_CHANNELS = /** @type {const} */ (['web', 'whatsapp', 'staff']);
+
 /**
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ operatorId: string, filter?: DeskFilter, q?: string, now?: Date }} o
+ * @param {{ operatorId: string, filter?: DeskFilter, q?: string, channel?: string, now?: Date }} o
+ *   channel: '' (all), 'web', 'whatsapp', 'staff', or an OTA channel's id (17c-3)
  */
-export async function deskList(prisma, { operatorId, filter = 'today', q = '', now = new Date() }) {
-  const operator = await prisma.operator.findUniqueOrThrow({ where: { id: operatorId } });
+export async function deskList(
+  prisma,
+  { operatorId, filter = 'today', q = '', channel = '', now = new Date() },
+) {
+  const [operator, otas] = await Promise.all([
+    prisma.operator.findUniqueOrThrow({ where: { id: operatorId } }),
+    prisma.channel.findMany({
+      where: { operatorId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
   const tz = operator.timeZone;
   const today = localDate(now, tz);
   const dayStart = zonedTimeToUtc(today, '00:00', tz);
@@ -165,6 +182,10 @@ export async function deskList(prisma, { operatorId, filter = 'today', q = '', n
   if (filter === 'owes') where.status = { in: LIVE };
   if (filter === 'cash') where.cashReports = { some: { status: { in: PENDING_CASH } } };
   if (filter === 'cancelled') where.status = { in: ENDED };
+  // The channel (designs: "Channel: all ▾"): our own, or one OTA.
+  if (/** @type {readonly string[]} */ (BOOKING_CHANNELS).includes(channel))
+    where.channel = channel;
+  else if (channel) where.channelBooking = { channelId: channel };
 
   const byTrip =
     filter === 'today' || filter === 'upcoming' || filter === 'owes' || filter === 'cash';
@@ -193,7 +214,20 @@ export async function deskList(prisma, { operatorId, filter = 'today', q = '', n
         chip: { ...chip, expiresAt: chip.expiresAt?.toISOString() ?? null },
       };
     });
-  return { filter, q: s.text, rows, more: found.length > MAX_ROWS };
+  return {
+    filter,
+    q: s.text,
+    channel,
+    // The filter's choices (designs: Website, WhatsApp, Sojourna, Staff).
+    channels: [
+      { value: 'web', label: 'Website' },
+      { value: 'whatsapp', label: 'WhatsApp' },
+      ...otas.map((o) => ({ value: o.id, label: o.name })),
+      { value: 'staff', label: 'Staff' },
+    ],
+    rows,
+    more: found.length > MAX_ROWS,
+  };
 }
 
 /** "2 adults ₦130,000 · 1 child ₦35,000 · 3 × Lunch ₦24,000": the price, from the quote. @param {any} quote */
@@ -394,6 +428,10 @@ export function tripIn(startsAt, now) {
  * @param {any} b @param {{ started: boolean, owed: number, tripDay: string }} o
  */
 export function deskActions(b, { started, owed, tripDay }) {
+  // An OTA's booking (designs: "via Sojourna"): the OTA collects the money, and changes to who's
+  // coming or when go through it, so those aren't offered here.
+  const ota = b.channelBooking?.channel?.name ?? null;
+  const viaOta = ota ? `Changes go through ${ota}` : null;
   const held = b.status === 'held';
   const ended = ENDED.includes(b.status);
   const why = (/** @type {string | null} */ reason) => ({
@@ -405,10 +443,17 @@ export function deskActions(b, { started, owed, tripDay }) {
   const pending = b.travellers.filter(
     (/** @type {any} */ t) => t.checkInStatus === 'pending',
   ).length;
-  return {
-    paymentLink: why(notBooked ?? gone ?? (owed <= 0 ? 'Nothing is owed' : null)),
+  /** @type {Record<string, { enabled: boolean, why: string, hidden?: boolean }>} */
+  const actions = {
+    paymentLink: why(
+      (ota ? `${ota} collects payment` : null) ??
+        notBooked ??
+        gone ??
+        (owed <= 0 ? 'Nothing is owed' : null),
+    ),
     changeTravellers: why(
-      notBooked ??
+      viaOta ??
+        notBooked ??
         gone ??
         (b.status === 'no_show' || b.status === 'completed' || started
           ? 'The trip has started'
@@ -416,7 +461,8 @@ export function deskActions(b, { started, owed, tripDay }) {
     ),
     // Another date of the same tour (16d-2).
     move: why(
-      notBooked ??
+      viaOta ??
+        notBooked ??
         gone ??
         (b.status === 'no_show' || b.status === 'completed' || started
           ? 'The trip has started'
@@ -447,6 +493,12 @@ export function deskActions(b, { started, owed, tripDay }) {
     ),
     release: why(held ? null : 'Only while seats are held'),
   };
+  // Not offered at all for an OTA's booking (designs: "so it's not offered here").
+  if (ota) {
+    Object.assign(actions.changeTravellers, { hidden: true });
+    Object.assign(actions.move, { hidden: true });
+  }
+  return actions;
 }
 
 /**
@@ -468,7 +520,12 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
       cashReports: { orderBy: { createdAt: 'asc' }, include: { reportedBy: true } },
       notifications: { where: { audience: 'guest' }, orderBy: { createdAt: 'asc' } },
       events: { orderBy: { createdAt: 'asc' } },
-      channelBooking: { include: { channel: { select: { name: true } } } },
+      channelBooking: {
+        include: {
+          channel: { select: { name: true } },
+          allocations: { include: { payment: true } },
+        },
+      },
     },
   });
   if (!b) throw new BookingError('NOT_FOUND', 'Booking not found.');
@@ -555,6 +612,48 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
       tone: r.status === 'failed' ? 'urgent' : 'ink',
     })),
   ];
+  // An OTA's booking (designs: "Price · guest paid Sojourna", "Sojourna's 20%", "Sojourna owes
+  // Ìrìn"): what the guest paid the OTA, its share, what it still owes for this booking (less
+  // refunds and what its payments paid off).
+  if (ota && b.status !== 'held') {
+    const cb = /** @type {any} */ (b.channelBooking);
+    const paidToOta = b.payments.filter((p) => p.provider === 'ota');
+    const kept = paidToOta.reduce((n, p) => n + p.amountKobo - p.refundedKobo, 0);
+    const owedByOta = owedFor({ ...cb, booking: { payments: b.payments, refunds: b.refunds } });
+    money.splice(
+      0,
+      money.length,
+      {
+        label: `Price · guest paid ${ota.name}`,
+        value: formatNaira(paidToOta.reduce((n, p) => n + p.amountKobo, 0) || b.totalKobo),
+        tone: 'ink',
+      },
+      ...b.refunds
+        .filter((r) => r.provider === 'ota')
+        .map((r) => ({
+          label: `Refunded to the guest by ${ota.name} · ${shortDay(r.processedAt ?? r.createdAt, tz)}`,
+          value: `− ${formatNaira(r.amountKobo)}`,
+          tone: 'ink',
+        })),
+      {
+        label: `${ota.name}’s ${ota.bp / 100}%`,
+        value: `− ${formatNaira(percentOf(kept, ota.bp))}`,
+        tone: 'muted',
+      },
+      ...cb.allocations.map((/** @type {any} */ a) => ({
+        label: `${ota.name} paid it · ${dateWords(a.payment.receivedOn.toISOString().slice(0, 10))}`,
+        value: `− ${formatNaira(a.amountKobo)}`,
+        tone: 'ok',
+      })),
+    );
+    const business = b.product.operator.name;
+    money.push({
+      label: owedByOta < 0 ? `${business} owes ${ota.name}` : `${ota.name} owes ${business}`,
+      value: formatNaira(Math.abs(owedByOta)),
+      tone: owedByOta > 0 ? 'warning' : 'ink',
+      total: true,
+    });
+  }
   const bottom =
     b.status === 'held'
       ? { label: 'To pay at checkout', value: formatNaira(owed), tone: 'ink' }
@@ -672,7 +771,40 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
   /** @type {any} */
   let cancel = null;
   let actNote = '';
-  if (actions.cancel.enabled) {
+  if (actions.cancel.enabled && ota) {
+    // An OTA's booking (designs): cancelling here is the business calling it off, so the
+    // guest gets everything back, from the OTA, which then owes nothing for it. Nothing to
+    // choose; the OTA hears through OCTO (its BOOKING_UPDATE notification).
+    const cb = /** @type {any} */ (b.channelBooking);
+    const paidOff = cb.allocations.reduce(
+      (/** @type {number} */ n, /** @type {any} */ a) => n + a.amountKobo,
+      0,
+    );
+    const business = b.product.operator.name;
+    cancel = {
+      paidKobo: b.amountPaidKobo,
+      policyKobo: b.amountPaidKobo,
+      policyText: `${formatNaira(b.amountPaidKobo)} back to ${firstName(b.leadName)}, from ${ota.name} (you’re calling it off, so everything goes back)`,
+      maxKobo: b.amountPaidKobo,
+      initiatedBy: 'operator',
+      fixed: true,
+      doneNote: `Cancelled. ${ota.name} refunds ${firstName(b.leadName)} ${formatNaira(b.amountPaidKobo)} and is told through OCTO.`,
+      title: `Cancel ${b.reference} · ${b.leadName}`,
+      sub: [
+        `${shortOf(b.product)}, ${dayOf(b.departure.startsAt, tz)} ${localTime(b.departure.startsAt, tz)}`,
+        `paid ${formatNaira(b.amountPaidKobo)} to ${ota.name}`,
+        tripIn(b.departure.startsAt, now),
+      ].join(' · '),
+    };
+    actNote = [
+      `Cancelling here (e.g. weather) tells ${ota.name} through OCTO; ${ota.name} refunds ${firstName(b.leadName)} and ${
+        paidOff > 0
+          ? `${business} owes ${ota.name} back the ${formatNaira(paidOff)} it already paid for it.`
+          : `owes ${business} ₦0 for it.`
+      }`,
+      `Changing travellers on an OTA booking goes through ${ota.name}, so it’s not offered here.`,
+    ].join(' ');
+  } else if (actions.cancel.enabled) {
     const q = /** @type {any} */ (
       await previewCancellation(prisma, { operatorId, bookingId: b.id, initiatedBy: 'guest', now })
     );
@@ -682,6 +814,9 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
       policyKobo: q.refundKobo,
       policyText: `${formatNaira(q.refundKobo)} ${words}`,
       maxKobo: b.amountPaidKobo,
+      initiatedBy: 'guest',
+      fixed: false,
+      doneNote: null,
       title: `Cancel ${b.reference} · ${b.leadName}`,
       sub: [
         `${shortOf(b.product)}, ${dayOf(b.departure.startsAt, tz)} ${localTime(b.departure.startsAt, tz)}`,
@@ -711,7 +846,9 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
     holdId: b.holdId,
     refLine: [
       b.reference,
-      ota ? ota.name.toUpperCase() : (CHANNEL[b.channel] ?? b.channel.toUpperCase()),
+      ota
+        ? `VIA ${ota.name.toUpperCase()}${b.channelBooking?.resellerReference ? ` (${b.channelBooking.resellerReference})` : ''}`
+        : (CHANNEL[b.channel] ?? b.channel.toUpperCase()),
       b.status === 'held'
         ? `STARTED ${localTime(b.createdAt, tz)}`
         : `BOOKED ${dayOf(b.createdAt, tz).toUpperCase()}`,
@@ -729,7 +866,7 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
       .join(' · '),
     chip: { ...chip, expiresAt: chip.expiresAt?.toISOString() ?? null },
     banner,
-    money: [...money, { ...bottom, total: true }],
+    money: ota && b.status !== 'held' ? money : [...money, { ...bottom, total: true }],
     travellers: b.travellers.map((t, i) => {
       const cat = cats.get(t.categoryKey);
       const kind = (cat?.name ?? t.categoryKey).replace(/\s*\(.*\)\s*$/, '');
@@ -754,12 +891,26 @@ export async function deskBooking(prisma, { operatorId, bookingId, now = new Dat
     checkedInBy: checkers.length
       ? `Checked in by ${checkers.map((id) => firstName(names.get(/** @type {string} */ (id)) ?? 'the guide')).join(' and ')}`
       : null,
-    messages: b.notifications.map((n) => ({
-      id: n.id,
-      date: shortDay(n.sentAt ?? n.createdAt, tz),
-      what: messageName(n),
-      ...deliveryOf(n, chats),
-    })),
+    messages: [
+      // An OTA's booking (designs): the confirmation is the OTA's to send.
+      ...(ota && b.channelBooking?.confirmedAt
+        ? [
+            {
+              id: 'ota-confirmation',
+              date: shortDay(b.channelBooking.confirmedAt, tz),
+              what: MESSAGES.booking_confirmed.name,
+              text: `Not sent: ${ota.name} sends its own`,
+              tone: 'muted',
+            },
+          ]
+        : []),
+      ...b.notifications.map((n) => ({
+        id: n.id,
+        date: shortDay(n.sentAt ?? n.createdAt, tz),
+        what: messageName(n),
+        ...deliveryOf(n, chats),
+      })),
+    ],
     timeline: b.events.map(
       (e) => `${stamp(e.createdAt, tz)} · ${eventText(e, names, { channelName: ota?.name })}`,
     ),

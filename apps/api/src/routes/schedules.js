@@ -296,6 +296,8 @@ export function schedulesRouter({ prisma, provider }) {
             operatorId,
             departureId: req.params.id,
             status: 'cancelled',
+            // (An OTA's booking isn't here: its refund was settled with the OTA as it was
+            // cancelled, so it's "refunded" already: 17c-3.)
             refundDueKobo: { gt: 0 },
           },
           select: { id: true, refundDueKobo: true },

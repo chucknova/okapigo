@@ -85,6 +85,15 @@ const MIDDLE = {
     button: { label: 'Open your trip page', url: v.trip_url },
     notes: [`Moved from ${v.from_date}. Your QR ticket stays the same.`],
   }),
+  // A travel website's guest (17c-3): the trip page, from the business that runs the trip.
+  trip_link: (v) => ({
+    eyebrow: 'Your trip page',
+    colour: C.success,
+    headline: `See you on ${v.date}, ${v.first_name}!`,
+    money: null,
+    button: { label: 'Open your trip page', url: v.trip_url },
+    notes: [`Booked through ${v.booked_through}: changes and cancellations go through them.`],
+  }),
   // A staff member's message (16d-1): their words in the body, the trip page to hand.
   staff_message: (v) => ({
     eyebrow: 'A message for you',

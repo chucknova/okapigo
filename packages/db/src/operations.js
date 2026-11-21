@@ -200,6 +200,8 @@ export async function manifest(prisma, { operatorId, departureId }) {
           policyVersion: true,
           // Cash a guide reported, not yet confirmed by the office (15c-4).
           cashReports: { where: { status: { in: ['reported', 'possible_double'] } } },
+          // Sold by an OTA (17c-3): "via Sojourna" on the guide's manifest.
+          channelBooking: { select: { channel: { select: { name: true } } } },
           events: {
             where: { toStatus: { in: ['cancelled', 'no_show'] } },
             orderBy: { createdAt: 'desc' },
@@ -257,6 +259,8 @@ export async function manifest(prisma, { operatorId, departureId }) {
       reference: b.reference,
       status: b.status,
       channel: b.channel,
+      // The OTA it came through, if any: the guide sees "via Sojourna", the money is the office's.
+      otaName: b.channelBooking?.channel.name ?? null,
       lead: { name: b.leadName, phone: b.leadPhone, email: b.leadEmail },
       pickupPoint: b.pickupPoint,
       addOns: b.addOns.map((a) => ({ name: a.addOn.name, quantity: a.quantity })),

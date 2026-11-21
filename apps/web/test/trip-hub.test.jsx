@@ -176,6 +176,19 @@ describe('before the trip', () => {
     );
   });
 
+  it('booked through a travel website (17c-3): change or cancel there, the policy still shown', async () => {
+    clock('2026-11-17 10:00');
+    fakeApi([200, { booking: trip({ bookedThrough: 'Sojourna' }) }]);
+    renderHub();
+    expect(await screen.findByText('See you on Sat 5 Dec!')).toBeTruthy();
+    expect(
+      screen.getByText(/You booked through Sojourna\. To change or cancel, use your Sojourna/),
+    ).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Change or cancel this booking' })).toBeNull();
+    expect(screen.queryByText(/If you cancel now/)).toBeNull();
+    expect(screen.getByText('Cancellation policy')).toBeTruthy();
+  });
+
   it('balance due by Sat 28 Nov, then overdue: the Pay button goes to pay the balance', async () => {
     const deposit = trip({
       amountPaidKobo: 1_125_000,

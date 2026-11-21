@@ -27,6 +27,7 @@ import {
   chipText,
   heldLeft,
   listPath,
+  startFrom,
   noMatch,
   noShowLabel,
   resultsLine,
@@ -846,6 +847,193 @@ describe('changing travellers (16c-3)', () => {
       add: [],
       refundKobo: 6_500_000,
       sendLink: true,
+    });
+  });
+});
+
+// --- "via Sojourna" (17c-3) --------------------------------------------------------------
+
+describe('desk.js: an OTA’s bookings (17c-3)', () => {
+  it('the channel in the address; where the list starts; buttons the OTA handles are hidden', () => {
+    expect(listPath('all', '', 'ch-soj')).toBe('/api/desk/bookings?filter=all&channel=ch-soj');
+    expect(listPath('today', '', '')).toBe('/api/desk/bookings?filter=today');
+    expect(startFrom('channel=ch-soj')).toEqual({ channel: 'ch-soj', filter: 'all' });
+    expect(startFrom('')).toEqual({ channel: '', filter: 'today' });
+    const hidden = { enabled: false, why: 'Changes go through Sojourna', hidden: true };
+    expect(
+      actionButtons({
+        ...OWES.actions,
+        paymentLink: off('Sojourna collects payment'),
+        changeTravellers: hidden,
+        move: hidden,
+      }).map((b) => b.label),
+    ).toEqual(['Send payment link', 'Add note', 'Mark no-show', 'Cancel booking']);
+  });
+});
+
+describe('the desk: "via Sojourna" (17c-3)', () => {
+  const OTA_ROW = {
+    id: 'b9',
+    lead: 'Hannah Weber',
+    reference: 'ILT-6WQ3PZ',
+    tour: 'Tarkwa Bay · Sat 12 Dec',
+    phone: null,
+    via: 'via Sojourna',
+    chip: { key: 'paid', text: 'Paid by Sojourna', tone: 'ok', expiresAt: null },
+  };
+  const CHANNELS = [
+    { value: 'web', label: 'Website' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'ch-soj', label: 'Sojourna' },
+    { value: 'staff', label: 'Staff' },
+  ];
+  const hidden = { enabled: false, why: 'Changes go through Sojourna', hidden: true };
+  const OTA = {
+    ...OWES,
+    id: 'b9',
+    reference: 'ILT-6WQ3PZ',
+    status: 'paid',
+    refLine: 'ILT-6WQ3PZ · VIA SOJOURNA (SJ-48213) · BOOKED SAT 21 NOV',
+    lead: 'Hannah Weber',
+    chip: { key: 'paid', text: 'Paid by Sojourna', tone: 'ok', expiresAt: null },
+    banner: null,
+    money: [
+      { label: 'Price · guest paid Sojourna', value: '₦102,000', tone: 'ink' },
+      { label: 'Sojourna’s 20%', value: '− ₦20,400', tone: 'muted' },
+      { label: 'Sojourna owes Ìrìn Lagos Tours', value: '₦81,600', tone: 'warning', total: true },
+    ],
+    messages: [
+      {
+        id: 'ota-confirmation',
+        date: '21 Nov',
+        what: 'Booking confirmation',
+        text: 'Not sent: Sojourna sends its own',
+        tone: 'muted',
+      },
+      { id: 'n9', date: '21 Nov', what: 'Trip page link', text: 'Email · delivered', tone: 'ink' },
+    ],
+    actions: {
+      ...OWES.actions,
+      paymentLink: off('Sojourna collects payment'),
+      changeTravellers: hidden,
+      move: hidden,
+    },
+    cancel: {
+      paidKobo: 10_200_000,
+      policyKobo: 10_200_000,
+      policyText:
+        '₦102,000 back to Hannah, from Sojourna (you’re calling it off, so everything goes back)',
+      maxKobo: 10_200_000,
+      initiatedBy: 'operator',
+      fixed: true,
+      doneNote: 'Cancelled. Sojourna refunds Hannah ₦102,000 and is told through OCTO.',
+      title: 'Cancel ILT-6WQ3PZ · Hannah Weber',
+      sub: 'Tarkwa Bay, Sat 12 Dec 10:00 · paid ₦102,000 to Sojourna · trip is in 21 days',
+    },
+    actNote:
+      'Cancelling here (e.g. weather) tells Sojourna through OCTO; Sojourna refunds Hannah and owes Ìrìn Lagos Tours ₦0 for it. Changing travellers on an OTA booking goes through Sojourna, so it’s not offered here.',
+  };
+
+  it('the tag on its row; the channel filter asks for one channel', async () => {
+    const sent = fakeFetch({
+      'GET /api/desk/bookings?filter=today': () => [
+        200,
+        { list: list({ rows: [...ROWS, OTA_ROW], channels: CHANNELS }) },
+      ],
+      'GET /api/desk/bookings?filter=today&channel=ch-soj': () => [
+        200,
+        { list: list({ rows: [OTA_ROW], channels: CHANNELS, channel: 'ch-soj' }) },
+      ],
+    });
+    await show('/bookings');
+    const row = await screen.findByRole('link', { name: /Hannah Weber/ });
+    expect(row.textContent).toContain('via Sojourna');
+    expect(row.textContent).toContain('Paid by Sojourna');
+    // Website and WhatsApp bookings carry no tag.
+    expect(screen.getByRole('link', { name: /Funmi Adeyemi/ }).textContent).not.toContain('via');
+    const pick = /** @type {HTMLSelectElement} */ (
+      screen.getByRole('combobox', { name: 'Channel' })
+    );
+    expect([...pick.options].map((o) => o.textContent)).toEqual([
+      'Channel: all',
+      'Channel: Website',
+      'Channel: WhatsApp',
+      'Channel: Sojourna',
+      'Channel: Staff',
+    ]);
+    fireEvent.change(pick, { target: { value: 'ch-soj' } });
+    await screen.findByRole('link', { name: /Hannah Weber/ });
+    expect(sent.some((x) => x.path === '/api/desk/bookings?filter=today&channel=ch-soj')).toBe(
+      true,
+    );
+  });
+
+  it('“All in Bookings ›” from Settings › Channels: that channel’s bookings, all of them', async () => {
+    const sent = fakeFetch({
+      'GET /api/desk/bookings?filter=all&channel=ch-soj': () => [
+        200,
+        { list: list({ filter: 'all', rows: [OTA_ROW], channels: CHANNELS, channel: 'ch-soj' }) },
+      ],
+    });
+    const engine = createSyncEngine({
+      request,
+      store: createMemoryStore({
+        session: { token: 'tok', user: ME.user, contact: 'x' },
+        meta: { firstRunDone: true },
+        me: ME,
+      }),
+    });
+    await engine.load();
+    const { hook, searchHook } = memoryLocation({ path: '/bookings?channel=ch-soj' });
+    render(
+      <EngineContext.Provider value={engine}>
+        <Router hook={hook} searchHook={searchHook}>
+          <App base="" />
+        </Router>
+      </EngineContext.Provider>,
+    );
+    await screen.findByRole('link', { name: /Hannah Weber/ });
+    expect(sent[0]?.path ?? '').toBe('/api/desk/bookings?filter=all&channel=ch-soj');
+    expect(
+      /** @type {HTMLSelectElement} */ (screen.getByRole('combobox', { name: 'Channel' })).value,
+    ).toBe('ch-soj');
+  });
+
+  it('its page: the money and messages as designed; no payment link, no changing who; cancelling, fixed', async () => {
+    const sent = fakeFetch({
+      'GET /api/desk/bookings?filter=today': () => [200, { list: list() }],
+      'GET /api/desk/bookings/b9': () => [200, { booking: OTA }],
+      'POST /api/bookings/b9/cancel': () => [
+        200,
+        { refund: { refundKobo: 10_200_000, settledWithOta: true }, refundStart: null },
+      ],
+    });
+    await show('/bookings/b9');
+    expect(
+      await screen.findByText('ILT-6WQ3PZ · VIA SOJOURNA (SJ-48213) · BOOKED SAT 21 NOV'),
+    ).toBeTruthy();
+    expect(screen.getByText('Price · guest paid Sojourna')).toBeTruthy();
+    expect(screen.getByText('Sojourna owes Ìrìn Lagos Tours')).toBeTruthy();
+    expect(screen.getByText('Not sent: Sojourna sends its own')).toBeTruthy();
+    const link = screen.getByRole('button', { name: 'Send payment link' });
+    expect(link).toHaveProperty('disabled', true);
+    expect(screen.getByText('Sojourna collects payment')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Change travellers' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Move to another date' })).toBeNull();
+    expect(screen.getByText(OTA.actNote)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel booking' }));
+    const sheet = within(
+      screen.getByRole('alertdialog', { name: 'Cancel ILT-6WQ3PZ · Hannah Weber' }),
+    );
+    expect(sheet.queryAllByRole('radio')).toEqual([]); // nothing to choose
+    expect(sheet.getByText(/₦102,000 back to Hannah, from Sojourna/)).toBeTruthy();
+    fireEvent.click(sheet.getByRole('button', { name: 'Cancel and refund ₦102,000' }));
+    expect((await screen.findByRole('status')).textContent).toBe(OTA.cancel.doneNote);
+    expect(sent.find((x) => x.method === 'POST')?.body).toEqual({
+      initiatedBy: 'operator',
+      reason: 'Cancelled by the office',
+      startRefund: true,
     });
   });
 });

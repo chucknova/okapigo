@@ -190,6 +190,53 @@ describe('the confirmation email (your layout)', () => {
   });
 });
 
+describe('a travel website’s guest (17c-3)', () => {
+  it('the trip page link: from the business, by email only; the confirmation is the website’s', async () => {
+    const { operator } = await seedOperator();
+    const tarkwa = await ctx.prisma.product.findFirstOrThrow({
+      where: { operatorId: operator.id, slug: 'tarkwa-bay-beach-and-lagoon' },
+    });
+    const d = await ctx.prisma.departure.findFirstOrThrow({
+      where: { productId: tarkwa.id, startsAt: { gt: new Date(Date.now() + 4 * 86_400_000) } },
+      orderBy: { startsAt: 'asc' },
+    });
+    const octo = (/** @type {string} */ path) =>
+      request(ctx.app).post(path).set('Authorization', `Bearer octo_dev_${operator.slug}`);
+    await octo('/octo/bookings').send({
+      uuid: 'mail-1',
+      productId: tarkwa.id,
+      optionId: 'DEFAULT',
+      availabilityId: d.id,
+      unitItems: [{ unitId: 'adult' }],
+    });
+    const c = await octo('/octo/bookings/mail-1/confirm').send({
+      contact: {
+        fullName: 'Hannah Weber',
+        emailAddress: 'hannah@guest.example',
+        phoneNumber: '+4915123456789',
+      },
+    });
+    expect(c.status, JSON.stringify(c.body)).toBe(200);
+    const fake = fakeMailer();
+    expect(await send(fake.mailer)).toMatchObject({ sent: 1, failed: 0 });
+    const e = fake.sent[0];
+    expect(e.to).toEqual({ name: 'Hannah Weber', email: 'hannah@guest.example' });
+    expect(e.subject).toMatch(
+      /^Your trip page: Tarkwa Bay Beach Day, \w{3} \d{1,2} \w{3} \([A-Z]+-[A-Z0-9]+\)$/,
+    );
+    expect(e.html).toContain('>Your trip page</div>');
+    expect(e.html).toContain('Open your trip page');
+    expect(e.text).toContain(
+      'You booked through Sojourna: changes and cancellations go through them.',
+    );
+    // No WhatsApp, though the guest gave a phone: the trip link goes by email only.
+    const rows = await ctx.prisma.notification.findMany({
+      where: { booking: { channelBooking: { uuid: 'mail-1' } }, audience: 'guest' },
+    });
+    expect(rows.map((n) => [n.kind, n.channel])).toEqual([['trip_link', 'email']]);
+  });
+});
+
 describe('what can go wrong', () => {
   it('what guests and staff type is text, never HTML', async () => {
     const { operator, owner } = await seedOperator();

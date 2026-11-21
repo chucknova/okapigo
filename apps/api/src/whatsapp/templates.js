@@ -20,10 +20,11 @@
 /** @typedef {import('@okapigo/shared/message-templates').Placeholder} Placeholder */
 
 /**
- * The seven guest messages ("Date changed" since 16d-2), and one the inbox sends (16d-1, decided 2026-11-21): "Can we help you
+ * The guest messages ("Date changed" since 16d-2; "Trip page link", 17c-3, goes by email only,
+ * so it has no WhatsApp template to approve), and one the inbox sends (16d-1, decided 2026-11-21): "Can we help you
  * finish booking?", for a guest who last wrote over 24 hours ago. It only ever goes OUTSIDE the
  * window, so it has no editable wording: Meta's approved text is the message.
- * @type {Record<MessageKind | 'chat_followup', { name: string, text: string, params: Placeholder[] }>}
+ * @type {Record<Exclude<MessageKind, 'trip_link'> | 'chat_followup', { name: string, text: string, params: Placeholder[] }>}
  *   text: what Meta approves; params: which placeholder fills {{1}}, {{2}}…, in order
  */
 export const WHATSAPP_TEMPLATES = {
@@ -105,6 +106,7 @@ export const blank = (value) =>
  * @returns {{ name: string, params: string[], text: string }}
  */
 export function fillTemplate(kind, values) {
+  if (kind === 'trip_link') throw new Error('The trip page link goes by email only.');
   const t = WHATSAPP_TEMPLATES[kind];
   const params = t.params.map((p) => blank(values[p] ?? ''));
   const text = t.text.replace(/\{\{(\d+)\}\}/g, (_, n) => params[Number(n) - 1] ?? '');

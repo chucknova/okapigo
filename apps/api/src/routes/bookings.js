@@ -322,7 +322,13 @@ export function bookingsRouter({ prisma, quotes, jobs, provider }) {
       /** @type {{ started: boolean, problem?: string } | null} */
       let refundStart = null;
       const owed = /** @type {any} */ (refund)?.refundKobo ?? 0;
-      if (req.body.startRefund && owed > 0 && provider) {
+      // An OTA's refund was settled with the OTA already (it refunds its own guest: 17c-3).
+      if (
+        req.body.startRefund &&
+        owed > 0 &&
+        provider &&
+        !(/** @type {any} */ (refund)?.settledWithOta)
+      ) {
         try {
           await requestBookingRefund(prisma, provider, {
             operatorId,

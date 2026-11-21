@@ -24,8 +24,14 @@ afterAll(() => ctx.close());
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 30_000 });
 
 describe('the templates follow Meta’s rules', () => {
-  it.each(MESSAGE_KINDS)('%s', (kind) => {
-    const t = WHATSAPP_TEMPLATES[kind];
+  // The trip page link (17c-3) goes by email only: no WhatsApp template to approve.
+  it('the trip page link has none, and asking for one is refused', () => {
+    expect(/** @type {any} */ (WHATSAPP_TEMPLATES).trip_link).toBeUndefined();
+    expect(() => fillTemplate('trip_link', {})).toThrow('email only');
+  });
+
+  it.each(MESSAGE_KINDS.filter((k) => k !== 'trip_link'))('%s', (kind) => {
+    const t = WHATSAPP_TEMPLATES[/** @type {Exclude<typeof kind, 'trip_link'>} */ (kind)];
     expect(t.name).toMatch(/^[a-z0-9_]{1,512}$/);
     expect(t.text).not.toMatch(/^\s*\{\{/); // doesn't start with a blank
     expect(t.text).not.toMatch(/\}\}\s*$/); // nor end with one

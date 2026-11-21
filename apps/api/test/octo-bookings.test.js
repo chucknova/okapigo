@@ -213,7 +213,7 @@ describe('reserve', () => {
 });
 
 describe('confirm', () => {
-  it('the OTA’s guest and payment; the sale in the ledger; no messages from us', async () => {
+  it('the OTA’s guest and payment; the sale in the ledger; from us, only the trip link', async () => {
     const s = await setup();
     const d = await s.departure();
     const held = await s.reserve(d.id, { uuid: 'ota-2' });
@@ -265,10 +265,13 @@ describe('confirm', () => {
       ['OTA_COMMISSION', 1_600_000, 0],
       ['TOUR_SALES', 0, 8_000_000],
     ]);
-    // The OTA tells its guest: nothing from us.
-    expect(
-      await ctx.prisma.notification.count({ where: { bookingId: booking.id, audience: 'guest' } }),
-    ).toBe(0);
+    // The OTA confirms it to its guest; from us, only the trip page, by email (17c-3).
+    const sent = await ctx.prisma.notification.findMany({
+      where: { bookingId: booking.id, audience: 'guest' },
+    });
+    expect(sent.map((n) => [n.kind, n.channel, n.data])).toEqual([
+      ['trip_link', 'email', { channelName: 'Sojourna' }],
+    ]);
 
     // Confirmed again (a retry): the same, nothing doubled.
     const again = await s.api.post('/octo/bookings/ota-2/confirm').send({ contact: s.contact });
@@ -372,10 +375,11 @@ describe('cancel (Ìrìn’s policy, until the start)', () => {
     ]);
     const refund = await ctx.prisma.refund.findFirstOrThrow({ where: { bookingId: booking.id } });
     expect(refund).toMatchObject({ provider: 'ota', status: 'processed', amountKobo: 8_000_000 });
-    // Still nothing sent to the guest by us.
-    expect(
-      await ctx.prisma.notification.count({ where: { bookingId: booking.id, audience: 'guest' } }),
-    ).toBe(0);
+    // The cancellation and the refund are the OTA's to tell: only the trip link came from us.
+    const sent = await ctx.prisma.notification.findMany({
+      where: { bookingId: booking.id, audience: 'guest' },
+    });
+    expect(sent.map((n) => n.kind)).toEqual(['trip_link']);
     // Cancelled again: the same answer.
     expect((await s.api.post('/octo/bookings/ota-5/cancel').send({})).body.status).toBe(
       'CANCELLED',

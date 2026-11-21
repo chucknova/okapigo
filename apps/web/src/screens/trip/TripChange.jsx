@@ -62,7 +62,9 @@ function NotNow(/** @type {{ b: any, token: string }} */ { b, token }) {
         title={
           b.status === 'cancelled' || b.status === 'refunded'
             ? 'Already cancelled'
-            : `Please contact ${op}`
+            : b.bookedThrough
+              ? `Please use ${b.bookedThrough}`
+              : `Please contact ${op}`
         }
         context={contextLine(b)}
         actions={
@@ -73,7 +75,9 @@ function NotNow(/** @type {{ b: any, token: string }} */ { b, token }) {
       >
         {b.status === 'cancelled' || b.status === 'refunded'
           ? 'This booking is already cancelled.'
-          : `On the day of the trip, changes go through ${op}: use Call or WhatsApp on your trip page.`}
+          : b.bookedThrough
+            ? `You booked through ${b.bookedThrough}: change or cancel your booking there.`
+            : `On the day of the trip, changes go through ${op}: use Call or WhatsApp on your trip page.`}
       </StatusPanel>
     </Shell>
   );
@@ -87,7 +91,8 @@ export function ChangeOrCancel({ params }) {
   const { b, frame } = useTrip(token);
   if (!b) return frame;
   const s = tripSituation(b, new Date());
-  if (s.phase !== 'upcoming' || !s.cancelNow) return <NotNow b={b} token={token} />;
+  if (s.phase !== 'upcoming' || !s.cancelNow || b.bookedThrough)
+    return <NotNow b={b} token={token} />;
   const c = s.cancelNow;
   const op = shortName(b.operator.name);
   const amount = formatNaira(c.refundKobo);
@@ -142,7 +147,8 @@ export function CancelBooking({ params }) {
   if (state.step === 'done' && b) return <Cancelled b={b} token={token} state={state} />;
   if (!b) return frame;
   const s = tripSituation(b, new Date());
-  if (s.phase !== 'upcoming' || !s.cancelNow) return <NotNow b={b} token={token} />;
+  if (s.phase !== 'upcoming' || !s.cancelNow || b.bookedThrough)
+    return <NotNow b={b} token={token} />;
 
   const c = s.cancelNow;
   const op = shortName(b.operator.name);

@@ -9,7 +9,7 @@ import {
 } from '../src/message-templates.js';
 
 describe('the defaults (design file 02)', () => {
-  it('seven messages ("Date changed" since 16d-2); each default passes its own checks and uses only known placeholders', () => {
+  it('eight messages ("Date changed" since 16d-2, "Trip page link" since 17c-3); each default passes its own checks and uses only known placeholders', () => {
     expect(MESSAGE_KINDS).toEqual([
       'booking_confirmed',
       'deposit_received',
@@ -18,11 +18,21 @@ describe('the defaults (design file 02)', () => {
       'booking_cancelled',
       'refund_sent',
       'booking_moved',
+      'trip_link',
     ]);
     for (const kind of MESSAGE_KINDS) {
       expect(checkTemplate(kind, MESSAGES[kind]), kind).toEqual([]);
       for (const p of MESSAGES[kind].placeholders) expect(PLACEHOLDERS[p], p).toBeTruthy();
     }
+  });
+
+  it('the trip page link (17c-3): from the business that runs the trip, changes through the website', () => {
+    const t = MESSAGES.trip_link;
+    expect(t.name).toBe('Trip page link');
+    expect(t.required).toEqual(['trip_url']);
+    expect(t.body).toContain('{trip_url}');
+    expect(t.body).toContain('You booked through {booked_through}');
+    expect(PLACEHOLDERS.booked_through).toMatch(/Sojourna/);
   });
 
   it('the confirmation reads as in your design', () => {

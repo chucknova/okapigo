@@ -35,6 +35,7 @@ import {
   planGuestMessage,
   moveOptions,
   moveBooking,
+  BOOKING_CHANNELS,
   DESK_FILTERS,
 } from '@okapigo/db';
 import { zonedTimeToUtc } from '@okapigo/shared/time';
@@ -45,6 +46,8 @@ import { toHttp } from './bookings.js';
 const ListQuery = z.object({
   filter: z.enum(DESK_FILTERS).default('today'),
   q: z.string().trim().max(100).default(''),
+  // Where it came from (17c-3): our own channels, or one OTA (its id).
+  channel: z.union([z.literal(''), z.enum(BOOKING_CHANNELS), z.uuid()]).default(''),
 });
 const ConfirmCashBody = z.object({
   // What was really handed in, if not what the guide reported.
@@ -107,9 +110,9 @@ export function deskRouter({ prisma, provider, webPublicUrl = '' }) {
     requirePermission('bookings', 'edit'),
     validate({ query: ListQuery }),
     async (req, res) => {
-      const { filter, q } = /** @type {any} */ (req.query);
+      const { filter, q, channel } = /** @type {any} */ (req.query);
       fresh(res).json({
-        list: await deskList(prisma, { operatorId: authOf(req).operatorId, filter, q }),
+        list: await deskList(prisma, { operatorId: authOf(req).operatorId, filter, q, channel }),
       });
     },
   );

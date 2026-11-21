@@ -100,6 +100,14 @@ describe('mark the rest no-show', () => {
     expect(manifestView(m(), { now: after, tz: TZ }).bookings[0].notes).toEqual([]);
   });
 
+  it('an OTA’s booking (17c-3): "via Sojourna" beside "Paid"; the money is the office’s', () => {
+    const d = m();
+    d.bookings[0] = { ...d.bookings[0], otaName: 'Sojourna' };
+    const v = manifestView(d, { now: after, tz: TZ });
+    expect(v.bookings[0]).toMatchObject({ via: 'via Sojourna', otaTag: 'via Sojourna' });
+    expect(manifestView(m(), { now: after, tz: TZ }).bookings[0].otaTag).toBeNull();
+  });
+
   it('the question, with the policy and the balance', () => {
     const v = manifestView(m(), { now: after, tz: TZ });
     const b = { ...v.bookings[0], noShowRefundPercent: 0, owesKobo: 4_550_000 };

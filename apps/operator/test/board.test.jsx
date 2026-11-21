@@ -125,6 +125,8 @@ const DEPARTURE = {
       lead: 'Ada Nwosu',
       people: '2 adults',
       extras: 'Vegetarian',
+      channel: 'Website',
+      via: null,
       pay: 'Paid',
       payTone: 'paid',
     },
@@ -133,15 +135,24 @@ const DEPARTURE = {
       lead: 'Kola Ade',
       people: '1 adult',
       extras: '',
+      channel: 'Sojourna',
+      via: 'via Sojourna',
       pay: 'Owes ₦9,000',
       payTone: 'owes',
     },
   ],
+  channelsLine: '2 website · 1 via Sojourna · 2 seats left everywhere',
   extrasLine: null,
   notes: '',
   guide: null,
   resource: { id: 'r1', name: 'Boat 1', seats: 12 },
-  cancel: { bookings: 2, guests: 3, refundKobo: 4500000, refundText: '₦45,000' },
+  cancel: {
+    bookings: 2,
+    guests: 3,
+    refundKobo: 4500000,
+    refundText: '₦45,000',
+    toldLine: 'Guests told by WhatsApp and email; Sojourna tells its guests',
+  },
 };
 
 const OPTIONS = {
@@ -375,6 +386,10 @@ describe('a departure', () => {
     expect(await screen.findByRole('heading', { name: 'Tarkwa Bay Beach Day' })).toBeTruthy();
     expect(screen.getByText('boat seats')).toBeTruthy();
     expect(screen.getByText('Owes ₦9,000')).toBeTruthy();
+    // Where each came from (17c-3): one stock of seats, a channel per booking.
+    expect(screen.getByText('2 website · 1 via Sojourna · 2 seats left everywhere')).toBeTruthy();
+    expect(screen.getByRole('cell', { name: 'Sojourna' })).toBeTruthy();
+    expect(screen.getByRole('cell', { name: 'Website' })).toBeTruthy();
     const guide = await screen.findByRole('group', { name: /Guide/ });
     expect(within(guide).getByRole('radio', { name: /Femi Ogunleye/ })).toHaveProperty(
       'disabled',
@@ -387,7 +402,9 @@ describe('a departure', () => {
     expect(within(boat).getByRole('radio', { name: /Boat 2/ })).toHaveProperty('disabled', true);
     expect(within(boat).getByRole('radio', { name: /Van 1/ })).toHaveProperty('disabled', true);
     expect(
-      screen.getByText('2 bookings refunded in full (₦45,000) and told by WhatsApp and email.'),
+      screen.getByText(
+        '2 bookings refunded in full (₦45,000). Guests told by WhatsApp and email; Sojourna tells its guests.',
+      ),
     ).toBeTruthy();
   });
 

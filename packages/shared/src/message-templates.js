@@ -11,7 +11,7 @@
  * Pure: no database, so the API, the preview and the tests all use exactly the same rules.
  */
 
-/** @typedef {'booking_confirmed' | 'deposit_received' | 'balance_reminder' | 'payment_link' | 'booking_cancelled' | 'refund_sent' | 'booking_moved'} MessageKind */
+/** @typedef {'booking_confirmed' | 'deposit_received' | 'balance_reminder' | 'payment_link' | 'booking_cancelled' | 'refund_sent' | 'booking_moved' | 'trip_link'} MessageKind */
 
 /** Every placeholder, and what it becomes ("Sat 5 Dec"). */
 export const PLACEHOLDERS = /** @type {const} */ ({
@@ -37,6 +37,7 @@ export const PLACEHOLDERS = /** @type {const} */ ({
     'The refund, worked out by the policy: “Refund: ₦31,250 (50%, cancelled 30 hours before).…”',
   refund: 'The refund sent: “₦31,250”',
   from_date: 'The day a moved booking was on before: “Sat 5 Dec”',
+  booked_through: 'The travel website the guest booked on: “Sojourna”',
 });
 
 /** @typedef {keyof typeof PLACEHOLDERS} Placeholder */
@@ -52,7 +53,8 @@ const COMMON = /** @type {Placeholder[]} */ ([
 ]);
 
 /**
- * The seven messages (the seventh, "Date changed", since 16d-2): when each goes, what it may say, what it MUST say (the brief's "must
+ * The eight messages ("Date changed" since 16d-2; "Trip page link", for a travel website's
+ * guests, since 17c-3): when each goes, what it may say, what it MUST say (the brief's "must
  * include", so an edit can't drop the link or the amount), and your default wording.
  * @type {Record<MessageKind, {
  *   name: string, when: string,
@@ -118,6 +120,16 @@ export const MESSAGES = {
     required: ['date', 'time', 'trip_url'],
     subject: 'New date: {tour_short}, {date} ({reference})',
     body: 'Hi {first_name}, your booking {reference} has moved.\n\n{tour}\nNow on {date}, {time} (was {from_date})\nMeet at {meeting_point}\n\nYour ticket and trip page have the new date:\n{trip_url}',
+  },
+  // A travel website's guest (17c-3, decided 2026-11-21): the website sends its own confirmation
+  // and handles the money; the business sends the trip page, by email (OCTO always gives one).
+  trip_link: {
+    name: 'Trip page link',
+    when: 'when a travel website (an OTA) sells a booking: it sends its own confirmation',
+    placeholders: [...COMMON, 'meeting_point', 'travellers', 'trip_url', 'booked_through'],
+    required: ['trip_url'],
+    subject: 'Your trip page: {tour_short}, {date} ({reference})',
+    body: 'Hi {first_name}, this is {operator}: we run your {tour} on {date}, {time}.\n\nMeet at {meeting_point}\n{travellers} · Ref {reference}\n\nYour ticket, the map and what to bring:\n{trip_url}\n\nYou booked through {booked_through}: changes and cancellations go through them.',
   },
 };
 

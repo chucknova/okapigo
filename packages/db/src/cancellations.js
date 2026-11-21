@@ -23,6 +23,7 @@ import { releaseHoldInTx } from './holds.js';
 import { findOwnBooking } from './bookings.js';
 import { postTransaction } from './ledger.js';
 import { POSTINGS } from '@okapigo/shared/ledger';
+import { processRefundInTx } from './refunds.js';
 
 const TX_OPTIONS = { maxWait: 15_000, timeout: 15_000 };
 
@@ -123,8 +124,46 @@ async function refundFor(tx, booking, { kind, initiatedBy, refundOverrideKobo, n
 }
 
 /**
+ * An OTA's booking (17b; every path since 17c-3): the OTA took the guest's money and refunds
+ * its own guest, so a refund is SETTLED with the OTA at once, against what it owes us. Never a
+ * "Refund to send" in the office, and never a card refund. Returns whether it settled one.
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ * @param {{ id: string, operatorId: string, channel: string }} booking
+ * @param {number} refundKobo @param {string} why  "cancel", "no-show" (the refund's own key)
+ * @param {Date} now
+ */
+export async function settleOtaRefundInTx(tx, booking, refundKobo, why, now) {
+  if (booking.channel !== 'ota' || refundKobo <= 0) return false;
+  const cb = await tx.channelBooking.findUniqueOrThrow({
+    where: { bookingId: booking.id },
+    include: { channel: { select: { name: true } } },
+  });
+  const payment = await tx.payment.findFirstOrThrow({
+    where: { bookingId: booking.id, provider: 'ota', status: 'succeeded' },
+  });
+  await tx.payment.update({
+    where: { id: payment.id },
+    data: { refundedKobo: { increment: refundKobo } },
+  });
+  const r = await tx.refund.create({
+    data: {
+      operatorId: booking.operatorId,
+      bookingId: booking.id,
+      paymentId: payment.id,
+      provider: 'ota',
+      providerRefundId: `${cb.id}:${why}`,
+      amountKobo: refundKobo,
+      reason: `Refunded to the guest by ${cb.channel.name}`,
+    },
+  });
+  await processRefundInTx(tx, r.id, { processedAt: now });
+  return true;
+}
+
+/**
  * Cancels one booking inside the caller's transaction (exported for OCTO, 17b: an OTA's
- * cancellation and the refund it settles happen together).
+ * cancellation and the refund it settles happen together). An OTA's refund is settled with
+ * the OTA here, whoever cancelled (`settledWithOta`).
  * @param {import('@prisma/client').Prisma.TransactionClient} tx
  * @param {import('@prisma/client').Booking} booking
  * @param {CancelOptions & { actor: Actor, now: Date }} opts
@@ -180,7 +219,8 @@ export async function cancelBookingInTx(
     actor,
     data: { reason, initiatedBy, refund },
   });
-  return refund;
+  const settledWithOta = await settleOtaRefundInTx(tx, booking, refund.refundKobo, 'cancel', now);
+  return { ...refund, settledWithOta };
 }
 
 /**
@@ -246,6 +286,7 @@ export async function markNoShowInTx(tx, { operatorId, bookingId, actor, now }) 
       data: { refundDueKobo: refund.refundKobo },
     });
     await postRefundOwed(tx, booking, refund.refundKobo, 'no-show', actor);
+    await settleOtaRefundInTx(tx, booking, refund.refundKobo, 'no-show', now);
   }
   return refund;
 }

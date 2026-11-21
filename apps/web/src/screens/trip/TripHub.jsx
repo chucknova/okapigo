@@ -753,6 +753,28 @@ function ChangeOrCancel({ b, s, op, token, offline }) {
       : c.refundKobo > 0
         ? `${c.basisPoints / 100}% back${until ? ` until ${until}` : ''}`
         : null;
+  // Booked through a travel website (17c-3): it took the money, so changes go through it.
+  if (b.bookedThrough) {
+    return (
+      <section className="okg-card okg-trip__card okg-trip__cancel">
+        <h2 className="okg-trip__h2">Change or cancel</h2>
+        <p>
+          You booked through {b.bookedThrough}. To change or cancel, use your {b.bookedThrough}{' '}
+          booking: {op}’s cancellation policy applies.
+        </p>
+        {policy && (
+          <details className="okg-trip__policy">
+            <summary>Cancellation policy</summary>
+            <ul>
+              {policy.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </section>
+    );
+  }
   return (
     <section className="okg-card okg-trip__card okg-trip__cancel">
       <h2 className="okg-trip__h2">Change or cancel</h2>

@@ -139,6 +139,32 @@ describe('1 · Change or cancel', () => {
   });
 });
 
+describe('booked through a travel website (17c-3)', () => {
+  it('no cancelling here: use the website', async () => {
+    vi.setSystemTime(at('2026-11-17 10:00'));
+    const calls = fakeApi({
+      [`/public/bookings/${T}`]: () => [200, { booking: trip({ bookedThrough: 'Sojourna' }) }],
+    });
+    renderAt(`/trip/${T}/cancel`);
+    expect(await screen.findByText('Please use Sojourna')).toBeTruthy();
+    expect(
+      screen.getByText('You booked through Sojourna: change or cancel your booking there.'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Cancel/ })).toBeNull();
+    expect(calls.every((c) => c.method === 'GET')).toBe(true);
+  });
+
+  it('“Change or cancel”: the same, use the website', async () => {
+    vi.setSystemTime(at('2026-11-17 10:00'));
+    fakeApi({
+      [`/public/bookings/${T}`]: () => [200, { booking: trip({ bookedThrough: 'Sojourna' }) }],
+    });
+    renderAt(`/trip/${T}/change`);
+    expect(await screen.findByText('Please use Sojourna')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Cancel/ })).toBeNull();
+  });
+});
+
 describe('2–3 · Cancel yourself', () => {
   it('shows the refund first, sends the amount shown, once, and says it’s on its way', async () => {
     let release;

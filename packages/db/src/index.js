@@ -96,7 +96,7 @@ export {
 } from './operations.js';
 export { seatsOf, seatsLeft } from './seats.js';
 export { managerToday } from './today.js';
-export { weekSchedule, departureOverview, assignmentOptions, mondayOf } from './board.js';
+export { weekSchedule, departureOverview, assignmentOptions, mondayOf, toldLine } from './board.js';
 export {
   offlinePackage,
   applyChanges,

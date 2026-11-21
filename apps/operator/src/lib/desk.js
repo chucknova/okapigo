@@ -19,11 +19,24 @@ export const FILTERS = /** @type {const} */ ([
   { key: 'all', label: 'All' },
 ]);
 
-/** The list's address. @param {string} filter @param {string} q */
-export function listPath(filter, q) {
+/**
+ * The list's address. @param {string} filter @param {string} q
+ * @param {string} [channel]  '' (all), 'web', 'whatsapp', 'staff', or an OTA's id (17c-3)
+ */
+export function listPath(filter, q, channel = '') {
   const params = new URLSearchParams({ filter });
   if (q.trim()) params.set('q', q.trim());
+  if (channel) params.set('channel', channel);
   return `/api/desk/bookings?${params}`;
+}
+
+/**
+ * Where the list starts: "/bookings?channel=…" (Settings › Channels' "All in Bookings ›")
+ * opens that channel's bookings, all of them. @param {string} search  "channel=…"
+ */
+export function startFrom(search) {
+  const channel = new URLSearchParams(search).get('channel') ?? '';
+  return { channel, filter: channel ? 'all' : 'today' };
 }
 
 /** "12:40" left on a hold; "0:00" once it's up. @param {string | null | undefined} expiresAt @param {number} now */
@@ -63,7 +76,8 @@ export function noMatch(filter, q) {
 /**
  * The buttons under a booking, in the designs' order (all built, 16c-3: `built` stays so a
  * future action can arrive switched off).
- * @param {Record<string, { enabled: boolean, why: string }>} a
+ * An OTA's booking hides what goes through the OTA (17c-3: `hidden`).
+ * @param {Record<string, { enabled: boolean, why: string, hidden?: boolean }>} a
  */
 export function actionButtons(a) {
   return [
@@ -73,7 +87,7 @@ export function actionButtons(a) {
     { key: 'addNote', label: 'Add note', built: true, ...a.addNote },
     { key: 'noShow', label: 'Mark no-show', built: true, ...a.noShow },
     { key: 'cancel', label: 'Cancel booking', built: true, danger: true, ...a.cancel },
-  ].filter((b) => b.built);
+  ].filter((b) => b.built && !b.hidden);
 }
 
 /**

@@ -14,7 +14,7 @@
  * lib/desk.js; changes go straight to the server (lib/office.js).
  */
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'wouter';
+import { Link, useParams, useSearch } from 'wouter';
 import { LiveFrame } from '../components/LiveFrame.jsx';
 import { Sheet } from '../components/Sheet.jsx';
 import { MoveSheet } from '../components/MoveSheet.jsx';
@@ -42,6 +42,7 @@ import {
   chipText,
   heldLeft,
   listPath,
+  startFrom,
   noMatch,
   noShowLabel,
   resultsLine,
@@ -61,10 +62,14 @@ export function Bookings() {
   const { id } = useParams();
   const s = useSync();
   const tz = s.me?.operator?.timeZone ?? 'Africa/Lagos';
-  const [filter, setFilter] = useState('today');
+  const search = useSearch();
+  const [filter, setFilter] = useState(() => startFrom(search).filter);
+  const [channel, setChannel] = useState(() => startFrom(search).channel);
   const [typed, setTyped] = useState('');
   const q = useSettled(typed);
-  const list = useLive(listPath(filter, q));
+  const list = useLive(listPath(filter, q, channel));
+  // The channel filter's choices come with the list (Website, WhatsApp, each OTA, Staff).
+  const choices = list.entry.data?.list?.channels ?? [];
   return (
     <main className={`page desk${id ? ' desk--open' : ''}`}>
       <section className="desk-list" aria-label="Bookings">
@@ -92,6 +97,24 @@ export function Bookings() {
                 {f.label}
               </button>
             ))}
+            {/* Designs: "Channel: all ▾" (17c-3). */}
+            <select
+              className={`filter filter--select${channel ? ' is-on' : ''}`}
+              aria-label="Channel"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+            >
+              <option value="">Channel: all</option>
+              {choices.map((/** @type {any} */ c) => (
+                <option key={c.value} value={c.value}>
+                  Channel: {c.label}
+                </option>
+              ))}
+              {/* Asked for by a link before the list has loaded: keep it chosen meanwhile. */}
+              {channel && !choices.some((/** @type {any} */ c) => c.value === channel) && (
+                <option value={channel}>Channel: one OTA</option>
+              )}
+            </select>
           </div>
         </div>
         <LiveFrame live={list} what="Bookings" tz={tz}>
@@ -156,8 +179,9 @@ function DeskRow({ r, open }) {
       </span>
       <span className="small muted">
         {r.reference} · {r.tour}
-        {r.via && ` · ${r.via}`}
       </span>
+      {/* Only an OTA's bookings have a tag, so they stand out (designs: "via Sojourna"). */}
+      {r.via && <span className="via-tag">{r.via}</span>}
       {r.phone && <span className="small muted narrow-only">{r.phone}</span>}
     </Link>
   );
@@ -452,8 +476,10 @@ function BookingPage({ b }) {
           error={error}
           onClose={() => setSheet(null)}
           onCancel={(body, refundKobo) =>
-            change(`/api/bookings/${b.id}/cancel`, { method: 'POST', body }, (r) =>
-              cancelledNote(refundKobo, r.refundStart),
+            change(
+              `/api/bookings/${b.id}/cancel`,
+              { method: 'POST', body },
+              (r) => b.cancel.doneNote ?? cancelledNote(refundKobo, r.refundStart),
             )
           }
         />
@@ -795,7 +821,7 @@ function CancelSheet({ b, error, onClose, onCancel }) {
           setBusy(true);
           await onCancel(
             {
-              initiatedBy: 'guest',
+              initiatedBy: c.initiatedBy ?? 'guest',
               reason: reason.trim() || 'Cancelled by the office',
               ...(which === 'other' ? { refundOverrideKobo: refund } : {}),
               startRefund: true,
@@ -807,29 +833,36 @@ function CancelSheet({ b, error, onClose, onCancel }) {
       >
         <h2 className="h-lg">{c.title}</h2>
         <p className="muted">{c.sub}</p>
-        <fieldset className="stack-sm plain-fieldset">
-          <legend className="strong">Refund</legend>
-          <label className="check-row">
-            <input
-              type="radio"
-              name="refund"
-              checked={which === 'policy'}
-              onChange={() => setWhich('policy')}
-            />
-            Policy: {c.policyText}
-          </label>
-          {c.maxKobo > 0 && (
+        {c.fixed ? (
+          <p>
+            <span className="strong">Refund: </span>
+            {c.policyText}
+          </p>
+        ) : (
+          <fieldset className="stack-sm plain-fieldset">
+            <legend className="strong">Refund</legend>
             <label className="check-row">
               <input
                 type="radio"
                 name="refund"
-                checked={which === 'other'}
-                onChange={() => setWhich('other')}
+                checked={which === 'policy'}
+                onChange={() => setWhich('policy')}
               />
-              Another amount, up to {formatNaira(c.maxKobo)}
+              Policy: {c.policyText}
             </label>
-          )}
-        </fieldset>
+            {c.maxKobo > 0 && (
+              <label className="check-row">
+                <input
+                  type="radio"
+                  name="refund"
+                  checked={which === 'other'}
+                  onChange={() => setWhich('other')}
+                />
+                Another amount, up to {formatNaira(c.maxKobo)}
+              </label>
+            )}
+          </fieldset>
+        )}
         {which === 'other' && (
           <>
             <label className="field">
@@ -862,10 +895,12 @@ function CancelSheet({ b, error, onClose, onCancel }) {
         <button type="submit" className="btn btn--danger" disabled={busy || !ready}>
           {busy ? 'Cancelling…' : cancelLabel(refund)}
         </button>
-        <p className="small muted">
-          The guest is told by WhatsApp and email. You can refund more than the policy; the reason
-          goes on the timeline.
-        </p>
+        {!c.fixed && (
+          <p className="small muted">
+            The guest is told by WhatsApp and email. You can refund more than the policy; the reason
+            goes on the timeline.
+          </p>
+        )}
       </form>
     </Sheet>
   );

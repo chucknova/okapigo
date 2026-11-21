@@ -127,6 +127,31 @@ export async function weekSchedule(prisma, { operatorId, start, now = new Date()
 }
 
 /**
+ * Who tells the guests when a departure is called off: "Guests told by WhatsApp and email",
+ * "Sojourna tells its guests", or both. @param {any[]} bookings with channelBooking.channel
+ */
+export function toldLine(bookings) {
+  const otas = [
+    ...new Set(bookings.filter((b) => b.channelBooking).map((b) => b.channelBooking.channel.name)),
+  ];
+  const ours = bookings.some((b) => !b.channelBooking);
+  const theirs = otas.length
+    ? `${otas.join(' and ')} ${otas.length === 1 ? 'tells its' : 'tell their'} guests`
+    : '';
+  if (ours && theirs) return `Guests told by WhatsApp and email; ${theirs}`;
+  return theirs
+    ? theirs.charAt(0).toUpperCase() + theirs.slice(1)
+    : 'Guests told by WhatsApp and email';
+}
+
+/** Where a booking came from, in a word (an OTA's is its name). */
+const CHANNEL_WORD = /** @type {Record<string, string>} */ ({
+  web: 'Website',
+  whatsapp: 'WhatsApp',
+  staff: 'Office',
+});
+
+/**
  * "3 adults, 1 child" from a booking's travellers. @param {any[]} travellers @param {Map<string, any>} cats
  */
 export function peopleLine(travellers, cats) {
@@ -189,6 +214,10 @@ export async function departureOverview(prisma, { operatorId, departureId, now =
       ].join(' · '),
       // An OTA's guest paid the OTA (17c): "Paid by Sojourna".
       via: b.channelBooking ? `via ${b.channelBooking.channel.name}` : null,
+      // Where it came from (17c-3, designs: "Who's booked gets a Channel column").
+      channel: b.channelBooking
+        ? b.channelBooking.channel.name
+        : (CHANNEL_WORD[b.channel] ?? b.channel),
       pay:
         owed > 0
           ? `${formatNaira(owed)} to pay`
@@ -199,6 +228,25 @@ export async function departureOverview(prisma, { operatorId, departureId, now =
     };
   });
   const guests = d.bookings.reduce((n, b) => n + b.travellers.length, 0);
+  const left = Math.max(0, seats - d.seatsSold - d.seatsHeld);
+  // "8 website · 3 via Sojourna · 1 seat left everywhere" (17c-3): seats are one stock, shared
+  // by every channel. Shown once an OTA has sold some.
+  /** @type {Map<string, number>} */
+  const byChannel = new Map();
+  for (const b of d.bookings) {
+    const k = b.channelBooking
+      ? `via ${b.channelBooking.channel.name}`
+      : (CHANNEL_WORD[b.channel] ?? b.channel).toLowerCase();
+    byChannel.set(k, (byChannel.get(k) ?? 0) + b.travellers.length);
+  }
+  const channelsLine = d.bookings.some((b) => b.channelBooking)
+    ? [
+        ...[...byChannel].map(([k, n]) => `${n} ${k}`),
+        left === 0
+          ? 'sold out everywhere'
+          : `${left} ${left === 1 ? 'seat' : 'seats'} left everywhere`,
+      ].join(' · ')
+    : null;
   const refundKobo = d.bookings.reduce((n, b) => n + b.amountPaidKobo, 0);
   const vehicleWord = d.resource
     ? `${d.resource.kind} seats`
@@ -220,11 +268,12 @@ export async function departureOverview(prisma, { operatorId, departureId, now =
     numbers: {
       booked: d.seatsSold,
       held: d.seatsHeld,
-      left: Math.max(0, seats - d.seatsSold - d.seatsHeld),
+      left,
       seats,
       seatsLabel: vehicleWord,
     },
     rows,
+    channelsLine,
     extrasLine: [
       extras.size
         ? `Extras: ${[...extras].map(([n, k]) => `${k} × ${n.toLowerCase()}`).join(' · ')}`
@@ -244,6 +293,8 @@ export async function departureOverview(prisma, { operatorId, departureId, now =
       guests,
       refundKobo,
       refundText: formatNaira(refundKobo),
+      // Who tells the guests (17c-3): ours by WhatsApp and email; an OTA's, the OTA.
+      toldLine: toldLine(d.bookings),
     },
   };
 }

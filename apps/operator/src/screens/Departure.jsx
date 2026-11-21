@@ -165,6 +165,7 @@ function DeparturePage({ d, options }) {
 
           <section className="panel panel--pad wide-only">
             <h2 className="h-md">Who’s booked</h2>
+            {d.channelsLine && <p className="small muted">{d.channelsLine}</p>}
             {d.rows.length === 0 ? (
               <p className="sm muted">Nobody yet.</p>
             ) : (
@@ -172,11 +173,9 @@ function DeparturePage({ d, options }) {
                 <tbody>
                   {d.rows.map((/** @type {any} */ r) => (
                     <tr key={r.id}>
-                      <td className="strong">
-                        {r.lead}
-                        {r.via && <span className="sm muted block">{r.via}</span>}
-                      </td>
+                      <td className="strong">{r.lead}</td>
                       <td className="muted">{r.people}</td>
+                      <td className={r.via ? 'strong' : 'muted'}>{r.channel}</td>
                       <td className="muted">{r.extras}</td>
                       <td
                         className={`right strong tone--${r.payTone === 'owes' ? 'warning' : 'ok'}`}
@@ -199,7 +198,7 @@ function DeparturePage({ d, options }) {
                 <h2 className="h-md">Cancel this departure</h2>
                 <p className="muted">
                   {d.cancel.bookings} {d.cancel.bookings === 1 ? 'booking' : 'bookings'} refunded in
-                  full ({d.cancel.refundText}) and told by WhatsApp and email.
+                  full ({d.cancel.refundText}). {d.cancel.toldLine}.
                 </p>
               </div>
               <button
@@ -499,7 +498,7 @@ function CancelDialog({ d, business, onClose, onCancelled }) {
           <li>
             Everyone refunded in full: <strong>{d.cancel.refundText}</strong>
           </li>
-          <li>Guests told by WhatsApp and email</li>
+          <li>{d.cancel.toldLine}</li>
           {freed.length > 0 && (
             <li>
               {freed.join(' and ')} {freed.length === 1 ? 'is' : 'are'} freed

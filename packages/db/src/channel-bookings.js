@@ -23,7 +23,6 @@ import { createBooking } from './bookings.js';
 import { BookingError } from './booking-lifecycle.js';
 import { cancelBookingInTx } from './cancellations.js';
 import { postTransaction } from './ledger.js';
-import { processRefundInTx } from './refunds.js';
 import { settleBooking } from './settlement.js';
 
 const TX = { maxWait: 15_000, timeout: 15_000 };
@@ -172,6 +171,12 @@ export function confirmChannelBooking(
       where: { id: booking.id },
       data: { leadName: lead.name, leadEmail: lead.email, leadPhone: lead.phone },
     });
+    // The lead is the first traveller (designs: the guide's manifest says "Hannah Weber", then
+    // "Guest 2 of Hannah Weber's booking"). OCTO names only the contact (17c-3).
+    await tx.traveller.updateMany({
+      where: { bookingId: booking.id, position: 1, name: '' },
+      data: { name: lead.name },
+    });
     // The OTA took the guest's money: a payment from the OTA, for the whole price.
     const payment = await tx.payment.create({
       data: {
@@ -240,28 +245,7 @@ export function cancelChannelBooking(
       actor: { type: 'guest' },
       now,
     });
-    if (refund.refundKobo > 0) {
-      // The OTA refunds its guest itself: settled at once, against what it owes us.
-      const payment = await tx.payment.findFirstOrThrow({
-        where: { bookingId: booking.id, provider: 'ota', status: 'succeeded' },
-      });
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: { refundedKobo: { increment: refund.refundKobo } },
-      });
-      const r = await tx.refund.create({
-        data: {
-          operatorId: booking.operatorId,
-          bookingId: booking.id,
-          paymentId: payment.id,
-          provider: 'ota',
-          providerRefundId: `${channelBooking.id}:cancel`,
-          amountKobo: refund.refundKobo,
-          reason: `Refunded to the guest by ${channelName}`,
-        },
-      });
-      await processRefundInTx(tx, r.id, { processedAt: now });
-    }
+    // The OTA refunds its guest itself: settled at once inside cancelBookingInTx.
     return { refundKobo: refund.refundKobo };
   }, TX);
 }

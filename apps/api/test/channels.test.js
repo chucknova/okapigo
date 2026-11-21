@@ -177,8 +177,9 @@ describe('the channels, in words', () => {
     expect(desk.money).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          label: 'Sojourna owes you',
-          value: '₦32,000 (₦40,000 less 20%)',
+          label: `Sojourna owes ${s.operator.name}`,
+          value: '₦32,000',
+          total: true,
         }),
       ]),
     );
@@ -545,34 +546,5 @@ describe('a payment from the OTA', () => {
       text: 'Cancelled · owes ₦0',
       tone: 'muted',
     });
-  });
-});
-
-describe('"via Sojourna"', () => {
-  it('on the bookings desk, the booking’s page and the departure', async () => {
-    const s = await setup();
-    const booking = await s.sale('c-5');
-    const list = await s.owner.get('/api/desk/bookings?filter=all');
-    expect(list.body.list.rows.find((/** @type {any} */ r) => r.id === booking.id).via).toBe(
-      'via Sojourna',
-    );
-    const page = (await s.owner.get(`/api/desk/bookings/${booking.id}`)).body.booking;
-    expect(page.refLine).toContain(' · SOJOURNA · ');
-    expect(page.money).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          label: expect.stringMatching(/^Paid by Sojourna · /),
-          value: '₦80,000 paid',
-        }),
-        expect.objectContaining({
-          label: 'Sojourna owes you',
-          value: '₦64,000 (₦80,000 less 20%)',
-        }),
-      ]),
-    );
-    expect(page.timeline[0]).toMatch(/ · booked through Sojourna$/);
-    const dep = (await s.owner.get(`/api/departures/${booking.departureId}/overview`)).body;
-    const row = dep.departure.rows.find((/** @type {any} */ r) => r.id === booking.id);
-    expect(row).toMatchObject({ via: 'via Sojourna', pay: 'Paid by Sojourna', payTone: 'paid' });
   });
 });

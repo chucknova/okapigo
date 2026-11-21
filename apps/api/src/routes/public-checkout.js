@@ -163,6 +163,9 @@ function guestView(b, { secret, now = new Date() }) {
       amountKobo: p.amountKobo,
       paidAt: p.paidAt,
     })),
+    // "You booked through Sojourna" (17c-3): the website handles changes, cancellations and
+    // refunds; the trip page doesn't offer them.
+    bookedThrough: b.channelBooking?.channel.name ?? null,
     cancellationPolicy: b.policyVersion
       ? {
           rules: b.policyVersion.rules,
@@ -222,6 +225,8 @@ const TICKET_STATUSES = ['confirmed', 'part_paid', 'paid', 'amended', 'completed
 
 const GUEST_INCLUDE = {
   product: { include: { operator: true } },
+  // Booked through a travel website (17c-3): changes and cancellations go through it.
+  channelBooking: { select: { channel: { select: { name: true } } } },
   departure: true,
   travellers: { orderBy: { position: /** @type {const} */ ('asc') } },
   addOns: { include: { addOn: true } },
@@ -441,6 +446,14 @@ export function publicCheckoutRouter({
     validate({ params: TokenParams, body: GuestCancelSchema }),
     async (req, res) => {
       const booking = await findGuestBooking(req.params.token);
+      // A travel website's booking: it took the money, so it cancels and refunds (17c-3).
+      if (booking.channelBooking) {
+        throw new HttpError(
+          409,
+          'BOOKED_ELSEWHERE',
+          `You booked through ${booking.channelBooking.channel.name}: cancel your booking there.`,
+        );
+      }
       let refund;
       try {
         refund = await guestCancelBooking(prisma, {

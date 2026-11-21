@@ -375,11 +375,11 @@ describe('sending: what can go wrong', () => {
 });
 
 describe('the templates (staff API)', () => {
-  it('lists all seven with the default and the business’s own; an edit is used; reset goes back', async () => {
+  it('lists all eight with the default and the business’s own; an edit is used; reset goes back', async () => {
     const { operator, owner } = await seedOperator();
     const staff = as(await ctx.tokenFor(owner.id));
     const list = (await staff.get('/api/message-templates')).body.templates;
-    expect(list.map((/** @type {any} */ t) => t.kind)).toHaveLength(7);
+    expect(list.map((/** @type {any} */ t) => t.kind)).toHaveLength(8);
     expect(list.find((/** @type {any} */ t) => t.kind === 'refund_sent').custom.body).toContain(
       'walk Lagos',
     );

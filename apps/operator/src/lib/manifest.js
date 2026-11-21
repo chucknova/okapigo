@@ -137,7 +137,10 @@ function bookingView(b, { started, tz }) {
     lead: b.lead.name,
     phone: b.lead.phone,
     ref: b.reference,
-    via: VIA[b.channel] ?? b.channel ?? '',
+    via: b.otaName ? `via ${b.otaName}` : (VIA[b.channel] ?? b.channel ?? ''),
+    // An OTA's booking (17c-3, designs): a tag beside "Paid". The guide just sees "Paid": money
+    // with the OTA is the office's business.
+    otaTag: b.otaName ? `via ${b.otaName}` : null,
     // A whole-booking no-show is decided: its pills don't change here (the office can).
     locked: !active,
     pay: payChip(b),

@@ -99,6 +99,7 @@ export function Manifest() {
           </div>
           <div className="chips">
             <span className={`chip chip--${b.pay.tone}`}>{b.pay.text}</span>
+            {b.otaTag && <span className="chip chip--via">{b.otaTag}</span>}
             {b.extras && <span className="chip">{b.extras}</span>}
           </div>
           {b.notes.map((/** @type {string} */ n, /** @type {number} */ i) => (
