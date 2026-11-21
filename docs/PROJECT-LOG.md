@@ -138,7 +138,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16d-1           | inbox chats: needs a person / with the bot, one person at a time, take over from a colleague, 24-hour rule + follow-up template, failed → retry or email              | `a18ebab`           | 16d-1          |
 | 16d-2           | requests: reply (WhatsApp + email, on the trip page), mark answered, Done; moving a booking's date; "Date changed" message                                            | `1daa498`           | 16d-2          |
 | 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                     | `0506dbf`           | 16d-3          |
-| 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                   | (this commit)       | 16e-1          |
+| 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                   | `72fadc7`           | 16e-1          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -239,7 +239,7 @@ others see them look-only.
 
 ## 7. Where we are
 
-- **Last done:** 16e-1, settings: the menu, Website and Embed (commit: see §9). 16d-3 pushed.
+- **Last done:** 16e-1, settings: the menu, Website and Embed, committed `72fadc7`. 16d-3 pushed.
 - **Next:** **16e-2**, Messages and WhatsApp (designs: "O10 Settings — Messages", "WhatsApp and
   staff", "phone"): the seven messages (Default/Edited; the editor with green details to insert;
   "Must keep: …" checks; a preview with a real booking; Reset; "Send a test to my WhatsApp"; the
