@@ -2,7 +2,7 @@
 /**
  * O10 · Settings (designs: O10 Settings — Website; Embed on your site; phone; Staff and form
  * states. Stage 16e-1; Messages and WhatsApp in 16e-2 (their own files: SettingsMessages.jsx,
- * SettingsWhatsApp.jsx); Staff comes in 16e-3, Tours in 16e-4).
+ * SettingsWhatsApp.jsx); Staff and roles in 16e-3 (SettingsStaff.jsx); Tours in 16e-4).
  *
  *   wide screen   the sections down the left, the open one on the right
  *   phone         More › Settings: the sections as a list (with how each stands); tap one
@@ -17,12 +17,14 @@ import { LiveFrame } from '../components/LiveFrame.jsx';
 import { SaveBar, LeaveGuard } from '../components/SaveBar.jsx';
 import { MessagesSettings } from './SettingsMessages.jsx';
 import { WhatsAppSettings } from './SettingsWhatsApp.jsx';
+import { StaffSettings } from './SettingsStaff.jsx';
 import { useLive } from '../lib/live.js';
 import { useEngine, useSync } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
 import { localTime } from '@okapigo/shared/time';
 import {
   SECTIONS,
+  visibleSections,
   LIMITS,
   STYLE_CHOICES,
   applyLabel,
@@ -46,6 +48,8 @@ export function Settings() {
   const s = useSync();
   const tz = s.me?.operator?.timeZone ?? 'Africa/Lagos';
   const open = SECTIONS.find((x) => x.key === section) ?? null;
+  // The menu lists only what this person may open (a link typed in still says why not).
+  const menu = visibleSections(s.me);
   return (
     <main className={`page settings${open ? ' desk--open' : ''}`}>
       <nav className="settings-nav" aria-label="Settings">
@@ -54,11 +58,11 @@ export function Settings() {
           {s.me?.operator?.name} · {s.me?.user?.name}
         </p>
         <ul className="plain-list">
-          {SECTIONS.map((x) => (
+          {menu.map((x) => (
             <li key={x.key}>
               <Link
                 href={`/settings/${x.key}`}
-                className={`settings-link${(open ?? SECTIONS[0]).key === x.key ? ' is-open' : ''}`}
+                className={`settings-link${(open ?? menu[0])?.key === x.key ? ' is-open' : ''}`}
                 aria-current={open?.key === x.key ? 'page' : undefined}
               >
                 <span className="grow">{x.label}</span>
@@ -85,6 +89,7 @@ export function Settings() {
         {open?.key === 'messages' && (
           <MessagesSettings tz={tz} canEdit={mayEdit(s.me, 'settings')} kind={item ?? null} />
         )}
+        {open?.key === 'staff' && <StaffSettings tz={tz} canEdit={mayEdit(s.me, 'settings')} />}
         {open?.key === 'whatsapp' && (
           <WhatsAppSettings tz={tz} canEdit={mayEdit(s.me, 'channels')} />
         )}

@@ -140,6 +140,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16d-3           | inbox alerts: worked out live (cash, refunds, balances, departures without a guide), clearing by themselves; Done this week; who assigned a guide                                      | `0506dbf`           | 16d-3          |
 | 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                                    | `72fadc7`           | 16e-1          |
 | 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | `f60623f`           | 16e-2          |
+| 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | (this commit)       | 16e-3          |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -248,12 +249,24 @@ marked `[Test]`; a refused one is **422 TEST_NOT_SENT** with the reason (a 5xx w
 booking**. Each message has its own address (`/settings/messages/:kind`). Messages need
 settings: edit (managers can't open it); WhatsApp needs channels: edit (managers look).
 
+**With 16e-3 (2026-11-21):** **removal is instant** and nothing from a removed person's phone
+is accepted after it (the design said their waiting changes "still arrive": that would let
+someone who's left write records for a while). The screen **says it accurately**: what their
+phone had waiting at its last sync, and that asking them to sync first is suggested, not
+required. Removing someone takes them off their **coming** departures (listed, with links to
+reassign) and hands their chats back to "Needs a person". **At least one active owner**, always.
+Invitations have **no secret link**: the person signs in by code with the email or phone they
+were added with; email when there's an address and a mailer, else the words to copy. The invite
+form adds a **name** (the design had none). The settings menu lists only what a role may open
+(managers and guides don't see Staff, or Messages). You can edit your own name and contact,
+never your own role or access.
+
 ## 7. Where we are
 
-- **Last done:** 16e-2, settings: Messages and WhatsApp, committed `f60623f`. 16e-1 pushed.
-- **Next:** **16e-3**, Staff and roles: invite by email (words to copy for phone-only staff),
-  edit someone's role, at least one owner always, remove someone with upcoming departures
-  (what happens to their guiding). Then **16e-4** Tours.
+- **Last done:** 16e-3, settings: Staff and roles. 16e-2 pushed.
+- **Next:** **16e-4**, Tours (designs: "Settings — Tours"): basics, prices, schedule, extras,
+  pickups, policy, deposit, transport, a new tour; the save bar on every page. Then OCTO, AI and
+  dashboard, and the demo (numbering to confirm).
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
   (ILT-HP97TV)**.
 - **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta.
@@ -308,6 +321,7 @@ settings: edit (managers can't open it); WhatsApp needs channels: edit (managers
 
 ## 9. Changelog (newest first)
 
+- 2026-11-21 · 16e-3 settings: Staff and roles.
 - 2026-11-21 · 16e-2 settings: Messages and WhatsApp.
 - 2026-11-21 · 16e-1 settings menu, Website, Embed.
 - 2026-11-21 · 16d-3 inbox alerts (inbox done).

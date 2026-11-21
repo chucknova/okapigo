@@ -63,6 +63,10 @@ logger.info(
 // We log it instead; the health check reports Redis as down and ioredis reconnects.
 redis.on('error', (err) => logger.warn({ err: err.message }, 'redis connection error'));
 
+// Email (stage 14b): Mailpit in development, Resend for real, or none.
+const mailer = createMailer(config);
+logger.info({ email: mailer?.name ?? 'none' }, 'email ready');
+
 const app = createApp({
   logger,
   prisma,
@@ -91,6 +95,9 @@ const app = createApp({
   simulatorDir: existsSync(simulatorDist) ? simulatorDist : null,
   // The built operator app (pnpm --filter @okapigo/operator build), if present: /app/.
   operatorDir: existsSync(operatorDist) ? operatorDist : null,
+  // Staff invitations (16e-3) go by the same email as guests' messages.
+  mailer,
+  emailFrom: config.EMAIL_FROM,
 });
 
 const server = app.listen(config.API_PORT, () => {
@@ -112,9 +119,6 @@ const channels = createChannels({
       }
     : null,
 });
-// Email (stage 14b): Mailpit in development, Resend for real, or none.
-const mailer = createMailer(config);
-logger.info({ email: mailer?.name ?? 'none' }, 'email ready');
 const NOTICES_EVERY_MS = 5_000;
 let noticesRunning = false;
 const notices = setInterval(async () => {

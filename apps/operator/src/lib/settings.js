@@ -12,19 +12,31 @@
  *   message…             Messages (16e-2): the list, the editor's form, inserting a detail, what
  *                        a message must keep, the 24-hour rule in words
  *   whatsapp…            WhatsApp (16e-2): how it stands, the Phone number ID's check
+ *   staff…               Staff and roles (16e-3): what each role may do, the invite's checks,
+ *                        removing someone in words
  */
 import { STYLES } from '@okapigo/shared/tokens';
-import { normalizeEmail, normalizePhone, formatPhoneForDisplay } from '@okapigo/shared/contact';
+import {
+  normalizeEmail,
+  normalizePhone,
+  formatPhoneForDisplay,
+  parseContact,
+} from '@okapigo/shared/contact';
 import { checkTemplate } from '@okapigo/shared/message-templates';
 
+/** The menu; `needs` is the area a role must at least see (designs: "Managers and guides don't see Staff at all"). */
 export const SECTIONS = /** @type {const} */ ([
-  { key: 'website', label: 'Website', built: true },
-  { key: 'embed', label: 'Embed on your site', built: true },
-  { key: 'messages', label: 'Messages', built: true },
-  { key: 'whatsapp', label: 'WhatsApp', built: true },
-  { key: 'staff', label: 'Staff and roles', built: false },
-  { key: 'tours', label: 'Tours', built: false },
+  { key: 'website', label: 'Website', built: true, needs: 'marketing' },
+  { key: 'embed', label: 'Embed on your site', built: true, needs: 'marketing' },
+  { key: 'messages', label: 'Messages', built: true, needs: 'settings' },
+  { key: 'whatsapp', label: 'WhatsApp', built: true, needs: 'channels' },
+  { key: 'staff', label: 'Staff and roles', built: true, needs: 'settings' },
+  { key: 'tours', label: 'Tours', built: false, needs: 'products' },
 ]);
+
+/** The sections this person may open (a role with "none" for an area doesn't see it). @param {any} me */
+export const visibleSections = (me) =>
+  SECTIONS.filter((x) => (me?.permissions?.[x.needs] ?? 'none') !== 'none');
 
 /** The longest each field may be (the server's limits: packages/shared/src/schemas/website.js). */
 export const LIMITS = { tagline: 80, about: 1500, address: 200 };
@@ -365,3 +377,104 @@ export function phoneIdError(typed) {
     return 'Paste the Phone number ID: digits only, from Meta’s API Setup page.';
   return null;
 }
+
+// --- Staff and roles (16e-3) ------------------------------------------------------------------
+
+/** What each preset role may do (designs: under the invite form and in the edit sheet). */
+export const ROLE_LINES = /** @type {Record<string, string>} */ ({
+  owner: 'Everything, including prices, staff and settings.',
+  manager: 'Schedule, bookings, refunds and inbox. Can’t change prices, tours’ policies or staff.',
+  guide: 'Their own departures, manifests and check-in.',
+});
+
+/** A role's line; a role the business made itself says so. @param {any} role */
+export const roleLine = (role) =>
+  ROLE_LINES[role?.key] ?? 'A role your business made: it can do what its permissions say.';
+
+/**
+ * The roles in the menu's order (designs: Guide, Operations manager, Owner), then any the
+ * business made. @param {any[]} roles
+ */
+export function roleChoices(roles) {
+  const order = ['guide', 'manager', 'owner'];
+  const rank = (/** @type {any} */ r) => (order.includes(r.key) ? order.indexOf(r.key) : 9);
+  return [...roles].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+}
+
+/** The dot beside someone's status. @param {'active' | 'invited' | 'removed'} status */
+export const staffTone = (status) =>
+  status === 'active' ? 'success' : status === 'invited' ? 'warning' : 'muted';
+
+/** "Dayo" from "Dayo Ogunleye". @param {string} name */
+export const firstName = (name) => name.trim().split(/\s+/)[0] ?? name;
+
+/** The invite form and the edit form: who, how they sign in, the role. @typedef {{ name: string, contact: string, roleId: string }} StaffForm */
+
+/**
+ * What's wrong, field by field (empty: nothing).
+ * @param {StaffForm} f @returns {Partial<Record<keyof StaffForm, string>>}
+ */
+export function staffErrors(f) {
+  /** @type {Partial<Record<keyof StaffForm, string>>} */
+  const e = {};
+  if (f.name.trim().length < 2) e.name = 'Enter their name.';
+  else if (f.name.trim().length > 100) e.name = 'Keep the name under 100 characters.';
+  if (!f.contact.trim()) e.contact = 'Enter the email or phone they’ll sign in with.';
+  else if (!parseContact(f.contact.trim()))
+    e.contact = 'Enter an email like dayo@example.com, or a phone like 0809 777 8899.';
+  if (!f.roleId) e.roleId = 'Choose a role.';
+  return e;
+}
+
+/** The edit form from someone's row. @param {any} row @returns {StaffForm} */
+export const staffForm = (row) => ({ name: row.name, contact: row.contact, roleId: row.role.id });
+
+/**
+ * What PATCH /api/staff/:id gets: only what changed.
+ * @param {StaffForm} f @param {StaffForm} saved
+ */
+export function staffBody(f, saved) {
+  /** @type {Record<string, string>} */
+  const body = {};
+  if (f.name.trim() !== saved.name.trim()) body.name = f.name.trim();
+  if (f.contact.trim() !== saved.contact.trim()) body.contact = f.contact.trim();
+  if (f.roleId !== saved.roleId) body.roleId = f.roleId;
+  return body;
+}
+
+/** Making someone an owner asks first (designs). @param {any[]} roles @param {StaffForm} f @param {StaffForm} saved */
+export const becomesOwner = (roles, f, saved) =>
+  f.roleId !== saved.roleId && roles.find((r) => r.id === f.roleId)?.key === 'owner';
+
+/** The question before making someone an owner. */
+export const OWNER_WARNING = 'Owners can change prices, staff and payouts.';
+
+/**
+ * "Remove Tolu's access?", in words (decided 2026-11-21: say it accurately). Removal is
+ * instant; what was waiting on their phone is said, and a sync first is suggested.
+ * @param {any} row
+ */
+export function removeWords(row) {
+  const first = firstName(row.name);
+  const n = row.upcoming.length;
+  return {
+    title: `Remove ${first}’s access?`,
+    signOut: `${first} is signed out at once, on every phone. You can give access back later.`,
+    waiting: row.waiting
+      ? `${row.waiting}. Those don’t arrive once ${first} is removed: ask ${first} to open OkapiGo with signal first, or someone redoes them on the departure.`
+      : null,
+    departures:
+      n === 0 ? null : `${n} upcoming ${n === 1 ? 'departure' : 'departures'} will have no guide:`,
+    yes: n === 0 ? `Remove ${first}` : `Remove and show me ${n === 1 ? 'it' : 'those departures'}`,
+    no: `Keep ${first}`,
+  };
+}
+
+/**
+ * After an invitation: what happened, in a line.
+ * @param {{ how: 'email' | 'copy', to: string, problem: string | null }} invite
+ */
+export const inviteLine = (invite) =>
+  invite.how === 'email'
+    ? `Invitation emailed to ${invite.to}.`
+    : (invite.problem ?? `Copy this and send it to ${invite.to} by WhatsApp or SMS:`);

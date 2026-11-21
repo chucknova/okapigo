@@ -78,6 +78,8 @@ import { createSessionService } from './auth/session-service.js';
  *   webAssets?: import('./lib/web-assets.js').WebAssets | null,  // the built guest web, if any
  *   simulatorDir?: string | null, // the built WhatsApp simulator app (apps/simulators/dist), if any
  *   operatorDir?: string | null,  // the built operator app (apps/operator/dist), if any
+ *   mailer?: import('./messages/mailers.js').Mailer | null, // staff invitations (16e-3); null: none
+ *   emailFrom?: string,
  * }} deps
  */
 export function createApp({
@@ -97,6 +99,8 @@ export function createApp({
   webAssets = null,
   simulatorDir = null,
   operatorDir = null,
+  mailer = null,
+  emailFrom = 'onboarding@resend.dev',
 }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
@@ -269,7 +273,7 @@ export function createApp({
   api.use(authenticate);
   api.use(meRouter({ prisma }));
   api.use(rolesRouter({ prisma }));
-  api.use(staffRouter({ prisma, sessions }));
+  api.use(staffRouter({ prisma, sessions, apiPublicUrl, mailer, emailFrom })); // invitations: 16e-3
   api.use(productsRouter({ prisma }));
   api.use(schedulesRouter({ prisma, provider }));
   api.use(quotesRouter({ quotes }));

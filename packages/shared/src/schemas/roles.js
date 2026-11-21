@@ -34,9 +34,14 @@ export const CreateStaffSchema = z.object({
   roleId: z.uuid(),
 });
 
-/** PATCH /api/staff/:id: change someone's role, or deactivate them. */
+/**
+ * PATCH /api/staff/:id: change someone's name, how they sign in (their email or phone), their
+ * role, or remove their access / give it back (16e-3 adds the name and contact).
+ */
 export const UpdateStaffSchema = z
   .object({
+    name: z.string().trim().min(2).max(100),
+    contact: ContactSchema,
     roleId: z.uuid(),
     isActive: z.boolean(),
   })
