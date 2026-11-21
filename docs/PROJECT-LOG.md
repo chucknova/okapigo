@@ -141,7 +141,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-1           | settings menu, save bar + leave guard + form errors, Website (style preview/apply, business details), Embed (snippet, approved sites, live preview)                                    | `72fadc7`           | 16e-1          |
 | 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | `f60623f`           | 16e-2          |
 | 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | `b9781ed`           | 16e-3          |
-| 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | (this commit)       | 16e-4a         |
+| 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | `4872ff2`           | 16e-4a         |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -273,7 +273,7 @@ still needs only a price (dates aren't required). The text lists are written one
 
 ## 7. Where we are
 
-- **Last done:** 16e-4a, Settings › Tours: the list, New tour, Basics. 16e-3 pushed.
+- **Last done:** 16e-4a, Settings › Tours: the list, New tour, Basics, committed `4872ff2`. 16e-3 pushed.
 - **Next:** **16e-4b**, Prices (categories, ages, "counts as an adult", "You changed Adult from
   ₦65,000 to ₦70,000. New bookings pay ₦70,000; the 26 existing bookings keep their price")
   and Schedule and seats (days, start time, seats, until, not-running dates, one-off
