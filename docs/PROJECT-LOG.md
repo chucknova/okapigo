@@ -142,7 +142,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 16e-2           | settings: Messages (list, editor with details at the cursor, must-keep, real-booking preview, test send, back to default) and WhatsApp (state in words, ID, webhook, test, disconnect) | `f60623f`           | 16e-2          |
 | 16e-3           | settings: Staff and roles (the team in words, invite by email or words to copy, resend, edit, at least one owner, remove: signed out, departures freed, chats back)                    | `b9781ed`           | 16e-3          |
 | 16e-4a          | settings › Tours: the list (schedule in words), New tour, Basics (transport, arrive by, text lists), the map pin pasted, on sale or not                                                | `4872ff2`           | 16e-4a         |
-| 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | (this commit)       | 16e-4b         |
+| 16e-4b          | Tours: Prices (all at once; "existing bookings keep their price"), Schedule and seats (booked departures it leaves, listed), one-offs; one save bar per tour                           | `9b6483e`           | 16e-4b         |
 
 **Still to come** (numbering after 16 to confirm with the user; the docs call AI "session 17" and
 deploy "session 18"):
@@ -283,7 +283,7 @@ through the save bar.
 
 ## 7. Where we are
 
-- **Last done:** 16e-4b, Settings › Tours: Prices and Schedule and seats. 16e-4a pushed.
+- **Last done:** 16e-4b, Settings › Tours: Prices and Schedule and seats, committed `9b6483e`. 16e-4a pushed.
 - **Next:** **16e-4c**: Extras (name, price, limit per departure), pickup points (area, place,
   time), the cancellation policy (pick one; "Standard: full 48 h · 50% 24–48 h"), the deposit
   (allowed %, or none; balance due 7 days before), and the holds line. That finishes Settings
