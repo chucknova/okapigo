@@ -2,7 +2,8 @@
 /**
  * guest-requests.js — "Ask Ìrìn" from the trip hub (stage 12f-2).
  *
- *   createGuestRequest   the guest asks: change the date · cancel · something else
+ *   createGuestRequest   the guest asks: change the date · cancel · something else; or the
+ *                        AI companion wasn't sure of an answer (kind "question", 18a)
  *   listGuestRequests    staff: the open ones, oldest first, with what's needed to reply
  *   answerGuestRequest   staff replied (by WhatsApp or email): mark it answered
  *   replyGuestRequest    staff reply from the inbox (16d-2): sent, kept, shown on the trip page
@@ -22,7 +23,7 @@ const ASKABLE = ['confirmed', 'part_paid', 'paid', 'amended'];
 
 /**
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ bookingId: string, kind: 'change_date' | 'cancel' | 'other', message: string }} input
+ * @param {{ bookingId: string, kind: 'change_date' | 'cancel' | 'other' | 'question', message: string }} input
  */
 export function createGuestRequest(prisma, { bookingId, kind, message }) {
   return prisma.$transaction(async (tx) => {

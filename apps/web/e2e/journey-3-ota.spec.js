@@ -21,9 +21,6 @@ const slug = () => /** @type {string} */ (process.env.E2E_OPERATOR_SLUG);
 const sojourna = () => /** @type {string} */ (process.env.SOJOURNA_URL);
 
 test.afterAll(() => prisma.$disconnect());
-// The longest journey: two websites, a staff sign-in, and the staff app saving for no signal.
-// The 90 seconds the others get is too tight on a busy machine (it ran out once at the desk).
-test.setTimeout(180_000);
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -108,6 +105,9 @@ test('a guest books on Sojourna; the office sees it via Sojourna; cancelled on S
     timeout: 30_000,
   });
   await office.getByRole('button', { name: 'Go to Today' }).click();
+  // Today shows only once "first run done" is SAVED on the phone. Opening another page before
+  // then reloads the app into first run again (it happened in a full run: 18a-1).
+  await expect(office.getByRole('heading', { name: /^Today, / })).toBeVisible({ timeout: 30_000 });
   /** Opens the booking from the bookings desk: search its reference, open its row. */
   const openOnDesk = async () => {
     await office.goto('/app/bookings');

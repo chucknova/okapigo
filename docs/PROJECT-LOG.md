@@ -72,6 +72,7 @@ Node 24 (ES modules, JSDoc `// @ts-check`), **Express 5**, **Zod 4**, **Prisma 7
 | `packages/db`         | Prisma schema, migrations, seed, domain logic (`src/*.js`)               |
 | `packages/shared`     | rules shared by server and browsers: money, time, pricing, tokens…       |
 | `packages/payments`   | Paystack adapter + simulator                                             |
+| `packages/ai`         | the AI companion's model: Claude Haiku, or a fake (18a)                  |
 | `packages/jobs`       | queue names and the job client                                           |
 | `docs/flows`          | flow briefs (the user designs from these)                                |
 | `docs/designs`        | the user's guest-web designs (v1)                                        |
@@ -151,6 +152,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17c-3           | "via Sojourna" everywhere: desk tag, "Paid by Sojourna", channel filter; the OTA booking page (money, messages, buttons, a fixed cancel); OTA refunds settled on every cancel path; departure counts and Channel column; manifest tag; trip page "use Sojourna"; the Trip page link email | `ddd1303`           | 17c-3          |
 | 17d-1           | Sojourna, the mock OTA (`apps/mock-ota`, :4400): its own server, OCTO client and store; M1 storefront, M2 tour (calendar, who, pickups, the hold), M3 checkout, M4 booked, their states; OCTO content and pickups capabilities, refundRules                                               | `5551a6b`           | 17d-1          |
 | 17d-2           | Sojourna's back office (M5: live statuses, cancel with the business's own refund preview, too late), its OCTO notifications subscription ("last sync"), **journey 3 end to end**; OCTO refundIfCancelledNow and refundAmount; contacts accept null                                        | `5317f7e`           | 17d-2          |
+| 18a-1           | The AI companion's server: `packages/ai` (Claude Haiku via Anthropic's SDK, a fake), its facts and rules, 20 a day, kept answers, the monthly spend cap, unsure → an inbox request (kind question); `GET/POST /public/bookings/:token/companion`                                          | `(this commit)`     | 18a-1          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -391,11 +393,25 @@ day, and cached answers for common questions. When it isn't sure, the question b
 Three parts: **18a** the companion (journey 7), **18b** posters, **18c** the dashboard and
 journey 8. You design C1–C3, P1–P2, D1.
 
+**With 18a-1 (2026-11-22):** built while you design: the companion's server side. One
+interface (`packages/ai`): Claude Haiku (`claude-haiku-5-5`, effort low, structured JSON
+output) or a fake (matching words to the FAQs; the default, and always in tests and e2e). The
+SDK is pinned to 1.6.0 (the newest was 2 days old). It answers **only from the business's own
+content**, given as tagged facts; the guest's words are escaped and never instructions. Refused,
+cut off or unreadable replies count as **unsure**, so they go to the team. Answers are kept per
+tour (key: the question's words + a hash of the tour's facts and rules) unless they used the
+booking's own details. 20 questions per booking per Lagos day; `AI_MONTHLY_CAP_USD` (default
+$10) across all businesses; costs in millionths of a dollar. Guests can ask until the trip is
+over (completed included); not once cancelled. Unsure becomes a GuestRequest of kind
+**question** ("Asked the assistant" in the inbox). **18a-2** builds the card from your designs.
+
 ## 7. Where we are
 
-- **Last done:** 17d-2, Sojourna's back office and journey 3, committed `5317f7e`.
-  **Session 17 (OCTO) is done.**
-- **Next:** **session 18**: brief 09 written; waiting for your designs (C1–C3 first, for 18a).
+- **Last done:** 18a-1, the AI companion's server side, committed `(this commit)`.
+- **Next:** **18a-2**, the companion's card on the trip page and its "Question" in the inbox,
+  from your designs (C1–C3), then journey 7.
+- **To use Claude:** add `AI_PROVIDER=anthropic` and your `ANTHROPIC_API_KEY` to `.env` (see
+  `.env.example`); until then the companion runs on the fake.
 - **To try Sojourna:** `pnpm dev`, then http://localhost:4400 (after `pnpm db:reset`, so the
   demo business has its Sojourna channel and key).
 - **Your dev database** needs `pnpm db:reset` for the Sojourna channel (none, or the old "Mock
@@ -472,14 +488,23 @@ journey 8. You design C1–C3, P1–P2, D1.
 - **The channel push (17c) runs in the workers app**, not the API: my check API on :4300
   doesn't push. A test that seeds a whole business and pushes 60 days of departures needs the
   60-second test timeout under load (the workers' default 20 s timed out in a full run).
-- **Journey 3 is the longest e2e journey** (two websites, a staff sign-in, the staff app saving
-  for no signal): in a loaded full run it ran out of the default 90 s at the bookings desk
-  (17d-2). It now has 180 s (`test.setTimeout`); alone it takes about 11–17 s.
+- **Journey 3 stuck at the desk** (17d-2, again in 18a-1): the office tab reopened in first
+  run, so "All" never appeared. "Go to Today" saves "first run done" and only THEN shows Today;
+  the test opened another page (a reload) straight after the click, before the save. It now
+  waits for Today's heading first. In 17d-2 I took it for a slow machine and gave the journey
+  3 minutes; that was wrong (removed). Any e2e that signs a new phone in: wait for Today.
+- **Prettier writes `\u` escapes inside a regular expression as the characters themselves**
+  (18a-1: `/[\u0300-\u036f]/`, the accent marks, became invisible). Use a Unicode property
+  instead (`/\p{M}/gu`), which also says what it means.
+- **The AI companion in tests:** the API's tests get the fake by default (`buildApp`), and the
+  e2e API is forced to `AI_PROVIDER: 'fake'` in `playwright.config.js`, so a key in `.env` never
+  makes a test run call Claude or spend. Keep it that way for any new test runner.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-22 · 18a-1 The AI companion's server side.
 - 2026-11-22 · 17d-2 Sojourna's back office; journey 3 (session 17 done).
 - 2026-11-21 · 17d-1 Sojourna, the guest side (OCTO content and pickups).
 - 2026-11-21 · 17c-3 "via Sojourna" everywhere; the Trip page link.

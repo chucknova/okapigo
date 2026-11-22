@@ -89,6 +89,18 @@ const EnvSchema = z
       .regex(/^v\d+\.\d$/)
       .default('v23.0'),
 
+    // --- The AI trip companion (stage 18a) ---------------------------------------------
+    // fake: answers from the tours' FAQs by matching words, no network (tests, offline demos).
+    // anthropic: Claude Haiku, with your key below.
+    AI_PROVIDER: z.enum(['fake', 'anthropic']).default('fake'),
+    // console.anthropic.com → API keys. Kept secret like a payment key: never printed.
+    ANTHROPIC_API_KEY: optional(
+      z.string().regex(/^sk-ant-[A-Za-z0-9_-]+$/, 'must be an Anthropic API key (sk-ant-…)'),
+    ),
+    // The most the companion may spend in a calendar month, in US dollars (the PRD: "a hard
+    // monthly spend cap of about $10–20"). At the cap, guests see "not available right now".
+    AI_MONTHLY_CAP_USD: z.coerce.number().positive().max(100).default(10),
+
     // --- Email (stage 14b) -------------------------------------------------------------
     // none: no email (tests, CI). mailpit: a local mailbox in Docker, http://localhost:8025:
     // nothing leaves your laptop. resend: real email, through Resend.
@@ -121,6 +133,11 @@ const EnvSchema = z
       path: ['WHATSAPP_APP_SECRET'],
     },
   )
+  // Choosing Claude without a key would only fail later, on a guest's first question.
+  .refine((env) => env.AI_PROVIDER !== 'anthropic' || env.ANTHROPIC_API_KEY, {
+    message: 'AI_PROVIDER=anthropic needs ANTHROPIC_API_KEY',
+    path: ['ANTHROPIC_API_KEY'],
+  })
   // Choosing Paystack without a key would only fail later, on a guest's first payment.
   .refine((env) => env.PAYMENT_PROVIDER !== 'paystack' || env.PAYSTACK_SECRET_KEY, {
     message: 'PAYMENT_PROVIDER=paystack needs PAYSTACK_SECRET_KEY (a test key)',

@@ -20,6 +20,7 @@ import { loadWebAssets } from './lib/web-assets.js';
 import { createLogOtpSender } from './auth/otp-sender.js';
 import { createJobClient } from '@okapigo/jobs';
 import { createPaymentProvider, redisStore } from '@okapigo/payments';
+import { createAiProvider } from '@okapigo/ai';
 import { createApp } from './app.js';
 import { sendChatNotices } from './whatsapp/notices.js';
 import { sendGuestMessages } from './messages/send.js';
@@ -63,6 +64,13 @@ logger.info(
 // We log it instead; the health check reports Redis as down and ioredis reconnects.
 redis.on('error', (err) => logger.warn({ err: err.message }, 'redis connection error'));
 
+// The AI trip companion (18a): Claude Haiku with your key, or the fake (no network).
+const ai = createAiProvider({ provider: config.AI_PROVIDER, apiKey: config.ANTHROPIC_API_KEY });
+logger.info(
+  { ai: ai.name, model: ai.model, capUsd: config.AI_MONTHLY_CAP_USD },
+  'AI companion ready',
+);
+
 // Email (stage 14b): Mailpit in development, Resend for real, or none.
 const mailer = createMailer(config);
 logger.info({ email: mailer?.name ?? 'none' }, 'email ready');
@@ -98,6 +106,8 @@ const app = createApp({
   // Staff invitations (16e-3) go by the same email as guests' messages.
   mailer,
   emailFrom: config.EMAIL_FROM,
+  ai,
+  aiMonthlyCapMicroUsd: Math.round(config.AI_MONTHLY_CAP_USD * 1_000_000),
 });
 
 const server = app.listen(config.API_PORT, () => {

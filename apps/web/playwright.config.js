@@ -52,6 +52,9 @@ export default defineConfig({
         // button, and must not depend on Paystack's servers or this connection. (Real values
         // here win over the .env file.)
         PAYMENT_PROVIDER: 'simulator',
+        // The fake AI companion (18a), whatever .env says: a test run never calls Claude, never
+        // spends, and its answers are the same every time.
+        AI_PROVIDER: 'fake',
         DATABASE_URL: services.databaseUrl,
         REDIS_URL: services.redisUrl,
         // Private job queues (the worker in e2e/global-setup.js uses the same), so a `pnpm dev`

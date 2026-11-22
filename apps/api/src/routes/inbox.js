@@ -39,6 +39,8 @@ const KIND = /** @type {Record<string, string>} */ ({
   change_date: 'Change the date',
   cancel: 'Cancel',
   other: 'A question',
+  // The AI companion wasn't sure (18a): the guest's own question, for the team to answer.
+  question: 'Asked the assistant',
 });
 const RequestsQuery = z.object({ tab: z.enum(['open', 'done']).default('open') });
 const ReplyBody = z.object({

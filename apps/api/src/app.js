@@ -49,6 +49,7 @@ import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
 import { publicCheckoutRouter } from './routes/public-checkout.js';
+import { createFakeProvider } from '@okapigo/ai';
 import { createQuoteService } from './pricing/quote-service.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -82,6 +83,8 @@ import { createSessionService } from './auth/session-service.js';
  *   operatorDir?: string | null,  // the built operator app (apps/operator/dist), if any
  *   mailer?: import('./messages/mailers.js').Mailer | null, // staff invitations (16e-3); null: none
  *   emailFrom?: string,
+ *   ai?: ReturnType<typeof import('@okapigo/ai').createFakeProvider>, // the AI companion (18a); default: the fake
+ *   aiMonthlyCapMicroUsd?: number, // its monthly spend cap (millionths of a dollar); default $10
  * }} deps
  */
 export function createApp({
@@ -103,6 +106,8 @@ export function createApp({
   operatorDir = null,
   mailer = null,
   emailFrom = 'onboarding@resend.dev',
+  ai = createFakeProvider(),
+  aiMonthlyCapMicroUsd = 10_000_000,
 }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
@@ -215,6 +220,8 @@ export function createApp({
       provider,
       apiPublicUrl,
       webPublicUrl,
+      ai,
+      aiMonthlyCapMicroUsd,
     }),
   );
 

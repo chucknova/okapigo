@@ -1,0 +1,20 @@
+{
+  "name": "@okapigo/ai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The AI companion's model behind one interface: Claude Haiku, and a fake for tests and offline demos",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.6.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "vitest": "5.1.0"
+  }
+}

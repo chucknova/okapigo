@@ -10,6 +10,9 @@
  *                                                       to change something, or left)
  *   POST /public/bookings/:token/pay                    pay in full, a deposit, or the balance
  *                                                       → Paystack's checkout URL (stage 11c)
+ *   GET  /public/bookings/:token/companion              the AI companion's card: available?,
+ *                                                       questions left, suggestions, so far
+ *   POST /public/bookings/:token/companion              ask it a question (stage 18a)
  *
  * The SAME engine as staff bookings: quoteForBooking() (pricing + booking rules such as
  * "children need an adult") and createBooking() (row lock, seats, add-on stock, pickup
@@ -37,9 +40,13 @@ import {
   createGuestRequest,
   checkPayment,
   seatsLeft,
+  askCompanion,
+  companionState,
+  BookingError,
 } from '@okapigo/db';
 import { localDate, localTime } from '@okapigo/shared/time';
 import { balanceDueDate } from '@okapigo/shared/deposits';
+import { COMPANION_LIMITS } from '@okapigo/shared/companion';
 import { PublicQuoteRequestSchema } from '@okapigo/shared/schemas/pricing';
 import { PublicCreateBookingSchema } from '@okapigo/shared/schemas/bookings';
 import { validate } from '../middleware/validate.js';
@@ -64,6 +71,15 @@ const GuestRequestSchema = z.object({
   message: z.string().trim().min(1, 'Write a short message.').max(1000),
 });
 
+// The AI companion (stage 18a): one question, as the guest typed it.
+const CompanionQuestionSchema = z.object({
+  question: z
+    .string()
+    .trim()
+    .min(1, 'Write your question first.')
+    .max(COMPANION_LIMITS.questionMaxLength, 'Please keep your question shorter.'),
+});
+
 const PayBodySchema = z.object({
   option: z.enum(['full', 'deposit', 'balance']),
   // "any": the guest chooses card or bank transfer on Paystack's page.
@@ -82,6 +98,9 @@ export const DEFAULT_PUBLIC_LIMITS = {
   booking: { limit: 30, windowSeconds: 600 },
   // Reading or releasing your own booking.
   guest: { limit: 120, windowSeconds: 60 },
+  // Questions to the AI companion: each one may cost a model call. The per-booking day's
+  // limit (20) is the real cap; this one stops a script hammering many bookings from one IP.
+  companion: { limit: 30, windowSeconds: 60 },
 };
 
 /**
@@ -220,6 +239,21 @@ function ticketFor(secret, bookingId) {
   return { code, qr: qrPath(code) };
 }
 
+/**
+ * The companion's refusals, as the page needs them: the day's questions used up is 429 (try
+ * tomorrow), the assistant switched off or down is 503 (message the business instead).
+ * @param {unknown} err
+ */
+function companionHttp(err) {
+  if (err instanceof BookingError && err.code === 'COMPANION_LIMIT') {
+    return new HttpError(429, err.code, err.message);
+  }
+  if (err instanceof BookingError && err.code === 'COMPANION_UNAVAILABLE') {
+    return new HttpError(503, err.code, err.message);
+  }
+  return toHttp(err);
+}
+
 /** Booking statuses that have a trip to go on, so a ticket. */
 const TICKET_STATUSES = ['confirmed', 'part_paid', 'paid', 'amended', 'completed'];
 
@@ -266,6 +300,8 @@ const GUEST_INCLUDE = {
  *   provider: import('@okapigo/payments').PaymentProvider,
  *   apiPublicUrl: string,
  *   webPublicUrl: string,   // where guests come back to after paying (the guest web)
+ *   ai: Parameters<typeof askCompanion>[1],   // the AI companion's model (18a)
+ *   aiMonthlyCapMicroUsd: number,             // its monthly spend cap
  * }} deps
  */
 export function publicCheckoutRouter({
@@ -278,10 +314,17 @@ export function publicCheckoutRouter({
   provider,
   apiPublicUrl,
   webPublicUrl = apiPublicUrl,
+  ai,
+  aiMonthlyCapMicroUsd,
 }) {
   const router = Router();
   const limiter = (/** @type {keyof typeof DEFAULT_PUBLIC_LIMITS} */ name) =>
-    rateLimit({ store: rateLimitStore, name: `public-${name}`, ...limits[name] });
+    rateLimit({
+      store: rateLimitStore,
+      name: `public-${name}`,
+      // Tests may pass only the limits they're testing; the rest keep their defaults.
+      ...(limits[name] ?? DEFAULT_PUBLIC_LIMITS[name]),
+    });
 
   /** @param {string} slug */
   async function findOperator(slug) {
@@ -507,6 +550,42 @@ export function publicCheckoutRouter({
       }
       const fresh = await findGuestBooking(req.params.token);
       res.status(201).json({ booking: guestView(fresh, { secret: authSecret }) });
+    },
+  );
+
+  // --- The AI companion (trip hub, stage 18a) -----------------------------------------------
+
+  router.get(
+    '/public/bookings/:token/companion',
+    limiter('guest'),
+    validate({ params: TokenParams }),
+    async (req, res) => {
+      const booking = await findGuestBooking(req.params.token);
+      res.json(
+        await companionState(prisma, {
+          bookingId: booking.id,
+          monthlyCapMicroUsd: aiMonthlyCapMicroUsd,
+        }),
+      );
+    },
+  );
+
+  router.post(
+    '/public/bookings/:token/companion',
+    limiter('companion'),
+    validate({ params: TokenParams, body: CompanionQuestionSchema }),
+    async (req, res) => {
+      const booking = await findGuestBooking(req.params.token);
+      try {
+        const asked = await askCompanion(prisma, ai, {
+          bookingId: booking.id,
+          question: req.body.question,
+          monthlyCapMicroUsd: aiMonthlyCapMicroUsd,
+        });
+        res.status(201).json(asked);
+      } catch (err) {
+        throw companionHttp(err);
+      }
     },
   );
 

@@ -87,3 +87,27 @@ describe('WhatsApp (stage 13c-3)', () => {
     expect(() => loadConfig({ ...valid, WHATSAPP_GRAPH_VERSION: 'latest' })).toThrow();
   });
 });
+
+describe('the AI companion (stage 18a)', () => {
+  it('the fake and a $10 cap by default; Claude needs a key; the key must look like one', () => {
+    const d = loadConfig({ ...valid });
+    expect(d.AI_PROVIDER).toBe('fake');
+    expect(d.AI_MONTHLY_CAP_USD).toBe(10);
+    expect(d.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(() => loadConfig({ ...valid, AI_PROVIDER: 'anthropic' })).toThrow(
+      /AI_PROVIDER=anthropic needs ANTHROPIC_API_KEY/,
+    );
+    const ok = loadConfig({
+      ...valid,
+      AI_PROVIDER: 'anthropic',
+      ANTHROPIC_API_KEY: 'sk-ant-test-abc_123',
+      AI_MONTHLY_CAP_USD: '15',
+    });
+    expect(ok.AI_MONTHLY_CAP_USD).toBe(15);
+    expect(() => loadConfig({ ...valid, ANTHROPIC_API_KEY: 'sk-proj-abc' })).toThrow(
+      /must be an Anthropic API key/,
+    );
+    expect(() => loadConfig({ ...valid, AI_MONTHLY_CAP_USD: '0' })).toThrow();
+    expect(() => loadConfig({ ...valid, AI_MONTHLY_CAP_USD: '500' })).toThrow();
+  });
+});

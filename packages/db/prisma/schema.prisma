@@ -88,6 +88,7 @@ model Operator {
   cashReports          CashReport[]
   guestRequests        GuestRequest[]
   conversations        Conversation[]
+  companionMessages    CompanionMessage[]
 
   @@map("operators")
 }
@@ -316,6 +317,8 @@ model Product {
   // trick as users → roles in session 2.
   // The OTAs allowed to sell it (session 17).
   channels           ChannelProduct[]
+  // The AI companion's answers to common questions about it (18a).
+  companionAnswers   CompanionAnswer[]
 
   @@unique([operatorId, slug])
   @@unique([id, operatorId])
@@ -615,6 +618,8 @@ model Booking {
   notifications  Notification[]
   guestRequests  GuestRequest[]
   conversations  Conversation[]
+  // The AI companion's questions and answers (18a).
+  companionMessages CompanionMessage[]
   // Sold by an OTA through OCTO (session 17b): its OCTO side.
   channelBooking ChannelBooking?
 
@@ -1059,7 +1064,7 @@ model GuestRequest {
   id           String    @id @default(uuid()) @db.Uuid
   operatorId   String    @map("operator_id") @db.Uuid
   bookingId    String    @map("booking_id") @db.Uuid
-  // change_date · cancel · other
+  // change_date · cancel · other · question (the AI companion wasn't sure, 18a)
   kind         String
   message      String
   status       String    @default("open")
@@ -1076,11 +1081,76 @@ model GuestRequest {
 
   operator Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  // The companion's question it came from (kind "question", 18a).
+  companionMessages CompanionMessage[]
 
   // The staff list: "open requests, oldest first".
   @@index([operatorId, status, createdAt])
   @@index([bookingId])
   @@map("guest_requests")
+}
+
+// ===========================================================================
+// THE AI TRIP COMPANION (GST-16, stage 18a)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// CompanionMessage: one question a guest asked on their trip page
+// ---------------------------------------------------------------------------
+//   outcome  answered      from the business's notes (answer set)
+//            handed_over   not sure: the question became a GuestRequest (kind "question")
+//            unsure        not sure, and the team already has too many of their requests
+// Counted for "about 20 questions per booking per day", and its cost for the monthly cap.
+model CompanionMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  operatorId     String   @map("operator_id") @db.Uuid
+  bookingId      String   @map("booking_id") @db.Uuid
+  question       String
+  answer         String?
+  outcome        String
+  // The fact's topic the answer came from ("What should I wear?").
+  source         String?
+  // Answered from a kept answer (companion_answers): no model call, no cost.
+  cached         Boolean  @default(false)
+  model          String
+  inputTokens    Int      @default(0) @map("input_tokens")
+  outputTokens   Int      @default(0) @map("output_tokens")
+  // Millionths of a US dollar (packages/ai/src/cost.js).
+  costMicroUsd   Int      @default(0) @map("cost_micro_usd")
+  guestRequestId String?  @map("guest_request_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  operator     Operator      @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  booking      Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  guestRequest GuestRequest? @relation(fields: [guestRequestId], references: [id], onDelete: SetNull)
+
+  // The trip page's conversation, and the day's count.
+  @@index([bookingId, createdAt])
+  // This month's spend.
+  @@index([createdAt])
+  @@map("companion_messages")
+}
+
+// ---------------------------------------------------------------------------
+// CompanionAnswer: an answer kept for a common question about a tour
+// ---------------------------------------------------------------------------
+// The same question (questionKey: its words, normalised) about the same tour, while the tour's
+// notes are unchanged (factsKey: a hash of them), gets the same answer without asking the
+// model again. Only answers that didn't use one booking's own details are kept.
+model CompanionAnswer {
+  id          String   @id @default(uuid()) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  questionKey String   @map("question_key")
+  factsKey    String   @map("facts_key")
+  answer      String
+  source      String?
+  hits        Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, questionKey, factsKey])
+  @@map("companion_answers")
 }
 
 // ===========================================================================
