@@ -150,7 +150,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17c-2           | Settings › Channels (O11) as designed: cards, tours one by one, latest bookings, money, commission, key (once, made, last used), switch off; OCTO notifications; payments from the OTA (oldest first); Sojourna                                                                           | `d6ba212`           | 17c-2          |
 | 17c-3           | "via Sojourna" everywhere: desk tag, "Paid by Sojourna", channel filter; the OTA booking page (money, messages, buttons, a fixed cancel); OTA refunds settled on every cancel path; departure counts and Channel column; manifest tag; trip page "use Sojourna"; the Trip page link email | `ddd1303`           | 17c-3          |
 | 17d-1           | Sojourna, the mock OTA (`apps/mock-ota`, :4400): its own server, OCTO client and store; M1 storefront, M2 tour (calendar, who, pickups, the hold), M3 checkout, M4 booked, their states; OCTO content and pickups capabilities, refundRules                                               | `5551a6b`           | 17d-1          |
-| 17d-2           | Sojourna's back office (M5: live statuses, cancel with the business's own refund preview, too late), its OCTO notifications subscription ("last sync"), **journey 3 end to end**; OCTO refundIfCancelledNow and refundAmount; contacts accept null                                        | `(this commit)`     | 17d-2          |
+| 17d-2           | Sojourna's back office (M5: live statuses, cancel with the business's own refund preview, too late), its OCTO notifications subscription ("last sync"), **journey 3 end to end**; OCTO refundIfCancelledNow and refundAmount; contacts accept null                                        | `5317f7e`           | 17d-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -385,7 +385,7 @@ e2e set-up on :4500 (its key is the run's business's). OCTO contacts now accept 
 
 ## 7. Where we are
 
-- **Last done:** 17d-2, Sojourna's back office and journey 3, committed `(this commit)`.
+- **Last done:** 17d-2, Sojourna's back office and journey 3, committed `5317f7e`.
   **Session 17 (OCTO) is done.**
 - **Next:** **session 18**: the AI companion, posters, the dashboard (journeys 7 and 8).
 - **To try Sojourna:** `pnpm dev`, then http://localhost:4400 (after `pnpm db:reset`, so the
