@@ -149,7 +149,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17c             | channel manager, server side: the channels API in words (sales, owed, keys once), "via Mock OTA" on bookings, the 30-second signed push to OTA webhooks (fingerprints), SSRF guard                                                                                                        | `a52461d`           | 17c            |
 | 17c-2           | Settings › Channels (O11) as designed: cards, tours one by one, latest bookings, money, commission, key (once, made, last used), switch off; OCTO notifications; payments from the OTA (oldest first); Sojourna                                                                           | `d6ba212`           | 17c-2          |
 | 17c-3           | "via Sojourna" everywhere: desk tag, "Paid by Sojourna", channel filter; the OTA booking page (money, messages, buttons, a fixed cancel); OTA refunds settled on every cancel path; departure counts and Channel column; manifest tag; trip page "use Sojourna"; the Trip page link email | `ddd1303`           | 17c-3          |
-| 17d-1           | Sojourna, the mock OTA (`apps/mock-ota`, :4400): its own server, OCTO client and store; M1 storefront, M2 tour (calendar, who, pickups, the hold), M3 checkout, M4 booked, their states; OCTO content and pickups capabilities, refundRules                                               | `(this commit)`     | 17d-1          |
+| 17d-1           | Sojourna, the mock OTA (`apps/mock-ota`, :4400): its own server, OCTO client and store; M1 storefront, M2 tour (calendar, who, pickups, the hold), M3 checkout, M4 booked, their states; OCTO content and pickups capabilities, refundRules                                               | `5551a6b`           | 17d-1          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -374,7 +374,7 @@ reminders exist yet).
 
 ## 7. Where we are
 
-- **Last done:** 17d-1, Sojourna's guest side, committed `(this commit)`.
+- **Last done:** 17d-1, Sojourna's guest side, committed `5551a6b`.
 - **Next:** **17d-2**: Sojourna's back office (M5: its bookings with the business's statuses,
   cancelling with the refund shown first, "too late to cancel online"), Sojourna subscribing to
   OkapiGo's notifications (a weather cancel shows up by itself), and **journey 3** end to end
