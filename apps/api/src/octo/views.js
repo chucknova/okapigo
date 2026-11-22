@@ -430,6 +430,9 @@ export function bookingOf(o) {
             refund: refundKindOf(b.refundDueKobo, b.amountPaidKobo),
             reason: o.cancelled.reason,
             utcCancelledAt: o.cancelled.at.toISOString(),
+            // Not in the spec (17d-2): how much went back (the refund kind says only FULL,
+            // PARTIAL or NONE), so an OTA can say "₦51,000 refunded".
+            refundAmount: b.refundDueKobo,
           }
         : null,
     freesale: false,
@@ -471,6 +474,9 @@ export function bookingOf(o) {
     }),
     // The `pickups` capability: where the van collects them, and when (17d-1).
     ...(o.pickups && bookingPickupOf(b, o.timeZone)),
+    // Not in the spec (17d-2): what cancelling now would give back ({ amount, percent,
+    // hoursBefore }), while it can still be cancelled; null otherwise.
+    refundIfCancelledNow: o.refundIfCancelledNow ?? null,
     // Not in the spec (OTAs ignore what they don't know): the guest's trip page, to pass on.
     ...(o.tripUrl && { tripUrl: o.tripUrl }),
   };

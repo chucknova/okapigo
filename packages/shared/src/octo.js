@@ -398,16 +398,18 @@ export const BookingSchema = z.object({
   pricing: PricingSchema.optional(),
 });
 
+// Each field may be left out or null (OCTO's contact fields are nullable: an OTA may send what
+// it has as null, as Sojourna did with no phone, found by journey 3 in 17d-2).
 const BookingContactBodySchema = z.object({
-  fullName: z.string().max(200).optional(),
-  firstName: z.string().max(100).optional(),
-  lastName: z.string().max(100).optional(),
-  emailAddress: z.string().max(254).optional(),
-  phoneNumber: z.string().max(40).optional(),
-  locales: z.array(z.string()).optional(),
-  postalCode: z.string().max(40).optional(),
-  country: z.string().max(80).optional(),
-  notes: z.string().max(1000).optional(),
+  fullName: z.string().max(200).nullish(),
+  firstName: z.string().max(100).nullish(),
+  lastName: z.string().max(100).nullish(),
+  emailAddress: z.string().max(254).nullish(),
+  phoneNumber: z.string().max(40).nullish(),
+  locales: z.array(z.string()).nullish(),
+  postalCode: z.string().max(40).nullish(),
+  country: z.string().max(80).nullish(),
+  notes: z.string().max(1000).nullish(),
 });
 
 /** POST /bookings: reserve (seats held). */

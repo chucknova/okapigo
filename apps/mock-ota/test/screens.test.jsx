@@ -256,6 +256,22 @@ describe('M2 · one experience', () => {
     });
   });
 
+  it('a day picked straight away stays picked (journey 3 found it overwritten by the default)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-12-01T09:00:00Z') });
+    const sent = fakeFetch(routes());
+    show('/experiences/p1');
+    const thirteen = await screen.findByRole('button', { name: 'Dec 13, open' });
+    fireEvent.click(thirteen);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(thirteen.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dec 12, open' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+    await waitFor(() =>
+      expect(sent.some((x) => x.path === '/api/experiences/p1/times?date=2026-12-13')).toBe(true),
+    );
+  });
+
   it('a tour that collects guests: where, before Continue', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-12-01T09:00:00Z') });
     const p = product(
@@ -497,5 +513,165 @@ describe('M4 · you’re booked', () => {
     fakeFetch({});
     show('/booked/SJ-0');
     expect(await screen.findByText('We can’t find that booking')).toBeTruthy();
+  });
+});
+
+describe('M5 · the back office (17d-2)', () => {
+  const row = (
+    /** @type {string} */ ref,
+    /** @type {any} */ booking,
+    /** @type {any} */ o = {},
+  ) => ({
+    stored: { ref, supplierReference: `ILT-${ref.slice(3)}`, lead: { name: 'Hannah Weber' }, ...o },
+    booking,
+    title: 'Tarkwa Bay Beach and Lagoon Trip',
+  });
+  const confirmed = (/** @type {any} */ o = {}) => ({
+    status: 'CONFIRMED',
+    cancellable: true,
+    availability: { localDateTimeStart: '2026-12-12T10:00:00+01:00' },
+    unitItems: [{ unitId: 'adult' }, { unitId: 'adult' }, { unitId: 'child' }],
+    pricing: { retail: 10_200_000 },
+    refundIfCancelledNow: { amount: 10_200_000, percent: 100, hoursBefore: 500 },
+    ...o,
+  });
+
+  it('the bookings, their statuses from the supplier; cancelling asks first, then cancels', async () => {
+    let cancelled = false;
+    const sent = fakeFetch({
+      'GET /api/bookings': () => [
+        200,
+        {
+          supplier: SUPPLIER,
+          lastSyncAt: new Date().toISOString(),
+          rows: [
+            row(
+              'SJ-48213',
+              cancelled
+                ? confirmed({
+                    status: 'CANCELLED',
+                    cancellable: false,
+                    cancellation: { refund: 'FULL', refundAmount: 10_200_000 },
+                  })
+                : confirmed(),
+              cancelled ? { cancelledAt: 'x' } : {},
+            ),
+            row(
+              'SJ-48102',
+              confirmed({
+                status: 'CANCELLED',
+                cancellable: false,
+                cancellation: { refund: 'FULL', refundAmount: 7_000_000 },
+              }),
+            ),
+          ],
+        },
+      ],
+      'POST /api/bookings/SJ-48213/cancel': () => {
+        cancelled = true;
+        return [200, { booking: {} }];
+      },
+    });
+    show('/bookings');
+    expect(
+      await screen.findByRole('heading', { name: 'Bookings · Ìrìn Lagos Tours' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/^Supplier connected through OCTO · last sync \d\d:\d\d$/),
+    ).toBeTruthy();
+    expect(screen.getByText('2 bookings')).toBeTruthy();
+    const first = /** @type {HTMLElement} */ (screen.getByText('SJ-48213').closest('tr'));
+    expect(first.textContent).toContain('Ìrìn: ILT-48213');
+    expect(first.textContent).toContain('Sat 12 Dec · 10:00');
+    expect(first.textContent).toContain('2 adults, 1 child');
+    expect(first.textContent).toContain('₦102,000');
+    expect(first.textContent).toContain('Confirmed');
+    // The business called this one off (weather): shown by itself.
+    expect(screen.getByText('Cancelled by supplier · full refund')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Cancel SJ-48102' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel SJ-48213' }));
+    const ask = within(screen.getByRole('alertdialog', { name: 'Cancel SJ-48213?' }));
+    expect(
+      ask.getByText(
+        'Hannah Weber · Tarkwa Bay Beach and Lagoon Trip · Sat 12 Dec, 10:00 · 2 adults, 1 child',
+      ),
+    ).toBeTruthy();
+    expect(ask.getByText('Cancelled 20 days before: full refund')).toBeTruthy();
+    expect(
+      ask.getByText(/₦102,000 back to the guest, under Ìrìn Lagos Tours’ policy\./),
+    ).toBeTruthy();
+    expect(
+      ask.getByText('Ìrìn is told at once and the 3 seats go back on sale everywhere.'),
+    ).toBeTruthy();
+    fireEvent.click(ask.getByRole('button', { name: 'Keep booking' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(sent.some((x) => x.method === 'POST')).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel SJ-48213' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel and refund ₦102,000' }));
+    expect(await screen.findByText('Cancelled · ₦102,000 refunded')).toBeTruthy();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel SJ-48213' })).toBeNull();
+  });
+
+  it('a trip that has started: too late to cancel online; ask the business', async () => {
+    fakeFetch({
+      'GET /api/bookings': () => [
+        200,
+        {
+          supplier: SUPPLIER,
+          lastSyncAt: null,
+          rows: [row('SJ-48190', confirmed({ cancellable: false, refundIfCancelledNow: null }))],
+        },
+      ],
+    });
+    show('/bookings');
+    expect(await screen.findByText(/not synced yet$/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel SJ-48190' }));
+    const panel = within(screen.getByRole('alertdialog', { name: 'Too late to cancel online' }));
+    expect(panel.getByText('PAST THE CUTOFF')).toBeTruthy();
+    expect(panel.getByText('This booking can’t be cancelled online any more')).toBeTruthy();
+    expect(
+      panel.getByText(
+        'SJ-48190 · Tarkwa Bay Beach and Lagoon Trip started at 10:00 on Sat 12 Dec. After the start Ìrìn treats it as a no-show. Ask Ìrìn Lagos Tours directly.',
+      ),
+    ).toBeTruthy();
+    expect(panel.getByRole('link', { name: 'Contact Ìrìn Lagos Tours' }).getAttribute('href')).toBe(
+      'tel:+2348090000123',
+    );
+    fireEvent.click(panel.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
+  it('refused at the last moment (it just started): in the supplier’s words; none yet; offline', async () => {
+    const sent = fakeFetch({
+      'GET /api/bookings': () => [
+        200,
+        { supplier: SUPPLIER, lastSyncAt: null, rows: [row('SJ-1', confirmed())] },
+      ],
+      'POST /api/bookings/SJ-1/cancel': () => [
+        409,
+        { problem: 'too_late', message: 'The tour has started: it can’t be cancelled now.' },
+      ],
+    });
+    show('/bookings');
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel SJ-1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel and refund ₦102,000' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The tour has started: it can’t be cancelled now.',
+    );
+    // The list asked again: it may say "too late" now.
+    await waitFor(() => expect(sent.filter((x) => x.path === '/api/bookings')).toHaveLength(2));
+    cleanup();
+    fakeFetch({
+      'GET /api/bookings': () => [200, { supplier: SUPPLIER, lastSyncAt: null, rows: [] }],
+    });
+    show('/bookings');
+    expect(await screen.findByText('Nothing booked yet')).toBeTruthy();
+    cleanup();
+    fakeFetch({ 'GET /api/bookings': () => [503, { problem: 'offline' }] });
+    show('/bookings');
+    expect(await screen.findByText('SUPPLIER OFFLINE')).toBeTruthy();
   });
 });

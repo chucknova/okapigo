@@ -96,7 +96,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | ------- | -------------------------------------- | --------------------------------------------- |
 | 1       | book on the website and pay            | `apps/web/e2e/journey-1-book-and-pay.spec.js` |
 | 2       | book on WhatsApp, pay the link, ticket | `journey-2-whatsapp.spec.js`                  |
-| 3       | OTA booking via OCTO                   | not yet (17d-2)                               |
+| 3       | OTA booking via OCTO (Sojourna)        | `journey-3-ota.spec.js`                       |
 | 4       | cancel yourself from the trip page     | `journey-4-cancel-yourself.spec.js`           |
 | 5       | deposit, then the balance by link      | `journey-5-deposit-then-balance.spec.js`      |
 | 6       | a guide checks in offline, then syncs  | `journey-6-guide-offline.spec.js`             |
@@ -150,18 +150,19 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17c-2           | Settings › Channels (O11) as designed: cards, tours one by one, latest bookings, money, commission, key (once, made, last used), switch off; OCTO notifications; payments from the OTA (oldest first); Sojourna                                                                           | `d6ba212`           | 17c-2          |
 | 17c-3           | "via Sojourna" everywhere: desk tag, "Paid by Sojourna", channel filter; the OTA booking page (money, messages, buttons, a fixed cancel); OTA refunds settled on every cancel path; departure counts and Channel column; manifest tag; trip page "use Sojourna"; the Trip page link email | `ddd1303`           | 17c-3          |
 | 17d-1           | Sojourna, the mock OTA (`apps/mock-ota`, :4400): its own server, OCTO client and store; M1 storefront, M2 tour (calendar, who, pickups, the hold), M3 checkout, M4 booked, their states; OCTO content and pickups capabilities, refundRules                                               | `5551a6b`           | 17d-1          |
+| 17d-2           | Sojourna's back office (M5: live statuses, cancel with the business's own refund preview, too late), its OCTO notifications subscription ("last sync"), **journey 3 end to end**; OCTO refundIfCancelledNow and refundAmount; contacts accept null                                        | `(this commit)`     | 17d-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
-| Next    | What                                                                                                                                                                               | PRD                       |
-| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                                                                                                     | OPS-01                    |
-| ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers                                                                           | —                         |
-| ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                                                                                                    | —                         |
-| ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                                                                                   | —                         |
-| **17**  | OCTO: ~~17a~~ catalogue; ~~17b~~ bookings; ~~17c~~ ~~17c-2~~ channel manager; ~~17c-3~~ via Sojourna everywhere; ~~17d-1~~ Sojourna's guest side; 17d-2 its back office, journey 3 | DST-01–03                 |
-| 18      | AI companion, posters, dashboard (journeys 7, 8)                                                                                                                                   | GST-16, MKT-01/02, RPT-01 |
-| 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                                                                                                         | step 10                   |
+| Next    | What                                                                                                                                                                                             | PRD                       |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- |
+| ~~16b~~ | Schedule (O6) and a departure (O7): assign guides and vans, cancel for weather                                                                                                                   | OPS-01                    |
+| ~~16c~~ | bookings desk (O8) in three parts: ~~16c-1~~ find and read; ~~16c-2~~ money; ~~16c-3~~ change travellers                                                                                         | —                         |
+| ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                                                                                                                  | —                         |
+| ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                                                                                                 | —                         |
+| **17**  | OCTO: ~~17a~~ catalogue; ~~17b~~ bookings; ~~17c~~ ~~17c-2~~ channel manager; ~~17c-3~~ via Sojourna everywhere; ~~17d-1~~ Sojourna's guest side; ~~17d-2~~ its back office, journey 3. **Done** | DST-01–03                 |
+| 18      | AI companion, posters, dashboard (journeys 7, 8)                                                                                                                                                 | GST-16, MKT-01/02, RPT-01 |
+| 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                                                                                                                       | step 10                   |
 
 ## 6. Decisions (dated)
 
@@ -372,13 +373,21 @@ not in the spec (OCTO's cutoff is words only), for "Full refund until …". Hold
 last 15 minutes. Its pages say "a trip page with the map and everything you need" (no trip
 reminders exist yet).
 
+**With 17d-2 (2026-11-22):** Sojourna's back office asks the business for every booking's
+status each time it opens (so a weather cancel shows by itself); it tells its own cancellations
+from the business's by noting when it cancelled. Before cancelling it shows the business's
+own preview of that booking (`refundIfCancelledNow`, ours: by the policy it was sold under);
+cancelled bookings carry `refundAmount` (ours; OCTO says only FULL/PARTIAL/NONE). Sojourna
+subscribes to OCTO notifications at start (old ones to the same address removed, a fresh key in
+`X-Sojourna-Key`, retried every 30 s) and notes "last sync". **Journey 3** runs Sojourna from the
+e2e set-up on :4500 (its key is the run's business's). OCTO contacts now accept null fields.
+**Session 17 is done.**
+
 ## 7. Where we are
 
-- **Last done:** 17d-1, Sojourna's guest side, committed `5551a6b`.
-- **Next:** **17d-2**: Sojourna's back office (M5: its bookings with the business's statuses,
-  cancelling with the refund shown first, "too late to cancel online"), Sojourna subscribing to
-  OkapiGo's notifications (a weather cancel shows up by itself), and **journey 3** end to end
-  (book on Sojourna → the desk shows "via Sojourna" → cancel → both sides agree).
+- **Last done:** 17d-2, Sojourna's back office and journey 3, committed `(this commit)`.
+  **Session 17 (OCTO) is done.**
+- **Next:** **session 18**: the AI companion, posters, the dashboard (journeys 7 and 8).
 - **To try Sojourna:** `pnpm dev`, then http://localhost:4400 (after `pnpm db:reset`, so the
   demo business has its Sojourna channel and key).
 - **Your dev database** needs `pnpm db:reset` for the Sojourna channel (none, or the old "Mock
@@ -455,11 +464,15 @@ reminders exist yet).
 - **The channel push (17c) runs in the workers app**, not the API: my check API on :4300
   doesn't push. A test that seeds a whole business and pushes 60 days of departures needs the
   60-second test timeout under load (the workers' default 20 s timed out in a full run).
+- **Journey 3 is the longest e2e journey** (two websites, a staff sign-in, the staff app saving
+  for no signal): in a loaded full run it ran out of the default 90 s at the bookings desk
+  (17d-2). It now has 180 s (`test.setTimeout`); alone it takes about 11–17 s.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-22 · 17d-2 Sojourna's back office; journey 3 (session 17 done).
 - 2026-11-21 · 17d-1 Sojourna, the guest side (OCTO content and pickups).
 - 2026-11-21 · 17c-3 "via Sojourna" everywhere; the Trip page link.
 - 2026-11-21 · 17c-2 Settings › Channels (designs arrive; Sojourna).

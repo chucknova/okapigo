@@ -333,3 +333,109 @@ export const phoneWords = (e164) =>
   /^\+234\d{10}$/.test(e164)
     ? `+234 ${e164.slice(4, 7)} ${e164.slice(7, 10)} ${e164.slice(10)}`
     : e164;
+
+// --- The back office (M5, 17d-2) ---------------------------------------------------------------
+
+/**
+ * "last sync 10:42" (today), "last sync Sat 21 Nov", or "not synced yet".
+ * @param {string | null} at @param {Date} [now]
+ */
+export function lastSyncWords(at, now = new Date()) {
+  if (!at) return 'not synced yet';
+  const t = new Date(at);
+  const sameDay = t.toDateString() === now.toDateString();
+  const hhmm = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+  return sameDay
+    ? `last sync ${hhmm}`
+    : `last sync ${DOW[t.getDay()]} ${t.getDate()} ${MONTHS[t.getMonth()]}`;
+}
+
+/**
+ * A booking's status in the back office, as the supplier says it:
+ *   Confirmed · Cancelled · ₦102,000 refunded (Sojourna cancelled it: its guest asked) ·
+ *   Cancelled by supplier · full refund (the business did, e.g. weather) · …
+ * @param {any} stored  Sojourna's own record @param {any | null} b  the OCTO booking (null: unreachable)
+ * @returns {{ text: string, tone: 'ok' | 'muted' | 'bad' }}
+ */
+export function statusOf(stored, b) {
+  if (!b) return { text: 'Can’t reach the supplier', tone: 'bad' };
+  if (b.status === 'CANCELLED') {
+    const amount = b.cancellation?.refundAmount;
+    const back =
+      b.cancellation?.refund === 'NONE' || amount === 0
+        ? 'no refund'
+        : typeof amount === 'number'
+          ? `${naira(amount)} refunded`
+          : 'refunded';
+    if (stored.cancelledAt) return { text: `Cancelled · ${back}`, tone: 'muted' };
+    return {
+      text: `Cancelled by supplier · ${b.cancellation?.refund === 'FULL' ? 'full refund' : back}`,
+      tone: 'muted',
+    };
+  }
+  if (b.status === 'REDEEMED') return { text: 'Checked in', tone: 'ok' };
+  if (b.status === 'EXPIRED') return { text: 'Expired', tone: 'muted' };
+  return { text: 'Confirmed', tone: 'ok' };
+}
+
+/**
+ * One row of the back office. `action`: 'cancel' while it can be; 'too_late' once the trip has
+ * started (the designs' "Too late to cancel online"); null otherwise.
+ * @param {{ stored: any, booking: any | null, title: string | null }} row
+ */
+export function bookingRow({ stored, booking: b, title }) {
+  const start = b?.availability?.localDateTimeStart ?? null;
+  const counts = b ? countsOf(b.unitItems) : {};
+  const units = Object.keys(counts).map((id) => ({ id, type: id }));
+  return {
+    ref: stored.ref,
+    ilt: stored.supplierReference,
+    guest: stored.lead.name,
+    tour: title ?? 'A tour no longer listed',
+    date: start ? `${dateLabel(start)} · ${timeOf(start)}` : '',
+    who: b ? whoWords(units, counts) : '',
+    total: b?.pricing ? naira(b.pricing.retail) : '',
+    status: statusOf(stored, b),
+    action: b?.status === 'CONFIRMED' ? (b.cancellable ? 'cancel' : 'too_late') : null,
+  };
+}
+
+/** "21 days", "30 hours" (before the trip). @param {number} hours */
+const howLongBefore = (hours) =>
+  hours >= 48 ? `${Math.floor(hours / 24)} days` : `${Math.max(1, Math.round(hours))} hours`;
+
+/**
+ * The question before cancelling (designs: "Cancel SJ-48213?"): what goes back, under whose
+ * policy, from the supplier's own preview of this booking (refundIfCancelledNow).
+ * @param {ReturnType<typeof bookingRow>} row @param {any} b @param {string} supplier
+ */
+export function cancelWords(row, b, supplier) {
+  const p = b.refundIfCancelledNow ?? { amount: 0, percent: 0, hoursBefore: null };
+  const seats = b.unitItems.length;
+  const share =
+    p.percent >= 100 ? 'full refund' : p.amount > 0 ? `${p.percent}% back` : 'no refund';
+  return {
+    title: `Cancel ${row.ref}?`,
+    line: [row.guest, row.tour, row.date.replace(' · ', ', '), row.who].filter(Boolean).join(' · '),
+    headline:
+      p.hoursBefore === null ? share : `Cancelled ${howLongBefore(p.hoursBefore)} before: ${share}`,
+    money:
+      p.amount > 0
+        ? `${naira(p.amount)} back to the guest, under ${possessive(supplier)} policy.`
+        : `Nothing goes back to the guest, under ${possessive(supplier)} policy.`,
+    tone: p.amount > 0 ? 'ok' : 'warn',
+    note: `${firstWord(supplier)} is told at once and the ${seats} ${seats === 1 ? 'seat goes' : 'seats go'} back on sale everywhere.`,
+    button: p.amount > 0 ? `Cancel and refund ${naira(p.amount)}` : 'Cancel booking',
+  };
+}
+
+/**
+ * When a trip started, for "too late": "09:00 today" or "10:00 on Sat 12 Dec".
+ * @param {string} start  OCTO's local start @param {Date} [now]
+ */
+export function startedWhen(start, now = new Date()) {
+  const today = new Intl.DateTimeFormat('en-CA').format(now);
+  return start.slice(0, 10) === today
+    ? `${timeOf(start)} today`
+    : `${timeOf(start)} on ${dateLabel(start)}`;
+}

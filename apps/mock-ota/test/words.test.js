@@ -4,6 +4,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  bookingRow,
+  cancelWords,
   cardOf,
   checkWho,
   clock,
@@ -14,6 +16,7 @@ import {
   firstWord,
   freeCancellation,
   kindOf,
+  lastSyncWords,
   meetingPointOf,
   monthGrid,
   monthLabel,
@@ -26,6 +29,8 @@ import {
   seatsLabel,
   shiftMonth,
   startPlace,
+  startedWhen,
+  statusOf,
   timeOf,
   totalKobo,
   unitPrice,
@@ -288,5 +293,126 @@ describe('a booking (M3, M4)', () => {
     expect(possessive('Sojourna')).toBe('Sojourna’s');
     expect(phoneWords('+2348090000123')).toBe('+234 809 000 0123');
     expect(phoneWords('+4915123456789')).toBe('+4915123456789');
+  });
+});
+
+describe('the back office (M5, 17d-2)', () => {
+  const stored = {
+    ref: 'SJ-48213',
+    supplierReference: 'ILT-6WQ3PZ',
+    lead: { name: 'Hannah Weber' },
+  };
+  const booking = (/** @type {any} */ o = {}) => ({
+    status: 'CONFIRMED',
+    cancellable: true,
+    availability: { localDateTimeStart: '2026-12-12T10:00:00+01:00' },
+    unitItems: [{ unitId: 'adult' }, { unitId: 'adult' }, { unitId: 'child' }],
+    pricing: { retail: 10_200_000 },
+    refundIfCancelledNow: { amount: 10_200_000, percent: 100, hoursBefore: 500 },
+    ...o,
+  });
+
+  it('a row, in the designs’ words; what can be done', () => {
+    expect(
+      bookingRow({ stored, booking: booking(), title: 'Tarkwa Bay Beach and Lagoon Trip' }),
+    ).toEqual({
+      ref: 'SJ-48213',
+      ilt: 'ILT-6WQ3PZ',
+      guest: 'Hannah Weber',
+      tour: 'Tarkwa Bay Beach and Lagoon Trip',
+      date: 'Sat 12 Dec · 10:00',
+      who: '2 adults, 1 child',
+      total: '₦102,000',
+      status: { text: 'Confirmed', tone: 'ok' },
+      action: 'cancel',
+    });
+    expect(
+      bookingRow({ stored, booking: booking({ cancellable: false }), title: 'X' }).action,
+    ).toBe('too_late');
+    expect(
+      bookingRow({ stored, booking: booking({ status: 'CANCELLED' }), title: null }),
+    ).toMatchObject({
+      tour: 'A tour no longer listed',
+      action: null,
+    });
+    expect(bookingRow({ stored, booking: null, title: 'X' })).toMatchObject({
+      date: '',
+      who: '',
+      total: '',
+      status: { text: 'Can’t reach the supplier', tone: 'bad' },
+      action: null,
+    });
+  });
+
+  it('the status: cancelled by Sojourna (its guest) or by the supplier; checked in; expired', () => {
+    const cancelled = (/** @type {any} */ c) => booking({ status: 'CANCELLED', cancellation: c });
+    const ours = { ...stored, cancelledAt: '2026-11-21T10:00:00Z' };
+    expect(statusOf(ours, cancelled({ refund: 'FULL', refundAmount: 10_200_000 }))).toEqual({
+      text: 'Cancelled · ₦102,000 refunded',
+      tone: 'muted',
+    });
+    expect(statusOf(ours, cancelled({ refund: 'PARTIAL', refundAmount: 5_100_000 })).text).toBe(
+      'Cancelled · ₦51,000 refunded',
+    );
+    expect(statusOf(ours, cancelled({ refund: 'NONE', refundAmount: 0 })).text).toBe(
+      'Cancelled · no refund',
+    );
+    expect(statusOf(ours, cancelled({ refund: 'PARTIAL' })).text).toBe('Cancelled · refunded');
+    expect(statusOf(ours, cancelled({ refund: 'NONE' })).text).toBe('Cancelled · no refund');
+    expect(statusOf(stored, cancelled({ refund: 'FULL', refundAmount: 10_200_000 })).text).toBe(
+      'Cancelled by supplier · full refund',
+    );
+    expect(statusOf(stored, cancelled({ refund: 'PARTIAL', refundAmount: 100 })).text).toBe(
+      'Cancelled by supplier · ₦1 refunded',
+    );
+    expect(statusOf(stored, booking({ status: 'REDEEMED' })).text).toBe('Checked in');
+    expect(statusOf(stored, booking({ status: 'EXPIRED' })).text).toBe('Expired');
+  });
+
+  it('the question before cancelling: from the supplier’s own preview', () => {
+    const row = bookingRow({ stored, booking: booking(), title: 'Tarkwa Bay' });
+    expect(cancelWords(row, booking(), 'Ìrìn Lagos Tours')).toEqual({
+      title: 'Cancel SJ-48213?',
+      line: 'Hannah Weber · Tarkwa Bay · Sat 12 Dec, 10:00 · 2 adults, 1 child',
+      headline: 'Cancelled 20 days before: full refund',
+      money: '₦102,000 back to the guest, under Ìrìn Lagos Tours’ policy.',
+      tone: 'ok',
+      note: 'Ìrìn is told at once and the 3 seats go back on sale everywhere.',
+      button: 'Cancel and refund ₦102,000',
+    });
+    const half = booking({
+      refundIfCancelledNow: { amount: 5_100_000, percent: 50, hoursBefore: 30.4 },
+    });
+    expect(cancelWords(row, half, 'Ìrìn Lagos Tours')).toMatchObject({
+      headline: 'Cancelled 30 hours before: 50% back',
+      button: 'Cancel and refund ₦51,000',
+    });
+    const none = booking({
+      unitItems: [{ unitId: 'adult' }],
+      refundIfCancelledNow: { amount: 0, percent: 0, hoursBefore: 10 },
+    });
+    expect(cancelWords(row, none, 'Ìrìn Lagos Tours')).toMatchObject({
+      headline: 'Cancelled 10 hours before: no refund',
+      money: 'Nothing goes back to the guest, under Ìrìn Lagos Tours’ policy.',
+      tone: 'warn',
+      note: 'Ìrìn is told at once and the 1 seat goes back on sale everywhere.',
+      button: 'Cancel booking',
+    });
+    expect(cancelWords(row, booking({ refundIfCancelledNow: null }), 'Sojourna').headline).toBe(
+      'no refund',
+    );
+  });
+
+  it('last sync, and when a trip started', () => {
+    const now = new Date(2026, 10, 21, 18, 0);
+    expect(lastSyncWords(null, now)).toBe('not synced yet');
+    expect(lastSyncWords(new Date(2026, 10, 21, 10, 42).toISOString(), now)).toBe(
+      'last sync 10:42',
+    );
+    expect(lastSyncWords(new Date(2026, 10, 20, 9, 5).toISOString(), now)).toBe(
+      'last sync Fri 20 Nov',
+    );
+    expect(startedWhen('2026-11-21T09:00:00+01:00', now)).toBe('09:00 today');
+    expect(startedWhen('2026-11-20T09:00:00+01:00', now)).toBe('09:00 on Fri 20 Nov');
   });
 });

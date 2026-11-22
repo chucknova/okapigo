@@ -12,6 +12,12 @@ import { join } from 'node:path';
 import { createApp, HOLD_MINUTES } from '../server/app.js';
 import { createOctoClient, OctoClientError, CAPABILITIES } from '../server/octo-client.js';
 import { createStore } from '../server/store.js';
+import {
+  keepSubscribing,
+  makeNotifyKey,
+  NOTIFICATION_TYPES,
+  subscribe,
+} from '../server/notifications.js';
 
 /** @type {string[]} */
 const dirs = [];
@@ -38,7 +44,7 @@ function supplier(routes) {
     if (!route) throw new OctoClientError('octo', `No ${method} ${path}`, { code: 'BAD_REQUEST' });
     return route(body);
   };
-  return { asked, octo: { get: handle('GET'), post: handle('POST') } };
+  return { asked, octo: { get: handle('GET'), post: handle('POST'), del: handle('DELETE') } };
 }
 
 const BOOKING = {
@@ -214,10 +220,10 @@ describe('the pages’ API', () => {
     expect(res.body).toEqual({ ref: 'SJ-48213' });
     expect(s.asked[0].body).toEqual({
       resellerReference: 'SJ-48213',
+      // No phone given: none sent.
       contact: {
         fullName: 'Hannah Weber',
         emailAddress: 'hannah@guest.example',
-        phoneNumber: null,
       },
     });
     const kept = JSON.parse(readFileSync(file, 'utf8')).bookings;
@@ -331,6 +337,11 @@ describe('the OCTO client', () => {
     expect(calls[0].init.signal).toBeInstanceOf(AbortSignal);
     await octo.get('/products');
     expect(calls[1].init).toMatchObject({ method: 'GET', body: undefined });
+    await octo.del('/notifications/subscriptions/s-1');
+    expect(calls[2]).toMatchObject({
+      url: 'http://supplier.example/octo/notifications/subscriptions/s-1',
+      init: { method: 'DELETE' },
+    });
     expect(calls[1].init.headers['Content-Type']).toBeUndefined();
   });
 
@@ -386,6 +397,172 @@ describe('the store', () => {
     expect(again.byRef('SJ-9')).toBeNull();
     expect(again.has('SJ-2')).toBe(true);
     expect(again.has('SJ-3')).toBe(false);
+    // Updating one it doesn't have: nothing, and nothing written.
+    expect(again.update('SJ-9', { cancelledAt: 'x' })).toBeNull();
+    expect(createStore(file).byRef('SJ-9')).toBeNull();
+    expect(again.update('SJ-1', { cancelledAt: 'x' })?.cancelledAt).toBe('x');
+    expect(createStore(file).byRef('SJ-1')?.cancelledAt).toBe('x');
     expect(createStore(join(tmpdir(), 'no-such-dir-x', 'f.json')).all()).toEqual([]);
+  });
+});
+
+describe('the back office (17d-2)', () => {
+  const stored = (/** @type {string} */ ref, productId = 'p1') => ({
+    ref,
+    uuid: `u-${ref}`,
+    productId,
+    supplierReference: 'ILT-1',
+    lead: { name: 'Hannah Weber', email: 'h@guest.example', phone: null },
+    createdAt: '2026-11-21T10:00:00Z',
+  });
+  const at = new Date('2026-11-21T10:42:00Z');
+
+  it('every booking, its status asked of the supplier now; the time it last answered', async () => {
+    const store = createStore(tempFile());
+    store.add(stored('SJ-1'));
+    store.add(stored('SJ-2', 'gone'));
+    store.add(stored('SJ-3'));
+    const s = supplier({
+      'GET /supplier': () => ({ name: 'Ìrìn Lagos Tours' }),
+      'GET /bookings/u-SJ-1': () => ({ status: 'CONFIRMED' }),
+      'GET /bookings/u-SJ-2': () => ({ status: 'CANCELLED' }),
+      'GET /products/p1': () => ({ title: 'Tarkwa Bay' }),
+    });
+    const app = createApp({ octo: s.octo, store, now: () => at });
+    const res = await request(app).get('/api/bookings');
+    expect(res.status).toBe(200);
+    expect(res.body.supplier.name).toBe('Ìrìn Lagos Tours');
+    expect(res.body.lastSyncAt).toBe('2026-11-21T10:42:00.000Z');
+    expect(
+      res.body.rows.map((/** @type {any} */ r) => [
+        r.stored.ref,
+        r.booking?.status ?? null,
+        r.title,
+      ]),
+    ).toEqual([
+      ['SJ-3', null, 'Tarkwa Bay'], // one the supplier can't find: still listed
+      ['SJ-2', 'CANCELLED', null], // its tour taken off sale: still listed
+      ['SJ-1', 'CONFIRMED', 'Tarkwa Bay'],
+    ]);
+    // Each tour asked once.
+    expect(s.asked.filter((a) => a.path === '/products/p1')).toHaveLength(1);
+  });
+
+  it('cancelling: through OCTO, noted as Sojourna’s; too late; an unknown one', async () => {
+    const store = createStore(tempFile());
+    store.add(stored('SJ-1'));
+    store.add(stored('SJ-2'));
+    const s = supplier({
+      'POST /bookings/u-SJ-1/cancel': () => ({
+        status: 'CANCELLED',
+        cancellation: { refund: 'FULL' },
+      }),
+      'POST /bookings/u-SJ-2/cancel': () => {
+        throw new OctoClientError('octo', 'The tour has started: it can’t be cancelled now.', {
+          code: 'UNPROCESSABLE_ENTITY',
+          body: { error: 'UNPROCESSABLE_ENTITY' },
+        });
+      },
+    });
+    const app = createApp({ octo: s.octo, store, now: () => at });
+    const res = await request(app).post('/api/bookings/SJ-1/cancel');
+    expect(res.status).toBe(200);
+    expect(res.body.booking.status).toBe('CANCELLED');
+    expect(s.asked[0].body).toEqual({ reason: 'Cancelled by the guest on Sojourna' });
+    expect(store.byRef('SJ-1')?.cancelledAt).toBe('2026-11-21T10:42:00.000Z');
+    expect(store.lastSyncAt()).toBe('2026-11-21T10:42:00.000Z');
+    const late = await request(app).post('/api/bookings/SJ-2/cancel');
+    expect(late.status).toBe(409);
+    expect(late.body).toMatchObject({ problem: 'too_late' });
+    expect(store.byRef('SJ-2')?.cancelledAt).toBeUndefined();
+    expect((await request(app).post('/api/bookings/SJ-9/cancel')).status).toBe(404);
+  });
+
+  it('the supplier’s notifications: with Sojourna’s key, noted; anyone else turned away', async () => {
+    const store = createStore(tempFile());
+    const app = createApp({ octo: supplier({}).octo, store, notifyKey: 'k-1', now: () => at });
+    const n = { notificationType: 'BOOKING_UPDATE', data: { uuid: 'u-1' } };
+    expect((await request(app).post('/octo-updates').send(n)).status).toBe(401);
+    expect(
+      (await request(app).post('/octo-updates').set('X-Sojourna-Key', 'wrong').send(n)).status,
+    ).toBe(401);
+    expect(store.lastSyncAt()).toBeNull();
+    expect(
+      (await request(app).post('/octo-updates').set('X-Sojourna-Key', 'k-1').send(n)).status,
+    ).toBe(204);
+    expect(store.lastSyncAt()).toBe('2026-11-21T10:42:00.000Z');
+    // An empty key never opens the door.
+    const empty = createApp({
+      octo: supplier({}).octo,
+      store: createStore(tempFile()),
+      notifyKey: '',
+    });
+    expect(
+      (await request(empty).post('/octo-updates').set('X-Sojourna-Key', '').send(n)).status,
+    ).toBe(401);
+    // No key set: nobody is let in.
+    const closed = createApp({ octo: supplier({}).octo, store: createStore(tempFile()) });
+    expect(
+      (await request(closed).post('/octo-updates').set('X-Sojourna-Key', '').send(n)).status,
+    ).toBe(401);
+  });
+});
+
+describe('subscribing to the supplier’s updates (17d-2)', () => {
+  it('old subscriptions to the same address removed; a new one with a fresh key', async () => {
+    const s = supplier({
+      'GET /notifications/subscriptions': () => [
+        { id: 'old-1', url: 'http://localhost:4400/octo-updates' },
+        { id: 'other', url: 'http://elsewhere.example/hook' },
+      ],
+      'DELETE /notifications/subscriptions/old-1': () => ({}),
+      'POST /notifications/subscriptions': (b) => ({ id: 'new', ...b }),
+    });
+    const made = await subscribe({
+      octo: s.octo,
+      url: 'http://localhost:4400/octo-updates',
+      key: 'k-1',
+    });
+    expect(made.id).toBe('new');
+    expect(s.asked.map((a) => `${a.method} ${a.path}`)).toEqual([
+      'GET /notifications/subscriptions',
+      'DELETE /notifications/subscriptions/old-1',
+      'POST /notifications/subscriptions',
+    ]);
+    expect(s.asked[2].body).toEqual({
+      url: 'http://localhost:4400/octo-updates',
+      notificationTypes: NOTIFICATION_TYPES,
+      headers: { 'X-Sojourna-Key': 'k-1' },
+    });
+    expect(NOTIFICATION_TYPES).toEqual(['BOOKING_UPDATE', 'AVAILABILITY_UPDATE', 'PRODUCT_UPDATE']);
+    expect(makeNotifyKey()).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    expect(makeNotifyKey()).not.toBe(makeNotifyKey());
+  });
+
+  it('the supplier down: tries again later', async () => {
+    let calls = 0;
+    const octo = {
+      get: async () => {
+        calls += 1;
+        if (calls === 1) throw new OctoClientError('offline', 'down');
+        return [];
+      },
+      post: async () => ({ id: 'new' }),
+      del: async () => ({}),
+    };
+    /** @type {string[]} */
+    const lines = [];
+    keepSubscribing({
+      octo: /** @type {any} */ (octo),
+      url: 'u',
+      key: 'k',
+      every: 10,
+      log: (l) => lines.push(l),
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    expect(lines).toEqual([
+      'Sojourna: couldn’t subscribe yet (down); trying again in 30 seconds',
+      'Sojourna: subscribed to updates at u',
+    ]);
   });
 });

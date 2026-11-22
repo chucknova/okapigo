@@ -45,6 +45,7 @@ import {
   holdMinutesFor,
   listAvailability,
   octoStatusOf,
+  previewCancellation,
   reserveChannelBooking,
   seatsLeft,
   ticketCode,
@@ -497,7 +498,27 @@ export function octoRouter({
     const status = octoStatusOf(booking, booking.hold, now);
     const confirmed = status === 'CONFIRMED' || status === 'REDEEMED';
     const cancelEvent = booking.events[0];
+    // Not in the spec (17d-2): what cancelling now would give back, by the policy this booking
+    // was sold under (an OTA shows its guest before they confirm).
+    const preview =
+      status === 'CONFIRMED' && booking.departure.startsAt > now
+        ? /** @type {any} */ (
+            await previewCancellation(prisma, {
+              operatorId: c.operator.id,
+              bookingId: booking.id,
+              initiatedBy: 'guest',
+              now,
+            })
+          )
+        : null;
     return bookingOf({
+      refundIfCancelledNow: preview
+        ? {
+            amount: preview.refundKobo,
+            percent: (preview.refundBasisPoints ?? 0) / 100,
+            hoursBefore: preview.hoursBefore ?? null,
+          }
+        : null,
       channelBooking: cb,
       booking,
       status,

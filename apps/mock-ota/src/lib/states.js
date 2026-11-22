@@ -48,3 +48,15 @@ export const notConfirmed = (supplier, until) => ({
   title: 'We couldn’t confirm your booking',
   body: `${supplier} didn’t confirm in time. You haven’t been charged.${until ? ` Your seats are still held until ${until}.` : ''}`,
 });
+
+/**
+ * M5 · the trip has started: too late to cancel online.
+ * @param {string} ref @param {string} tour @param {string} when  "09:00 today", "Sat 12 Dec, 10:00"
+ * @param {string} supplier
+ */
+export const tooLate = (ref, tour, when, supplier) => ({
+  tone: /** @type {const} */ ('bad'),
+  tag: 'PAST THE CUTOFF',
+  title: 'This booking can’t be cancelled online any more',
+  body: `${ref} · ${tour} started at ${when}. After the start ${supplier.trim().split(/\s+/)[0]} treats it as a no-show. Ask ${supplier} directly.`,
+});

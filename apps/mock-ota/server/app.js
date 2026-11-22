@@ -15,12 +15,20 @@
  *   GET  /api/holds/:uuid                   the hold, while the guest pays
  *   POST /api/holds/:uuid/confirm           the guest paid (a test site: nothing is charged)
  *   GET  /api/bookings/:ref                 "You're booked": the booking, its ticket, the tour
+ *   GET  /api/bookings                      the back office (M5, 17d-2): every booking, its
+ *                                           status asked of the supplier now
+ *   POST /api/bookings/:ref/cancel          the guest asked: cancelled with the supplier, by
+ *                                           its policy (the refund was shown first)
+ *   POST /octo-updates                      the supplier's OCTO notifications (17d-2): Sojourna
+ *                                           subscribed at start; the key it asked for proves
+ *                                           it's the supplier
  *
  * When something goes wrong, the answer says which of the designs' states to show:
  *   { problem: 'offline' }        the supplier isn't answering (M1, "Try again")
  *   { problem: 'taken', vacancies }   seats went while choosing (M2 → M3)
  *   { problem: 'expired' }        the hold ran out (M3)
  *   { problem: 'not_confirmed' }  the supplier didn't confirm (M3): nothing charged
+ *   { problem: 'too_late' }       the trip has started: can't be cancelled online (M5)
  *   { problem: 'refused', message }   anything else the supplier refused, in its words
  */
 import express from 'express';
@@ -49,9 +57,18 @@ class Problem extends Error {
  *   store: ReturnType<typeof import('./store.js').createStore>,
  *   newRef?: () => string,
  *   pages?: import('express').RequestHandler | null,   the pages (Vite in development, dist/ when built)
+ *   notifyKey?: string | null,    the key the supplier sends with its notifications
+ *   now?: () => Date,
  * }} deps
  */
-export function createApp({ octo, store, newRef, pages = null }) {
+export function createApp({
+  octo,
+  store,
+  newRef,
+  pages = null,
+  notifyKey = null,
+  now = () => new Date(),
+}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '20kb' }));
@@ -169,7 +186,11 @@ export function createApp({ octo, store, newRef, pages = null }) {
     try {
       booking = await octo.post(`/bookings/${encodeURIComponent(req.params.uuid)}/confirm`, {
         resellerReference: ref,
-        contact: { fullName: lead.name, emailAddress: lead.email, phoneNumber: lead.phone },
+        contact: {
+          fullName: lead.name,
+          emailAddress: lead.email,
+          ...(lead.phone && { phoneNumber: lead.phone }),
+        },
       });
     } catch (err) {
       if (err instanceof OctoClientError && err.code === 'INVALID_BOOKING_UUID') {
@@ -203,6 +224,65 @@ export function createApp({ octo, store, newRef, pages = null }) {
       .get(`/products/${encodeURIComponent(stored.productId)}`)
       .catch(() => null);
     res.json({ stored, booking, experience, supplier });
+  });
+
+  app.get('/api/bookings', async (req, res) => {
+    const stored = store.all();
+    const supplier = await octo.get('/supplier');
+    const bookings = await Promise.all(
+      stored.map((b) => octo.get(`/bookings/${encodeURIComponent(b.uuid)}`).catch(() => null)),
+    );
+    // The tours' titles, once each (a tour taken off sale since: its booking still shows).
+    const ids = [...new Set(stored.map((b) => b.productId))];
+    const titles = Object.fromEntries(
+      await Promise.all(
+        ids.map(async (id) => [
+          id,
+          await octo
+            .get(`/products/${encodeURIComponent(id)}`)
+            .then((p) => p.title ?? p.internalName)
+            .catch(() => null),
+        ]),
+      ),
+    );
+    store.noteSync(now());
+    res.json({
+      supplier,
+      lastSyncAt: store.lastSyncAt(),
+      rows: stored.map((b, i) => ({ stored: b, booking: bookings[i], title: titles[b.productId] })),
+    });
+  });
+
+  app.post('/api/bookings/:ref/cancel', async (req, res) => {
+    const stored = store.byRef(req.params.ref);
+    if (!stored) throw new Problem(404, 'refused', 'We can’t find that booking.');
+    let booking;
+    try {
+      booking = await octo.post(`/bookings/${encodeURIComponent(stored.uuid)}/cancel`, {
+        reason: 'Cancelled by the guest on Sojourna',
+      });
+    } catch (err) {
+      // The trip has started: the supplier treats it as a no-show now.
+      if (err instanceof OctoClientError && err.code === 'UNPROCESSABLE_ENTITY') {
+        throw new Problem(409, 'too_late', err.message);
+      }
+      throw err;
+    }
+    store.update(stored.ref, { cancelledAt: now().toISOString() });
+    store.noteSync(now());
+    res.json({ booking });
+  });
+
+  // The supplier telling Sojourna something changed (OCTO notifications). Sojourna's pages ask
+  // the supplier afresh each time, so there's nothing to copy: noting when it last heard is
+  // enough ("last sync 10:42"). Anyone else is turned away.
+  app.post('/octo-updates', (req, res) => {
+    if (!notifyKey || req.get('X-Sojourna-Key') !== notifyKey) {
+      res.status(401).end();
+      return;
+    }
+    store.noteSync(now());
+    res.status(204).end();
   });
 
   app.use('/api', (req, res) => {

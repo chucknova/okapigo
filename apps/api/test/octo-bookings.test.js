@@ -358,7 +358,15 @@ describe('cancel (Ìrìn’s policy, until the start)', () => {
   it('72 hours before: a full refund, settled with the OTA', async () => {
     const s = await setup();
     const { d, booking } = await confirmedIn(s, 100, 'ota-5');
+    // Ours, not the spec's (17d-2): what cancelling now gives back, shown before.
+    expect((await s.api.get('/octo/bookings/ota-5')).body.refundIfCancelledNow).toEqual({
+      amount: 8_000_000,
+      percent: 100,
+      hoursBefore: expect.closeTo(100, 0),
+    });
     const res = await s.api.post('/octo/bookings/ota-5/cancel').send({});
+    expect(res.body.cancellation.refundAmount).toBe(8_000_000);
+    expect(res.body.refundIfCancelledNow).toBeNull();
     conforms(BookingSchema, res.body);
     expect(res.body).toMatchObject({
       status: 'CANCELLED',
@@ -389,8 +397,12 @@ describe('cancel (Ìrìn’s policy, until the start)', () => {
   it('30 hours before: half back; 10 hours before: nothing back; started: too late', async () => {
     const s = await setup();
     const half = await confirmedIn(s, 30, 'ota-6');
+    expect((await s.api.get('/octo/bookings/ota-6')).body.refundIfCancelledNow).toMatchObject({
+      amount: 4_000_000,
+      percent: 50,
+    });
     const res = await s.api.post('/octo/bookings/ota-6/cancel').send({});
-    expect(res.body.cancellation.refund).toBe('PARTIAL');
+    expect(res.body.cancellation).toMatchObject({ refund: 'PARTIAL', refundAmount: 4_000_000 });
     expect(await ledgerOf(half.booking.id, 'refund_paid')).toEqual([
       ['REFUNDS_PAYABLE', 4_000_000, 0],
       ['OTA_RECEIVABLE', 0, 3_200_000],
@@ -415,6 +427,7 @@ describe('cancel (Ìrìn’s policy, until the start)', () => {
     expect((await s.api.get('/octo/bookings/ota-8')).body).toMatchObject({
       status: 'CONFIRMED',
       cancellable: false,
+      refundIfCancelledNow: null,
     });
   });
 });
@@ -536,5 +549,27 @@ describe('no oversell across channels', () => {
     // The rest were told plainly.
     const octoLosers = results.slice(6).filter((r) => r.status === 400);
     for (const r of octoLosers) expect(r.body.error).toBe('UNPROCESSABLE_ENTITY');
+  });
+});
+
+describe('a contact with nulls (17d-2: found by journey 3)', () => {
+  it('fields an OTA sends as null are simply not given', async () => {
+    const s = await setup();
+    const r = await s.reserve((await s.departure()).id, { uuid: 'ota-null' });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const res = await s.api.post('/octo/bookings/ota-null/confirm').send({
+      contact: {
+        fullName: 'Hannah Weber',
+        emailAddress: 'hannah@guest.example',
+        phoneNumber: null,
+        firstName: null,
+        country: null,
+      },
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    const b = await ctx.prisma.booking.findFirstOrThrow({
+      where: { channelBooking: { uuid: 'ota-null' } },
+    });
+    expect(b).toMatchObject({ leadName: 'Hannah Weber', leadPhone: null, status: 'paid' });
   });
 });

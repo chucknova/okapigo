@@ -704,3 +704,185 @@ p {
     color: var(--soj-ink);
   }
 }
+
+/* --- M5 · the back office (17d-2) --------------------------------------------------------- */
+.office {
+  min-height: 100vh;
+  background: var(--soj-surface-2);
+  font-size: 15px;
+}
+.office-top {
+  background: var(--soj-ink);
+  color: #fff;
+}
+.wordmark--white {
+  color: #fff;
+  font-size: 22px;
+}
+.office-badge {
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #2e3a50;
+  font-size: 13px;
+  font-weight: 700;
+}
+.office-link {
+  margin-left: auto;
+  color: #dce4fa;
+  font-weight: 600;
+}
+.office-link:hover {
+  color: #fff;
+}
+.office-head {
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.table-box {
+  background: var(--soj-surface);
+  border: 1px solid var(--soj-line);
+  border-radius: var(--soj-radius);
+  overflow: hidden;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th {
+  text-align: left;
+  padding: 12px 8px;
+  background: var(--soj-surface-2);
+  font-size: 13px;
+  color: var(--soj-muted);
+}
+.table td {
+  padding: 14px 8px;
+  border-top: 1px solid #eef1f6;
+  vertical-align: top;
+}
+.table th:first-child,
+.table td:first-child {
+  padding-left: 16px;
+}
+.table th:last-child,
+.table td:last-child {
+  padding-right: 16px;
+}
+.right {
+  text-align: right;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.tiny {
+  font-size: 12px;
+}
+.status {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: var(--soj-pill);
+  font-size: 13px;
+  font-weight: 800;
+}
+.status--ok {
+  background: var(--soj-ok-soft);
+  color: #1e5e33;
+}
+.status--muted {
+  background: #eef1f6;
+  color: var(--soj-ink-soft);
+}
+.status--bad {
+  background: var(--soj-bad-soft);
+  color: var(--soj-bad);
+}
+.btn-cancel {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--soj-bad);
+  background: var(--soj-surface);
+  color: var(--soj-bad);
+  font-weight: 800;
+  cursor: pointer;
+}
+.btn--red {
+  border: 0;
+  background: var(--soj-bad);
+  color: #fff;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+/* On a phone, each booking is a card: its labels beside its values. */
+@media (max-width: 760px) {
+  .table thead {
+    display: none;
+  }
+  .table tr {
+    display: block;
+    padding: 10px 16px;
+    border-top: 1px solid #eef1f6;
+  }
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0 !important;
+    border: 0;
+    text-align: right;
+  }
+  .table td::before {
+    content: attr(data-label);
+    color: var(--soj-muted);
+    font-size: 13px;
+    text-align: left;
+  }
+  .table td:last-child::before {
+    content: none;
+  }
+}
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 36, 51, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 120px 16px 16px;
+}
+.dialog {
+  width: min(480px, 100%);
+  background: var(--soj-surface);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 16px 40px rgba(27, 36, 51, 0.24);
+}
+.dialog .state {
+  border: 0;
+  padding: 0;
+}
+.refund {
+  padding: 14px;
+  border-radius: var(--soj-radius);
+}
+.refund--ok {
+  background: var(--soj-ok-soft);
+  color: #1e5e33;
+}
+.refund--warn {
+  background: var(--soj-warn-soft);
+  color: var(--soj-warn);
+}
+.dialog-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}

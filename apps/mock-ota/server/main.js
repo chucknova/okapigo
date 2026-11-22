@@ -9,6 +9,8 @@
  *   OKAPIGO_OCTO_URL     the supplier's OCTO address (default http://localhost:4000/octo)
  *   MOCK_OTA_API_KEY     Sojourna's key for it (default: the demo seed's octo_dev_irin-lagos-tours)
  *   MOCK_OTA_DATA        where Sojourna keeps its bookings (default data/sojourna.json)
+ *   MOCK_OTA_PUBLIC_URL  where the supplier can reach Sojourna with its updates (default
+ *                        http://localhost:<port>); MOCK_OTA_SUBSCRIBE=0 to not subscribe
  */
 import express from 'express';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +18,7 @@ import { dirname, join } from 'node:path';
 import { createApp } from './app.js';
 import { createOctoClient } from './octo-client.js';
 import { createStore } from './store.js';
+import { keepSubscribing, makeNotifyKey } from './notifications.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -46,7 +49,20 @@ async function pages() {
   return router;
 }
 
-const app = createApp({ octo, store, pages: await pages() });
+const notifyKey = makeNotifyKey();
+const app = createApp({ octo, store, notifyKey, pages: await pages() });
 app.listen(port, () => {
   process.stdout.write(`Sojourna on http://localhost:${port}\n`);
+  if (process.env.MOCK_OTA_SUBSCRIBE !== '0') {
+    const publicUrl = (process.env.MOCK_OTA_PUBLIC_URL ?? `http://localhost:${port}`).replace(
+      /\/+$/,
+      '',
+    );
+    keepSubscribing({
+      octo,
+      url: `${publicUrl}/octo-updates`,
+      key: notifyKey,
+      log: (line) => process.stdout.write(`${line}\n`),
+    });
+  }
 });

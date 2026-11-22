@@ -84,5 +84,7 @@ export function createOctoClient({ baseUrl, apiKey, fetch: doFetch = fetch }) {
     get: (path) => call('GET', path),
     /** @param {string} path @param {unknown} body */
     post: (path, body) => call('POST', path, body ?? {}),
+    /** @param {string} path */
+    del: (path) => call('DELETE', path),
   };
 }

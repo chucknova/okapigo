@@ -9,7 +9,9 @@
  * written whole each time, to a temporary file first and then renamed over the old one, so a
  * crash mid-write never leaves half a file.
  *
- *   createStore(file)   all(), byRef(ref), add(booking)
+ *   createStore(file)   all(), byRef(ref), add(booking), update(ref, patch)
+ *                       noteSync(at), lastSyncAt(): when the supplier last answered or told
+ *                       Sojourna something (the back office's "last sync 10:42", 17d-2)
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -22,13 +24,15 @@ import { dirname } from 'node:path';
  *   supplierReference: string,   "ILT-6WQ3PZ": the supplier's reference
  *   lead: { name: string, email: string, phone: string | null },
  *   createdAt: string,
+ *   cancelledAt?: string,        when Sojourna cancelled it (its guest asked): any other
+ *                                cancellation was the supplier's (17d-2)
  * }} StoredBooking
  */
 
 /** @param {string} file */
 export function createStore(file) {
-  /** @type {{ bookings: StoredBooking[] }} */
-  let data = { bookings: [] };
+  /** @type {{ bookings: StoredBooking[], lastSyncAt?: string | null }} */
+  let data = { bookings: [], lastSyncAt: null };
   try {
     data = JSON.parse(readFileSync(file, 'utf8'));
   } catch {
@@ -53,5 +57,19 @@ export function createStore(file) {
       save();
       return b;
     },
+    /** @param {string} ref @param {Partial<StoredBooking>} patch */
+    update(ref, patch) {
+      const b = data.bookings.find((x) => x.ref === ref);
+      if (!b) return null;
+      Object.assign(b, patch);
+      save();
+      return b;
+    },
+    /** The supplier answered (or told us something) just now. @param {Date} at */
+    noteSync(at) {
+      data.lastSyncAt = at.toISOString();
+      save();
+    },
+    lastSyncAt: () => data.lastSyncAt ?? null,
   };
 }

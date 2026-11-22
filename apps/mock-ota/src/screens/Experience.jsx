@@ -51,9 +51,11 @@ export function Experience({ id }) {
   const p = product.data?.experience;
   const name = supplier.data?.supplier?.name ?? 'The operator';
   const [month, setMonth] = useState(/** @type {{ year: number, month: number } | null} */ (null));
-  const [date, setDate] = useState(/** @type {string | null} */ (null));
+  // What the guest picked (null: not yet; the defaults below are worked out while drawing, so a
+  // quick click can never be overwritten by them: found by journey 3).
+  const [picked, setDate] = useState(/** @type {string | null} */ (null));
   const [timeId, setTimeId] = useState(/** @type {string | null} */ (null));
-  const [counts, setCounts] = useState(/** @type {Record<string, number>} */ ({}));
+  const [chosen, setCounts] = useState(/** @type {Record<string, number> | null} */ (null));
   const [pickup, setPickup] = useState(/** @type {string | null} */ (null));
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(/** @type {any} */ (null));
@@ -67,22 +69,15 @@ export function Experience({ id }) {
   );
   const grid = month && calendar.data ? monthGrid(month.year, month.month, calendar.data.days) : [];
   // The first open day of the month shown, until the guest picks one.
-  useEffect(() => {
-    if (!date && grid.length) {
-      const first = grid.find((c) => c?.state === 'open');
-      if (first) setDate(first.date);
-    }
-  }, [date, grid]);
+  const date = picked ?? grid.find((c) => c?.state === 'open')?.date ?? null;
   const times = useLoad(date ? `/api/experiences/${id}/times?date=${date}` : null);
   const slots = /** @type {any[]} */ (times.data?.times ?? []);
   const slot = slots.find((t) => t.id === timeId) ?? slots.find((t) => t.available) ?? null;
 
   const option = p?.options?.[0];
   const units = /** @type {any[]} */ (option?.units ?? []);
-  // Two adults to start (designs), once the units are known.
-  useEffect(() => {
-    if (units.length && Object.keys(counts).length === 0) setCounts({ [units[0].id]: 2 });
-  }, [units, counts]);
+  // Two adults to start (designs), until the guest changes it.
+  const counts = chosen ?? (units.length ? { [units[0].id]: 2 } : {});
 
   if (product.error || supplier.error) {
     const e = product.error ?? supplier.error;
