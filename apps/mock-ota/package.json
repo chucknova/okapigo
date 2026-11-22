@@ -1,0 +1,29 @@
+{
+  "name": "@okapigo/mock-ota",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Sojourna, a pretend travel website (an OTA) that sells OkapiGo businesses' tours through OCTO (session 17d, journey 3)",
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env server/main.js",
+    "build": "vite build",
+    "start": "NODE_ENV=production node --env-file-if-exists=../../.env server/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@okapigo/shared": "workspace:*",
+    "express": "^5.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "uqr": "0.1.3",
+    "wouter": "3.13.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.3",
+    "@vitejs/plugin-react": "6.3.0",
+    "jsdom": "31.0.1",
+    "supertest": "^7.3.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

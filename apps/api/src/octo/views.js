@@ -15,6 +15,7 @@ import { priceBasket } from '@okapigo/shared/pricing';
 import { percentOf, divideRoundToNaira } from '@okapigo/shared/pricing';
 import { policyLine } from '@okapigo/shared/tour-facts';
 import { localIso, statusOf } from '@okapigo/shared/octo';
+import { slugify } from '@okapigo/shared/slug';
 
 export { localIso, statusOf };
 
@@ -130,10 +131,139 @@ export function cancellationCutoffOf(policy) {
   };
 }
 
+// --- Content and pickups (17d-1: OCTO's optional capabilities, for an OTA's pages) -----------
+
+/** An address as OCTO's place. @param {{ address?: string, lat?: number, lng?: number } | null | undefined} a */
+const placeOf = (a) => ({
+  latitude: a?.lat ?? null,
+  longitude: a?.lng ?? null,
+  postalAddress: {
+    streetAddress: a?.address ?? null,
+    addressLocality: null,
+    addressRegion: null,
+    postalCode: null,
+    addressCountry: 'NG',
+    postOfficeBoxNumber: null,
+  },
+});
+
+/** A picture's media type, from its address. @param {string} url */
+const mediaTypeOf = (url) =>
+  /\.png($|\?)/i.test(url) ? 'image/png' : /\.webp($|\?)/i.test(url) ? 'image/webp' : 'image/jpeg';
+
+/**
+ * What the `content` capability adds to a product: what's included and not, what to bring and
+ * when to arrive, the stops, the cancellation terms (OCTO's `features`); where to meet (a
+ * START location); the tour's label ("Boat", "Walking": `categoryLabels`); its photos.
+ * @param {any} p  with its policy's current version
+ */
+export function contentOf(p) {
+  /** @param {string[] | undefined} list @param {string} type */
+  const features = (list, type) =>
+    (list ?? []).map((shortDescription) => ({ shortDescription, type }));
+  const mp = /** @type {any} */ (p.meetingPoint);
+  return {
+    features: [
+      ...(p.stops ?? []).map((/** @type {any} */ s) => ({
+        shortDescription: s.name,
+        type: 'HIGHLIGHT',
+      })),
+      ...features(p.inclusions, 'INCLUSION'),
+      ...features(p.exclusions, 'EXCLUSION'),
+      ...features(p.whatToBring, 'PREARRIVAL_INFORMATION'),
+      ...(p.arriveMinutesEarly
+        ? [
+            {
+              shortDescription: `Be at the meeting point ${p.arriveMinutesEarly} minutes before the start`,
+              type: 'PREARRIVAL_INFORMATION',
+            },
+          ]
+        : []),
+      ...(p.policy?.rules?.length
+        ? [{ shortDescription: policyLine(p.policy), type: 'CANCELLATION_TERM' }]
+        : []),
+    ],
+    locations: mp?.name
+      ? [
+          {
+            title: mp.name,
+            shortDescription: mp.note ?? null,
+            types: ['START'],
+            minutesTo: null,
+            minutesAt: null,
+            place: placeOf(mp),
+          },
+        ]
+      : [],
+    categoryLabels: p.activityLabel ? [p.activityLabel] : [],
+    media: (p.photos ?? []).map((/** @type {any} */ ph) => ({
+      src: ph.url,
+      type: mediaTypeOf(ph.url),
+      rel: 'GALLERY',
+      title: ph.alt ?? null,
+      caption: null,
+      copyright: null,
+    })),
+  };
+}
+
+/**
+ * A booking's pickup, in the `pickups` capability's words: its location and its time on the
+ * day ("2026-12-09T07:30:00+01:00"). @param {any} b  with departure and pickupPoint
+ * @param {string} timeZone
+ */
+export function bookingPickupOf(b, timeZone) {
+  const pt = /** @type {{ name: string, address?: string, time?: string } | null} */ (
+    b.pickupPoint
+  );
+  const day = localIso(b.departure.startsAt, timeZone);
+  const at = pt?.time ? `${day.slice(0, 11)}${pt.time}:00${day.slice(19)}` : null;
+  return {
+    pickupRequested: Boolean(pt),
+    pickupLocationId: pt ? slugify(pt.name) : null,
+    pickupNotes: null,
+    localPickupDateTimeStart: at,
+    localPickupDateTimeEnd: at,
+    pickupLocation: pt ? pickupLocationOf(pt) : null,
+  };
+}
+
+/** A pickup point as OCTO's pickup location. @param {{ name: string, address?: string, time?: string }} pt */
+export const pickupLocationOf = (pt) => ({
+  id: slugify(pt.name),
+  title: pt.name,
+  shortDescription:
+    [pt.address, pt.time && `pickup at ${pt.time}`].filter(Boolean).join(' · ') || null,
+  place: placeOf(pt),
+});
+
+/** What the `pickups` capability adds to the option. @param {any} p */
+export function pickupsOf(p) {
+  const points = /** @type {any[]} */ (p.pickupPoints ?? []);
+  return {
+    pickupAvailable: points.length > 0,
+    pickupRequired: points.length > 0,
+    pickupLocations: points.map(pickupLocationOf),
+  };
+}
+
+/**
+ * The refund the policy gives, tier by tier: [{ hoursBefore: 48, refundPercent: 100 }, …].
+ * NOT IN THE SPEC (OCTO has only the cutoff, in words; OTAs ignore what they don't know): an
+ * OTA can say "Full refund until Thu 10 Dec, 10:00" and preview a cancellation's refund.
+ * @param {{ rules: Array<{ hoursBefore: number, refundBasisPoints: number }> } | null} policy
+ */
+export const refundRulesOf = (policy) =>
+  policy?.rules?.length
+    ? [...policy.rules]
+        .sort((a, b) => b.hoursBefore - a.hoursBefore)
+        .map((r) => ({ hoursBefore: r.hoursBefore, refundPercent: r.refundBasisPoints / 100 }))
+    : null;
+
 /**
  * A tour as an OCTO Product.
  * @param {any} p  with priceCategories (active, in order), and its policy's current version
- * @param {{ timeZone: string, startTimes: string[], settings: { tax: any, fees: any[] }, commissionBasisPoints: number, pricing: boolean }} o
+ * @param {{ timeZone: string, startTimes: string[], settings: { tax: any, fees: any[] }, commissionBasisPoints: number, pricing: boolean, content?: boolean, pickups?: boolean }} o
  */
 export function productOf(p, o) {
   const units = unitsOf(p.priceCategories, o.settings, o.commissionBasisPoints, o.pricing);
@@ -160,6 +290,7 @@ export function productOf(p, o) {
       question: f.question,
       answer: f.answer,
     })),
+    ...(o.content && contentOf(p)),
     ...(o.pricing && {
       defaultCurrency: CURRENCY,
       availableCurrencies: [CURRENCY],
@@ -175,6 +306,9 @@ export function productOf(p, o) {
         // At least one (the spec's minimum): the tour's start times, or 09:00 before it has any.
         availabilityLocalStartTimes: o.startTimes.length ? o.startTimes : ['09:00'],
         ...cancellationCutoffOf(p.policy ?? null),
+        // Not in the spec: the policy's tiers (refundRulesOf).
+        refundRules: refundRulesOf(p.policy ?? null),
+        ...(o.pickups && pickupsOf(p)),
         requiredContactFields: ['firstName', 'lastName', 'emailAddress'],
         restrictions: { minUnits: 1, maxUnits: null },
         units,
@@ -335,6 +469,8 @@ export function bookingOf(o) {
         o.taxName,
       ),
     }),
+    // The `pickups` capability: where the van collects them, and when (17d-1).
+    ...(o.pickups && bookingPickupOf(b, o.timeZone)),
     // Not in the spec (OTAs ignore what they don't know): the guest's trip page, to pass on.
     ...(o.tripUrl && { tripUrl: o.tripUrl }),
   };

@@ -39,6 +39,12 @@
       "runtimeArgs": ["--filter", "@okapigo/operator", "dev"],
       "port": 5175,
       "url": "http://localhost:5175/app/"
+    },
+    {
+      "name": "mock-ota",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@okapigo/mock-ota", "dev"],
+      "port": 4400
     }
   ]
 }

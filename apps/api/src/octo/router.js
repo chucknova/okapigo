@@ -57,6 +57,8 @@ import {
   BookingExtendBodySchema,
   BookingReservationBodySchema,
   BookingUpdateBodySchema,
+  CAPABILITY_CONTENT,
+  CAPABILITY_PICKUPS,
   CAPABILITY_PRICING,
   SubscriptionBodySchema,
   SubscriptionUpdateBodySchema,
@@ -120,14 +122,31 @@ export function octoRouter({
   // --- Who's asking, and what they asked for -------------------------------------------------
   router.use(async (req, res, next) => {
     try {
-      // Capabilities from the header or `?_capabilities=` (the docs allow either).
+      // Capabilities from the header or `?_capabilities=` (the docs allow either), each with or
+      // without "octo/" (the docs use both).
       const asked = String(req.get('Octo-Capabilities') ?? req.query._capabilities ?? '')
         .split(',')
         .map((c) => c.trim())
         .filter(Boolean);
-      const pricing = asked.includes(CAPABILITY_PRICING) || asked.includes('pricing');
-      res.set('Octo-Capabilities', pricing ? CAPABILITY_PRICING : '');
+      const has = (/** @type {string} */ name) =>
+        asked.includes(name) || asked.includes(`octo/${name}`);
+      const pricing = has('pricing');
+      // 17d-1: content (what's included, where to meet…) and pickups (where the van collects).
+      const content = has('content');
+      const pickups = has('pickups');
+      res.set(
+        'Octo-Capabilities',
+        [
+          pricing && CAPABILITY_PRICING,
+          content && CAPABILITY_CONTENT,
+          pickups && CAPABILITY_PICKUPS,
+        ]
+          .filter(Boolean)
+          .join(', '),
+      );
       res.locals.pricing = pricing;
+      res.locals.content = content;
+      res.locals.pickups = pickups;
 
       const auth = req.get('Authorization') ?? '';
       const key = /^Bearer\s+(\S+)$/i.exec(auth)?.[1];
@@ -165,6 +184,8 @@ export function octoRouter({
       tz: channel.operator.timeZone,
       settings,
       pricing: Boolean(res.locals.pricing),
+      content: Boolean(res.locals.content),
+      pickups: Boolean(res.locals.pickups),
     };
   };
 
@@ -219,6 +240,8 @@ export function octoRouter({
         settings: c.settings,
         commissionBasisPoints: c.channel.commissionBasisPoints,
         pricing: c.pricing,
+        content: c.content,
+        pickups: c.pickups,
       },
     );
 
@@ -491,6 +514,7 @@ export function octoRouter({
         ? `${webPublicUrl.replace(/\/+$/, '')}/trip/${guestToken(authSecret, booking.id)}`
         : null,
       pricing: c.pricing,
+      pickups: c.pickups,
       taxName: c.settings.tax?.name ?? null,
       now,
     });
@@ -545,12 +569,14 @@ export function octoRouter({
     const points = /** @type {any[]} */ (product.pickupPoints ?? []);
     let pickupPointName = null;
     if (points.length) {
-      const chosen = points.find((p) => pickupIdOf(p) === body.pickupPointId);
+      // The standard's pickupLocationId (17d-1), or 17b's pickupPointId: the same ids.
+      const wanted = body.pickupLocationId ?? body.pickupPointId;
+      const chosen = points.find((p) => pickupIdOf(p) === wanted);
       if (!chosen) {
         throw new OctoError(
           400,
           'BAD_REQUEST',
-          `This tour picks guests up: send pickupPointId, one of ${points.map(pickupIdOf).join(', ')}`,
+          `This tour picks guests up: send pickupLocationId, one of ${points.map(pickupIdOf).join(', ')}`,
         );
       }
       pickupPointName = chosen.name;

@@ -12,8 +12,11 @@ import request from 'supertest';
 import { createTestContext } from './helpers.js';
 import {
   AvailabilitySchema,
+  BookingPickupsSchema,
   CalendarDaySchema,
   ErrorSchema,
+  OptionPickupsSchema,
+  ProductContentSchema,
   ProductSchema,
   SupplierSchema,
 } from '@okapigo/shared/octo';
@@ -429,5 +432,130 @@ describe('the calendar', () => {
       capacity: null,
       openingHours: [],
     });
+  });
+});
+
+describe('content and pickups (17d-1, OCTO’s optional capabilities)', () => {
+  it('content: what’s included and not, what to bring, the stops, the terms, where to meet, the label', async () => {
+    const s = await setup();
+    const lekki = await s.tour('lekki-nature-and-craft');
+    const plain = (await s.api.get(`/octo/products/${lekki.id}`)).body;
+    expect(plain.features).toBeUndefined(); // only when asked for
+    const res = await octo(keyOf(s), ['octo/content']).get(`/octo/products/${lekki.id}`);
+    expect(res.headers['octo-capabilities']).toBe('octo/content');
+    const p = res.body;
+    conforms(ProductContentSchema, p);
+    const of = (/** @type {string} */ type) =>
+      p.features
+        .filter((/** @type {any} */ f) => f.type === type)
+        .map((/** @type {any} */ f) => f.shortDescription);
+    expect(of('INCLUSION')).toEqual(lekki.inclusions);
+    expect(of('EXCLUSION')).toEqual(lekki.exclusions);
+    expect(of('PREARRIVAL_INFORMATION')).toEqual(expect.arrayContaining(lekki.whatToBring));
+    expect(of('HIGHLIGHT')).toEqual(['Lekki Conservation Centre', 'Lekki Arts and Crafts Market']);
+    expect(of('CANCELLATION_TERM')).toEqual([expect.stringMatching(/^Full refund \d+ h\+/)]);
+    const mp = /** @type {any} */ (lekki.meetingPoint);
+    expect(p.locations).toEqual([
+      expect.objectContaining({
+        title: mp.name,
+        types: ['START'],
+        place: expect.objectContaining({
+          latitude: mp.lat,
+          longitude: mp.lng,
+          postalAddress: expect.objectContaining({
+            streetAddress: mp.address,
+            addressCountry: 'NG',
+          }),
+        }),
+      }),
+    ]);
+    expect(p.categoryLabels).toEqual(lekki.activityLabel ? [lekki.activityLabel] : []);
+    // A tour that says when to arrive: told before arriving.
+    await ctx.prisma.product.update({ where: { id: lekki.id }, data: { arriveMinutesEarly: 15 } });
+    const again = (await octo(keyOf(s), ['content']).get(`/octo/products/${lekki.id}`)).body;
+    expect(again.features).toEqual(
+      expect.arrayContaining([
+        {
+          shortDescription: 'Be at the meeting point 15 minutes before the start',
+          type: 'PREARRIVAL_INFORMATION',
+        },
+      ]),
+    );
+  });
+
+  it('pickups: where the van collects, required; a tour without pickups says so', async () => {
+    const s = await setup();
+    const lekki = await s.tour('lekki-nature-and-craft');
+    const both = octo(keyOf(s), ['octo/pickups', 'octo/pricing']);
+    const res = await both.get(`/octo/products/${lekki.id}`);
+    expect(res.headers['octo-capabilities']).toBe('octo/pricing, octo/pickups');
+    const option = res.body.options[0];
+    conforms(OptionPickupsSchema, option);
+    expect(option.pickupRequired).toBe(true);
+    expect(option.pickupLocations).toEqual([
+      expect.objectContaining({
+        id: 'victoria-island',
+        title: 'Victoria Island',
+        shortDescription: 'Eko Hotel main gate · pickup at 07:15',
+      }),
+      expect.objectContaining({
+        id: 'ikoyi',
+        shortDescription: 'Falomo roundabout · pickup at 07:30',
+      }),
+      expect.objectContaining({ id: 'lekki-phase-1' }),
+    ]);
+    const walk = await s.tour('lagos-island-heritage-walk');
+    const w = (await both.get(`/octo/products/${walk.id}`)).body.options[0];
+    expect(w).toMatchObject({ pickupAvailable: false, pickupRequired: false, pickupLocations: [] });
+  });
+
+  it('the policy’s tiers (ours, not in the spec), for an OTA’s "full refund until…"', async () => {
+    const s = await setup();
+    const walk = await s.tour('lagos-island-heritage-walk');
+    const option = (await s.api.get(`/octo/products/${walk.id}`)).body.options[0];
+    expect(option.refundRules).toEqual([
+      { hoursBefore: 48, refundPercent: 100 },
+      { hoursBefore: 24, refundPercent: 50 },
+      { hoursBefore: 0, refundPercent: 0 },
+    ]);
+  });
+
+  it('a booking with a pickup: the standard’s pickupLocationId, and the time on the day', async () => {
+    const s = await setup();
+    const lekki = await s.tour('lekki-nature-and-craft');
+    const d = await ctx.prisma.departure.findFirstOrThrow({
+      where: { productId: lekki.id, startsAt: { gt: new Date(Date.now() + 3 * 86_400_000) } },
+      orderBy: { startsAt: 'asc' },
+    });
+    const api = octo(keyOf(s), ['octo/pickups']);
+    const res = await api.post('/octo/bookings').send({
+      uuid: 'pk-1',
+      productId: lekki.id,
+      optionId: 'DEFAULT',
+      availabilityId: d.id,
+      unitItems: [{ unitId: 'adult' }],
+      pickupRequested: true,
+      pickupLocationId: 'ikoyi',
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    conforms(BookingPickupsSchema, res.body);
+    expect(res.body).toMatchObject({
+      pickupRequested: true,
+      pickupLocationId: 'ikoyi',
+      localPickupDateTimeStart: expect.stringMatching(
+        new RegExp(`^${localDate(d.startsAt, s.tz)}T07:30:00\\+01:00$`),
+      ),
+      pickupLocation: expect.objectContaining({ id: 'ikoyi', title: 'Ikoyi' }),
+    });
+    const missing = await api.post('/octo/bookings').send({
+      productId: lekki.id,
+      optionId: 'DEFAULT',
+      availabilityId: d.id,
+      unitItems: [{ unitId: 'adult' }],
+    });
+    expect(missing.status).toBe(400);
+    expect(missing.body.errorMessage).toBe(
+      'This tour picks guests up: send pickupLocationId, one of victoria-island, ikoyi, lekki-phase-1',
+    );
   });
 });

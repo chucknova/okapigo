@@ -1,0 +1,26 @@
+/* Sojourna's own look (designs: "Sojourna — Mock OTA"): its blue and coral, not OkapiGo's. */
+:root {
+  --soj-blue: #1d3faf;
+  --soj-blue-dark: #132c7e;
+  --soj-blue-soft: #eef2fb;
+  --soj-coral: #ff6f5b;
+  --soj-ink: #1b2433;
+  --soj-ink-soft: #3a4556;
+  --soj-muted: #556070;
+  --soj-faint: #8a93a3;
+  --soj-line: #dde3ec;
+  --soj-line-strong: #b7c1d1;
+  --soj-surface: #ffffff;
+  --soj-surface-2: #f6f8fc;
+  --soj-ok: #1e6b34;
+  --soj-ok-soft: #e6f4ea;
+  --soj-bad: #a3261b;
+  --soj-bad-soft: #fdecea;
+  --soj-warn: #7a4300;
+  --soj-warn-soft: #fff3e0;
+  --soj-off: #e3e8f0;
+  --soj-radius: 12px;
+  --soj-radius-sm: 10px;
+  --soj-pill: 999px;
+  --soj-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}

@@ -29,6 +29,86 @@ const localDateTime = z
 const utcDateTime = z.iso.datetime({ offset: true });
 
 export const CAPABILITY_PRICING = 'octo/pricing';
+/** What's included, where to meet, labels, photos (17d-1). */
+export const CAPABILITY_CONTENT = 'octo/content';
+/** Where a van collects guests (17d-1). */
+export const CAPABILITY_PICKUPS = 'octo/pickups';
+
+// --- Content and pickups (17d-1) ------------------------------------------------------------
+
+export const FEATURE_TYPES = /** @type {const} */ ([
+  'INCLUSION',
+  'EXCLUSION',
+  'HIGHLIGHT',
+  'PREARRIVAL_INFORMATION',
+  'REDEMPTION_INSTRUCTION',
+  'CANCELLATION_TERM',
+  'BOOKING_TERM',
+  'ACCESSIBILITY_INFORMATION',
+]);
+
+export const PlaceSchema = z.object({
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
+  postalAddress: z.object({
+    streetAddress: nullableString,
+    addressLocality: nullableString,
+    addressRegion: nullableString,
+    postalCode: nullableString,
+    addressCountry: nullableString,
+    postOfficeBoxNumber: nullableString,
+  }),
+});
+
+/** The `content` capability's additions to a Product. */
+export const ProductContentSchema = z.object({
+  features: z.array(z.object({ shortDescription: z.string(), type: z.enum(FEATURE_TYPES) })),
+  locations: z.array(
+    z.object({
+      title: z.string(),
+      shortDescription: nullableString,
+      types: z.array(z.string()),
+      minutesTo: z.number().nullable(),
+      minutesAt: z.number().nullable(),
+      place: PlaceSchema,
+    }),
+  ),
+  categoryLabels: z.array(z.string()),
+  media: z.array(
+    z.object({
+      src: z.string(),
+      type: z.string(),
+      rel: z.enum(['LOGO', 'COVER', 'GALLERY']),
+      title: nullableString,
+      caption: nullableString,
+      copyright: nullableString,
+    }),
+  ),
+});
+
+export const PickupLocationSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  shortDescription: nullableString,
+  place: PlaceSchema,
+});
+
+/** The `pickups` capability's additions to an Option. */
+export const OptionPickupsSchema = z.object({
+  pickupAvailable: z.boolean(),
+  pickupRequired: z.boolean(),
+  pickupLocations: z.array(PickupLocationSchema),
+});
+
+/** The `pickups` capability's additions to a Booking. */
+export const BookingPickupsSchema = z.object({
+  pickupRequested: z.boolean(),
+  pickupLocationId: nullableString,
+  pickupNotes: nullableString,
+  localPickupDateTimeStart: localDateTime.nullable(),
+  localPickupDateTimeEnd: localDateTime.nullable(),
+  pickupLocation: PickupLocationSchema.nullable(),
+});
 
 export const UNIT_TYPES = /** @type {const} */ ([
   'ADULT',
@@ -342,9 +422,12 @@ export const BookingReservationBodySchema = z.object({
     .max(50),
   expirationMinutes: z.number().int().min(1).optional(),
   notes: z.string().max(1000).optional(),
-  // The pickups capability, in part: which of the option's pickup points.
+  // The `pickups` capability (17d-1): which of the option's pickup locations. pickupPointId is
+  // 17b's own name for the same id, still accepted.
   pickupRequested: z.boolean().optional(),
+  pickupLocationId: z.string().optional(),
   pickupPointId: z.string().optional(),
+  pickupNotes: z.string().max(500).optional(),
   currency: z.string().optional(),
 });
 
