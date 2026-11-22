@@ -161,7 +161,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                                                                                                                  | —                         |
 | ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                                                                                                 | —                         |
 | **17**  | OCTO: ~~17a~~ catalogue; ~~17b~~ bookings; ~~17c~~ ~~17c-2~~ channel manager; ~~17c-3~~ via Sojourna everywhere; ~~17d-1~~ Sojourna's guest side; ~~17d-2~~ its back office, journey 3. **Done** | DST-01–03                 |
-| 18      | AI companion, posters, dashboard (journeys 7, 8)                                                                                                                                                 | GST-16, MKT-01/02, RPT-01 |
+| 18      | AI companion, posters, dashboard (journeys 7, 8): 18a the companion (journey 7); 18b posters; 18c the dashboard, journey 8. Brief: `docs/flows/09-…`                                             | GST-16, MKT-01/02, RPT-01 |
 | 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                                                                                                                       | step 10                   |
 
 ## 6. Decisions (dated)
@@ -383,11 +383,19 @@ subscribes to OCTO notifications at start (old ones to the same address removed,
 e2e set-up on :4500 (its key is the run's business's). OCTO contacts now accept null fields.
 **Session 17 is done.**
 
+**Session 18's plan (2026-11-22):** flow brief `docs/flows/09-companion-posters-dashboard.md`.
+The companion runs on **Claude Haiku** behind one adapter (a fake in tests and e2e; your key in
+`.env` as `ANTHROPIC_API_KEY`), with a monthly spend cap, about 20 questions per booking per
+day, and cached answers for common questions. When it isn't sure, the question becomes an
+**inbox request** (kind _question_) at once. Posters have a **photo slot** (uploads in 19).
+Three parts: **18a** the companion (journey 7), **18b** posters, **18c** the dashboard and
+journey 8. You design C1–C3, P1–P2, D1.
+
 ## 7. Where we are
 
 - **Last done:** 17d-2, Sojourna's back office and journey 3, committed `5317f7e`.
   **Session 17 (OCTO) is done.**
-- **Next:** **session 18**: the AI companion, posters, the dashboard (journeys 7 and 8).
+- **Next:** **session 18**: brief 09 written; waiting for your designs (C1–C3 first, for 18a).
 - **To try Sojourna:** `pnpm dev`, then http://localhost:4400 (after `pnpm db:reset`, so the
   demo business has its Sojourna channel and key).
 - **Your dev database** needs `pnpm db:reset` for the Sojourna channel (none, or the old "Mock

@@ -5,16 +5,17 @@ version before I build them. Each brief lists the screens **in order**, what eac
 **lets the guest do**, the **data** behind it, the **states** to design, and the **rules** the design
 must respect. Business logic already exists in the API; screens only display data and call it.
 
-| Brief                                                     | Covers                                                                                            | PRD                                            |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| [01 Tour page and checkout](01-tour-page-and-checkout.md) | Finding a tour, choosing a date, travellers, details, paying (incl. deposits)                     | BKG-32, BKG-02, BKG-06, journeys 1 and 5       |
-| [02 After paying](02-after-paying.md)                     | Confirmation, "confirming your payment", payment links, paying a balance                          | PAY-05, BKG-06, journey 5                      |
-| [03 Booking widget](03-booking-widget.md)                 | Embedding booking on another website; the operator's Embed page                                   | BKG-01                                         |
-| [04 Operator website](04-operator-website.md)             | The one-page site generated from products, in 2–3 styles                                          | MKT-08, MKT-09                                 |
-| [05 Trip hub](05-trip-hub.md)                             | One light page per booking: itinerary, map, what to bring, QR ticket                              | GST-04                                         |
-| [06 WhatsApp booking](06-whatsapp-booking.md)             | The booking conversation, the WhatsApp simulator, staff taking over                               | BKG-09, journey 2 (session 13)                 |
-| [07 Operator app](07-operator-app.md)                     | The staff app: tour day offline (manifest, scan, no-shows), schedule, bookings, inboxes, settings | OPS-01, 07, 08, 09, journey 6 (sessions 15–16) |
-| [08 OTAs: OCTO and channels](08-octo-and-channels.md)     | The mock OTA's storefront (M1–M5) and Settings › Channels (O11)                                   | DST-01, 02, 03, journey 3 (session 17)         |
+| Brief                                                                 | Covers                                                                                            | PRD                                                   |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [01 Tour page and checkout](01-tour-page-and-checkout.md)             | Finding a tour, choosing a date, travellers, details, paying (incl. deposits)                     | BKG-32, BKG-02, BKG-06, journeys 1 and 5              |
+| [02 After paying](02-after-paying.md)                                 | Confirmation, "confirming your payment", payment links, paying a balance                          | PAY-05, BKG-06, journey 5                             |
+| [03 Booking widget](03-booking-widget.md)                             | Embedding booking on another website; the operator's Embed page                                   | BKG-01                                                |
+| [04 Operator website](04-operator-website.md)                         | The one-page site generated from products, in 2–3 styles                                          | MKT-08, MKT-09                                        |
+| [05 Trip hub](05-trip-hub.md)                                         | One light page per booking: itinerary, map, what to bring, QR ticket                              | GST-04                                                |
+| [06 WhatsApp booking](06-whatsapp-booking.md)                         | The booking conversation, the WhatsApp simulator, staff taking over                               | BKG-09, journey 2 (session 13)                        |
+| [07 Operator app](07-operator-app.md)                                 | The staff app: tour day offline (manifest, scan, no-shows), schedule, bookings, inboxes, settings | OPS-01, 07, 08, 09, journey 6 (sessions 15–16)        |
+| [08 OTAs: OCTO and channels](08-octo-and-channels.md)                 | The mock OTA's storefront (M1–M5) and Settings › Channels (O11)                                   | DST-01, 02, 03, journey 3 (session 17)                |
+| [09 Companion, posters, dashboard](09-companion-posters-dashboard.md) | The AI companion on the trip page, its question in the inbox, posters, the dashboard              | GST-16, MKT-01/02, RPT-01, journeys 7, 8 (session 18) |
 
 **Designs received (2026-11-17):** see [`docs/designs/`](../designs/README.md), which also
 holds the stage plan for building them (session 12).
@@ -40,6 +41,10 @@ reuses checkout's screens inside a frame, so it needs the least new design.
 | 2026-11-19 | How is session 14 (messages) staged?           | **14a** messages and editable templates, sent once; **14b** email (your layout); **14c** real WhatsApp templates and journeys | 02    | session 14       |
 | 2026-11-19 | Which email service?                           | **Resend** (free tier); in development every email goes to a local mailbox                                                    | 02    | stage 14b        |
 | 2026-11-19 | WhatsApp guests who gave an email?             | **Email too**: the chat keeps its ticket, the email is the receipt; no second WhatsApp confirmation                           | 02    | stage 14a        |
+| 2026-11-22 | Which AI model for the companion?              | **Claude Haiku**, behind one adapter (a fake for tests); spend cap, ~20 questions per booking per day                         | 09    | stage 18a        |
+| 2026-11-22 | The companion isn't sure?                      | **An inbox request** (kind _question_), sent at once; staff reply as for "ask the operator"                                   | 09    | stage 18a        |
+| 2026-11-22 | Posters before tours have photos?              | **A photo slot now**; the templates look complete without one; uploads in session 19                                          | 09    | stage 18b        |
+| 2026-11-22 | How is session 18 staged?                      | **18a** the companion (journey 7); **18b** posters; **18c** the dashboard and journey 8                                       | 09    | session 18       |
 
 ## Deferred to the operator app briefs
 
