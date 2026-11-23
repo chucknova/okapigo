@@ -160,7 +160,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 18c             | The dashboard (D1): today's departures, bookings, money in, check-ins; 30-day trend against the 30 before; channels; seats filled; money in read from the ledger by the Lagos day; **journey 8**; the poster preview's blob: image allowed (an 18b bug)                                                                                                | `a8ca993`           | 18c            |
 | 19a-1           | The demo's history (`seed/history.js`): 60 days of guided departures, ~155 past bookings (all channels, check-ins, cancellations and refunds, two no-shows, a weather cancellation, Sojourna's payments), ~20 upcoming, and five loose ends; held to the live rules by tests                                                                           | `3e9e3e4`           | 19a-1          |
 | 19a-2           | The nightly demo reset (workers, 04:00 Lagos, only with `DEMO_RESET=on`, never a non-demo business; `pnpm demo:reset` by hand); `is_demo` businesses never send for real (WhatsApp to the simulator, email kept)                                                                                                                                       | `02048eb`           | 19a-2          |
-| 19b-1           | Uploads, server side: `packages/media` (checks a file by its bytes, 1600/640 px photos and 512/128 px logos, hidden details stripped, stored by content hash; local disk now, R2 at deploy); `POST /api/uploads/:kind`, `/media/…`; only our own pictures on tours and the website; credits; **3 photos to go on sale**; the demo's 18 photos and logo | `(this commit)`     | 19b-1          |
+| 19b-1           | Uploads, server side: `packages/media` (checks a file by its bytes, 1600/640 px photos and 512/128 px logos, hidden details stripped, stored by content hash; local disk now, R2 at deploy); `POST /api/uploads/:kind`, `/media/…`; only our own pictures on tours and the website; credits; **3 photos to go on sale**; the demo's 18 photos and logo | `603a673`           | 19b-1          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -486,7 +486,7 @@ not in the tests' quiet businesses.
 
 ## 7. Where we are
 
-- **Last done:** 19b-1, uploads (the server side), committed `(this commit)`.
+- **Last done:** 19b-1, uploads (the server side), committed `603a673`.
 - **Next:** **19b-2**, the screens: Settings' logo and hero (U1), a tour's Photos tab (U2–U3),
   New tour with photos (U7–U8), the guest pages (U4–U5), posters and link previews (U6).
 - **Run `pnpm db:reset`** to get the demo's photos and logo in your dev data (and its history).
