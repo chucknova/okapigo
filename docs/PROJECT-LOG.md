@@ -161,7 +161,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19a-1           | The demo's history (`seed/history.js`): 60 days of guided departures, ~155 past bookings (all channels, check-ins, cancellations and refunds, two no-shows, a weather cancellation, Sojourna's payments), ~20 upcoming, and five loose ends; held to the live rules by tests                                                                           | `3e9e3e4`           | 19a-1          |
 | 19a-2           | The nightly demo reset (workers, 04:00 Lagos, only with `DEMO_RESET=on`, never a non-demo business; `pnpm demo:reset` by hand); `is_demo` businesses never send for real (WhatsApp to the simulator, email kept)                                                                                                                                       | `02048eb`           | 19a-2          |
 | 19b-1           | Uploads, server side: `packages/media` (checks a file by its bytes, 1600/640 px photos and 512/128 px logos, hidden details stripped, stored by content hash; local disk now, R2 at deploy); `POST /api/uploads/:kind`, `/media/…`; only our own pictures on tours and the website; credits; **3 photos to go on sale**; the demo's 18 photos and logo | `603a673`           | 19b-1          |
-| 19b-2a          | Photos in the staff app: a tour's Photos section (cover, order, describe, credit, remove asks under 3 on sale), New tour with photos, a draft's "Before it goes on sale" checklist, the list's "needs 1 more photo", the logo and hero in Business details; uploads with progress (XHR)                                                                | `(this commit)`     | 19b-2a         |
+| 19b-2a          | Photos in the staff app: a tour's Photos section (cover, order, describe, credit, remove asks under 3 on sale), New tour with photos, a draft's "Before it goes on sale" checklist, the list's "needs 1 more photo", the logo and hero in Business details; uploads with progress (XHR)                                                                | `c08497c`           | 19b-2a         |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -493,7 +493,7 @@ shared (`@okapigo/shared/uploads`). Next, 19b-2b: what guests see.
 
 ## 7. Where we are
 
-- **Last done:** 19b-2a, photos in the staff app, committed `(this commit)`.
+- **Last done:** 19b-2a, photos in the staff app, committed `c08497c`.
 - **Next:** **19b-2b**, what guests see: the logo in every header, the website's hero, tour cards
   and tour pages with photos and credits (the footer's credit list), the trip page's cover,
   posters' photo panel and link previews (U4–U6).
