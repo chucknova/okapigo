@@ -156,7 +156,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 18a-1           | The AI companion's server: `packages/ai` (Claude Haiku via Anthropic's SDK, a fake), its facts and rules, 20 a day, kept answers, the monthly spend cap, unsure → an inbox request (kind question); `GET/POST /public/bookings/:token/companion`                                          | `94a97db`           | 18a-1          |
 | 18a-2           | The companion on the trip page (C1–C2: suggestions, answers with their source, passed to the team and the reply, limit, paused, no signal, closed; saved on the phone), the inbox's question (C3: "The assistant wasn't sure", Add to the FAQs), **journey 7**                            | `91ae5f2`           | 18a-2          |
 | 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `30683a5`           | 18b            |
-| 18c             | The dashboard (D1): today's departures, bookings, money in, check-ins; 30-day trend against the 30 before; channels; seats filled; money in read from the ledger by the Lagos day; **journey 8**; the poster preview's blob: image allowed (an 18b bug)                                   | `(this commit)`     | 18c            |
+| 18c             | The dashboard (D1): today's departures, bookings, money in, check-ins; 30-day trend against the 30 before; channels; seats filled; money in read from the ledger by the Lagos day; **journey 8**; the poster preview's blob: image allowed (an 18b bug)                                   | `a8ca993`           | 18c            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -437,7 +437,7 @@ screenshot). **Session 18 is done; all eight PRD journeys have e2e tests.**
 
 ## 7. Where we are
 
-- **Last done:** 18c, the dashboard and journey 8, committed `(this commit)`.
+- **Last done:** 18c, the dashboard and journey 8, committed `a8ca993`.
   **Session 18 is done** (journeys 7 and 8).
 - **Next:** **session 19**, the demo: full seed, demo reset, uploads (photos, logo), a11y
   checks, README, deploy.
