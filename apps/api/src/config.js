@@ -101,6 +101,13 @@ const EnvSchema = z
     // monthly spend cap of about $10–20"). At the cap, guests see "not available right now".
     AI_MONTHLY_CAP_USD: z.coerce.number().positive().max(100).default(10),
 
+    // --- Photos and logos (stage 19b-1) -------------------------------------------------
+    // Where uploaded pictures are kept: a folder (default: the repo's .data/media) and the
+    // address they're served from (default: this API's API_PUBLIC_URL/media). At deploy (19e)
+    // they move to Cloudflare R2. Both optional.
+    MEDIA_DIR: optional(z.string().min(1)),
+    MEDIA_PUBLIC_URL: optional(z.url()),
+
     // --- Email (stage 14b) -------------------------------------------------------------
     // none: no email (tests, CI). mailpit: a local mailbox in Docker, http://localhost:8025:
     // nothing leaves your laptop. resend: real email, through Resend.

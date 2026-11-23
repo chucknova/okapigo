@@ -41,11 +41,31 @@ export const StopSchema = z.object({
   description: z.string().trim().max(1000).default(''),
 });
 
+/**
+ * One photo (stage 19b-1: uploads). `url` and `small` are pictures the app made from an upload
+ * (@okapigo/media): a 1600 px copy and a 640 px one for cards. The API accepts only its own
+ * pictures' addresses here, never a link to another site.
+ */
 export const PhotoSchema = z.object({
   url: z.url(),
+  // The 640 px copy, for cards and phones. Optional: older photos have none (the page then
+  // uses `url`).
+  small: z.url().optional(),
   // Required: screen readers read it aloud, and the PRD asks for WCAG 2.1 AA guest pages.
   alt: text(200),
+  // Who took it, for photos someone else took ("Sho photography, CC BY-SA 4.0"). Shown small
+  // under the photo. Empty means none.
+  credit: z
+    .string()
+    .trim()
+    .max(120, 'Keep the credit under 120 characters.')
+    .transform((v) => (v === '' ? null : v))
+    .nullable()
+    .optional(),
 });
+
+/** A tour shows at most this many photos (designs: "Up to 8"). */
+export const MAX_TOUR_PHOTOS = 8;
 
 export const PickupPointSchema = z.object({
   name: text(120),
@@ -83,7 +103,7 @@ const productFields = {
   defaultCapacity: z.number().int().min(1).max(500),
   meetingPoint: MeetingPointSchema,
   stops: z.array(StopSchema).max(30),
-  photos: z.array(PhotoSchema).max(20),
+  photos: z.array(PhotoSchema).max(MAX_TOUR_PHOTOS, `Up to ${MAX_TOUR_PHOTOS} photos a tour.`),
   pickupPoints: z.array(PickupPointSchema).max(20),
   faqs: z.array(FaqSchema).max(50),
   inclusions: z.array(text(200)).max(30),

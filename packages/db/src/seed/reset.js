@@ -6,7 +6,8 @@
  *
  *   resetDemo(prisma, { slug, now })   the business with this slug: deleted (everything under
  *                                      it goes with it), then made again as a DEMO business
- *                                      with its history (seed/history.js), dated from `now`
+ *                                      with its history (seed/history.js), dated from `now`,
+ *                                      and its photos and logo (seed/photos.js, 19b-1)
  *
  * Who runs it:
  *   - the workers app, every night at 04:00 Lagos time, ONLY when DEMO_RESET=on (the deployed
@@ -19,18 +20,27 @@
 import { simulatedFeeKobo } from '@okapigo/payments';
 import { seedDemoOperator, DEFAULT_SLUG } from './demo-operator.js';
 import { seedDemoHistory } from './history.js';
+import { seedDemoPhotos } from './photos.js';
+import { storageFromEnv } from '@okapigo/media';
 
 /**
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ slug?: string, now?: Date, onlyIfDemo?: boolean, size?: { pastBookings?: number, upcomingBookings?: number } }} [options]
+ * @param {{ slug?: string, now?: Date, onlyIfDemo?: boolean, size?: { pastBookings?: number, upcomingBookings?: number }, media?: import('@okapigo/media').Storage }} [options]
+ *   media: where its pictures go (default: the settings, MEDIA_DIR / MEDIA_PUBLIC_URL)
  *   size: a smaller history (tests); the demo gets the PRD's
  *   onlyIfDemo: the nightly job's safety: never touch a business that isn't a demo one (a
  *   real business that happens to have this slug). `pnpm demo:reset`, run by you, may.
- * @returns {Promise<{ skipped: true, reason: string } | ({ skipped: false, operatorId: string, removed: number, ms: number } & Awaited<ReturnType<typeof seedDemoHistory>>)>}
+ * @returns {Promise<{ skipped: true, reason: string } | ({ skipped: false, operatorId: string, removed: number, ms: number } & Awaited<ReturnType<typeof seedDemoHistory>> & { photos: number })>}
  */
 export async function resetDemo(
   prisma,
-  { slug = DEFAULT_SLUG, now = new Date(), onlyIfDemo = false, size = {} } = {},
+  {
+    slug = DEFAULT_SLUG,
+    now = new Date(),
+    onlyIfDemo = false,
+    size = {},
+    media = storageFromEnv(),
+  } = {},
 ) {
   const started = Date.now();
   const existing = await prisma.operator.findUnique({ where: { slug } });
@@ -45,5 +55,13 @@ export async function resetDemo(
     feeOf: simulatedFeeKobo,
     ...size,
   });
-  return { skipped: false, operatorId: operator.id, removed, ...history, ms: Date.now() - started };
+  const pictures = await seedDemoPhotos(prisma, operator, { media });
+  return {
+    skipped: false,
+    operatorId: operator.id,
+    removed,
+    ...history,
+    photos: pictures.photos,
+    ms: Date.now() - started,
+  };
 }

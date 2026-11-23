@@ -36,6 +36,8 @@ export function publicOperator(o) {
     websiteMode: o.websiteMode,
     // "Prices include VAT": the tax's name when catalogue prices already include it.
     pricesInclude: tax?.inclusive ? tax.name : null,
+    // The logo beside the name on every guest page (19b-1); null: the first letter.
+    logo: readSite(o.site).logo ?? null,
   };
 }
 
@@ -62,6 +64,8 @@ export function publicSite(o) {
       socials: site.socials ?? [],
     },
     hours: site.hours ?? null,
+    // The hero's photo (19b-1), with its description and credit; null: the style's pattern.
+    hero: site.hero ?? null,
   };
 }
 

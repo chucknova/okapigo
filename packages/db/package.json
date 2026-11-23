@@ -21,6 +21,7 @@
     "demo:reset": "node src/seed/reset-run.js"
   },
   "dependencies": {
+    "@okapigo/media": "workspace:*",
     "@okapigo/payments": "workspace:*",
     "@okapigo/shared": "workspace:*",
     "@prisma/adapter-pg": "7.10.1",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "prisma": "7.10.1",
+    "sharp": "0.35.5",
     "vitest": "5.1.0"
   }
 }

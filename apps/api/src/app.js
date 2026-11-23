@@ -49,6 +49,8 @@ import { postersRouter } from './routes/posters.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
+import { uploadsRouter, mediaRouter } from './routes/uploads.js';
+import { localStorage as mediaOnDisk } from '@okapigo/media';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
 import { publicCheckoutRouter } from './routes/public-checkout.js';
 import { createFakeProvider } from '@okapigo/ai';
@@ -87,6 +89,7 @@ import { createSessionService } from './auth/session-service.js';
  *   emailFrom?: string,
  *   ai?: ReturnType<typeof import('@okapigo/ai').createFakeProvider>, // the AI companion (18a); default: the fake
  *   aiMonthlyCapMicroUsd?: number, // its monthly spend cap (millionths of a dollar); default $10
+ *   media?: import('@okapigo/media').Storage, // photos and logos (19b-1); default: the repo's .data/media
  * }} deps
  */
 export function createApp({
@@ -110,6 +113,7 @@ export function createApp({
   emailFrom = 'onboarding@resend.dev',
   ai = createFakeProvider(),
   aiMonthlyCapMicroUsd = 10_000_000,
+  media = mediaOnDisk({ publicUrl: `${apiPublicUrl.replace(/\/+$/, '')}/media` }),
 }) {
   // Services hold the business logic; routes stay thin (parse input → call service → reply).
   const sessions = createSessionService({ prisma });
@@ -211,6 +215,7 @@ export function createApp({
   app.use(payments.publicRouter); // the guest's browser lands on these after paying
   app.use(paymentLinks.publicRouter); // /pay/:token
   app.use(publicCatalogueRouter({ prisma })); // /public/:operatorSlug/… (tours, dates)
+  app.use(mediaRouter({ media })); // /media/…: uploaded photos and logos (19b-1)
   app.use(
     // quote, hold + book, the guest's booking (rate-limited per IP)
     publicCheckoutRouter({
@@ -301,7 +306,8 @@ export function createApp({
   api.use(meRouter({ prisma }));
   api.use(rolesRouter({ prisma }));
   api.use(staffRouter({ prisma, sessions, apiPublicUrl, mailer, emailFrom })); // invitations: 16e-3
-  api.use(productsRouter({ prisma }));
+  api.use(productsRouter({ prisma, media }));
+  api.use(uploadsRouter({ media })); // photos and logos (19b-1)
   api.use(schedulesRouter({ prisma, provider }));
   api.use(quotesRouter({ quotes }));
   api.use(holdsRouter({ prisma, quotes, jobs }));
@@ -313,7 +319,7 @@ export function createApp({
   api.use(refundsRouter({ prisma, provider }));
   api.use(alertsRouter({ prisma }));
   api.use(guestRequestsRouter({ prisma })); // "Ask Ìrìn" from the trip hub (12f-2)
-  api.use(websiteRouter({ prisma, webPublicUrl })); // the website's style and mode (12g)
+  api.use(websiteRouter({ prisma, webPublicUrl, media })); // the website's style and mode (12g)
   api.use(messageTemplatesRouter({ prisma, authSecret, webPublicUrl, channels })); // the guest messages' wording (14a)
   api.use(operationsRouter({ prisma, authSecret })); // resources, manifests, check-in (15a)
   api.use(syncRouter({ prisma, authSecret, webPublicUrl })); // the operator app offline: package, outbox (15b)

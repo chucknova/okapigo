@@ -157,7 +157,8 @@ describe('the basics', () => {
       .send({ status: 'published' });
     expect(res.body.error).toMatchObject({
       code: 'NOT_READY_TO_PUBLISH',
-      message: 'Add at least one price before putting it on sale.',
+      // 19b-1: and 3 photos.
+      message: 'Add at least one price and 3 photos before putting it on sale.',
     });
     expect((await s.managerApi.get('/api/products')).status).toBe(200);
     expect(

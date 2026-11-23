@@ -19,6 +19,9 @@
  * Bookings will point at them (session 7), and deleting would rewrite history.
  * Products are retired the same way, with `status: "archived"`.
  *
+ * Photos (19b-1): up to 8, uploaded first (POST /api/uploads/photo), and only this server's
+ * own picture addresses are accepted. PUTTING a tour on sale needs a price and 3 photos.
+ *
  * Money in and out is integer kobo (fields ending in "Kobo"). See packages/shared/src/money.js.
  */
 import { Router } from 'express';
@@ -44,6 +47,8 @@ import { requirePermission } from '../middleware/auth.js';
 import { validate, IdParamsSchema } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { serializeProduct, serializePriceCategory, serializeAddOn } from './serializers.js';
+import { notReadyMessage } from '@okapigo/shared/ready-to-sell';
+import { assertOwnPictures } from './uploads.js';
 
 /**
  * Children are always returned in the operator's chosen order. The second sort key is a
@@ -110,7 +115,10 @@ function runsLine(p) {
 }
 
 /** @param {{ prisma: import('@prisma/client').PrismaClient }} deps */
-export function productsRouter({ prisma }) {
+/**
+ * @param {{ prisma: import('@prisma/client').PrismaClient, media: import('@okapigo/media').Storage }} deps
+ */
+export function productsRouter({ prisma, media }) {
   const router = Router();
   const canView = requirePermission('products', 'view');
   const canEdit = requirePermission('products', 'edit');
@@ -155,7 +163,25 @@ export function productsRouter({ prisma }) {
       throw new HttpError(400, 'INVALID_POLICY', 'That cancellation policy does not exist.');
   }
 
-  /** A product can only go on sale if a guest can actually pay for it. */
+  /**
+   * PUTTING a tour on sale (19b-1): it needs a price, and at least 3 photos
+   * (@okapigo/shared/ready-to-sell). Checked only at that moment: a tour already on sale
+   * with fewer photos keeps selling (decided 2026-11-23).
+   * @param {{ priceCategories: Array<{ isActive: boolean }> }} product
+   * @param {unknown[]} photos the photos it will have
+   */
+  function assertReadyToSell(product, photos) {
+    const message = notReadyMessage({
+      activePrices: product.priceCategories.filter((c) => c.isActive).length,
+      photoCount: photos.length,
+    });
+    if (message) throw new HttpError(400, 'NOT_READY_TO_PUBLISH', message);
+  }
+
+  /**
+   * A tour ON SALE must keep a price a guest can pay (changing prices, since stage 6).
+   * Photos aren't checked here: removing one is allowed (19b-1).
+   */
   function assertPublishable(product) {
     if (!product.priceCategories.some((c) => c.isActive)) {
       throw new HttpError(
@@ -213,8 +239,9 @@ export function productsRouter({ prisma }) {
     const slug = req.body.slug ?? (RESERVED_TOUR_SLUGS.has(derived) ? `${derived}-tour` : derived);
     if (req.body.status === 'published') {
       // A brand-new product has no prices yet, so it can't start out on sale.
-      assertPublishable({ priceCategories: [] });
+      assertReadyToSell({ priceCategories: [] }, req.body.photos);
     }
+    assertOwnPictures(media, req.body.photos);
     if (await prisma.product.findFirst({ where: { operatorId, slug }, select: { id: true } })) {
       throw new HttpError(409, 'SLUG_TAKEN', `Another product already uses the link "${slug}".`);
     }
@@ -239,7 +266,11 @@ export function productsRouter({ prisma }) {
     validate({ params: IdParamsSchema, body: UpdateProductSchema }),
     async (req, res) => {
       const product = await findOwnProduct(req, req.params.id);
-      if (req.body.status === 'published') assertPublishable(product);
+      // Putting it on sale now (not when it already was, and saves something else).
+      if (req.body.status === 'published' && product.status !== 'published') {
+        assertReadyToSell(product, req.body.photos ?? /** @type {unknown[]} */ (product.photos));
+      }
+      if (req.body.photos) assertOwnPictures(media, req.body.photos);
       await assertOwnPolicy(product.operatorId, req.body.cancellationPolicyId);
       if (req.body.slug && req.body.slug !== product.slug) {
         const taken = await prisma.product.findFirst({

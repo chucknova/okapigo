@@ -103,7 +103,7 @@ export function createProcessors({ prisma, logger, provider, fetch: doFetch = fe
       if (result.skipped) logger.warn({ reason: result.reason }, 'demo reset skipped');
       else
         logger.info(
-          { past: result.past, upcoming: result.upcoming, ms: result.ms },
+          { past: result.past, upcoming: result.upcoming, photos: result.photos, ms: result.ms },
           'demo reset: wiped and made again',
         );
       return result;

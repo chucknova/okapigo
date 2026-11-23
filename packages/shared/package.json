@@ -39,7 +39,8 @@
     "./octo": "./src/octo.js",
     "./companion": "./src/companion.js",
     "./posters": "./src/posters.js",
-    "./dashboard": "./src/dashboard.js"
+    "./dashboard": "./src/dashboard.js",
+    "./ready-to-sell": "./src/ready-to-sell.js"
   },
   "scripts": {
     "test": "vitest run"

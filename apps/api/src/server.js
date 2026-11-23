@@ -21,6 +21,7 @@ import { createLogOtpSender } from './auth/otp-sender.js';
 import { createJobClient } from '@okapigo/jobs';
 import { createPaymentProvider, redisStore } from '@okapigo/payments';
 import { createAiProvider } from '@okapigo/ai';
+import { storageFromEnv } from '@okapigo/media';
 import { createApp } from './app.js';
 import { sendChatNotices } from './whatsapp/notices.js';
 import { sendGuestMessages } from './messages/send.js';
@@ -108,6 +109,12 @@ const app = createApp({
   emailFrom: config.EMAIL_FROM,
   ai,
   aiMonthlyCapMicroUsd: Math.round(config.AI_MONTHLY_CAP_USD * 1_000_000),
+  // Photos and logos (19b-1): the repo's .data/media, served at /media, unless set.
+  media: storageFromEnv({
+    API_PUBLIC_URL: config.API_PUBLIC_URL,
+    MEDIA_DIR: config.MEDIA_DIR,
+    MEDIA_PUBLIC_URL: config.MEDIA_PUBLIC_URL,
+  }),
 });
 
 const server = app.listen(config.API_PORT, () => {

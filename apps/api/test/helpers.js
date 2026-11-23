@@ -13,6 +13,42 @@ import { createApp } from '../src/app.js';
 import { createSessionService } from '../src/auth/session-service.js';
 import { createSimulatorProvider } from '@okapigo/payments';
 import { memoryRateLimitStore } from '../src/middleware/rate-limit.js';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { localStorage } from '@okapigo/media';
+import { testPicture } from '@okapigo/media/testing';
+
+/**
+ * Where tests' uploads go (19b-1): a folder in the system's temp space, never the repo's
+ * .data/media. Pictures are named by their content, so tests running at once share safely.
+ */
+export const testMedia = localStorage({
+  dir: join(tmpdir(), 'okapigo-test-media'),
+  publicUrl: 'http://localhost:4000/media',
+});
+
+/**
+ * Uploads `count` different photos as `client` and returns them as a tour's photos.
+ * @param {any} client a signed-in supertest client (see `as`)
+ * @param {number} count
+ * @param {number} [first] the first picture's shade (different shades: different pictures)
+ */
+export async function uploadPhotos(client, count, first = 0) {
+  const photos = [];
+  for (let i = 0; i < count; i++) {
+    const res = await client
+      .post('/api/uploads/photo')
+      .set('Content-Type', 'image/jpeg')
+      .send(await testPicture({ shade: first + i }));
+    if (res.status !== 201) throw new Error(`upload failed: ${JSON.stringify(res.body)}`);
+    photos.push({
+      url: res.body.picture.url,
+      small: res.body.picture.small,
+      alt: `Photo ${i + 1}`,
+    });
+  }
+  return photos;
+}
 
 /** A logger that prints nothing, so test output only shows test results. */
 // Silent unless TEST_LOG_LEVEL asks (e.g. TEST_LOG_LEVEL=error to see what a 500 hid).
@@ -107,6 +143,7 @@ export function buildApp(overrides = {}) {
     rateLimitStore: memoryRateLimitStore(),
     // Scripted chats send far more than a person types; the limit itself isn't under test.
     simulatorLimit: 1000,
+    media: testMedia,
     ...overrides,
   });
 }

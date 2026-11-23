@@ -13,6 +13,9 @@
  *
  * `embedDomains` (stage 12h) is the whole list of websites allowed to show the booking widget;
  * it REPLACES the stored list (send [] to allow none).
+ *
+ * The logo and the hero photo (19b-1) are `site.logo` and `site.hero`: pictures uploaded first
+ * (POST /api/uploads/logo or /photo). Only this server's own picture addresses are accepted.
  */
 import { Router } from 'express';
 import { z } from 'zod';
@@ -25,6 +28,7 @@ import {
 } from '@okapigo/shared/schemas/website';
 import { requirePermission } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { assertOwnPictures } from './uploads.js';
 
 const WebsiteSchema = z
   .object({
@@ -57,8 +61,11 @@ const view = (o, web) => ({
   modes: MODES,
 });
 
-/** @param {{ prisma: import('@prisma/client').PrismaClient, webPublicUrl?: string }} deps */
-export function websiteRouter({ prisma, webPublicUrl = '' }) {
+/**
+ * @param {{ prisma: import('@prisma/client').PrismaClient, webPublicUrl?: string,
+ *   media: import('@okapigo/media').Storage }} deps
+ */
+export function websiteRouter({ prisma, webPublicUrl = '', media }) {
   const web = webPublicUrl.replace(/\/+$/, '');
   const router = Router();
   /** @returns {import('../middleware/auth.js').AuthContext} */
@@ -79,6 +86,8 @@ export function websiteRouter({ prisma, webPublicUrl = '' }) {
     async (req, res) => {
       const { operatorId } = authOf(req);
       const b = req.body;
+      // The logo and hero photo must be pictures this server made (19b-1).
+      assertOwnPictures(media, [b.site?.logo, b.site?.hero]);
       // Merge the site's fields over what's stored (null clears one). In a transaction with a
       // row lock, so two people saving different sections at once don't undo each other.
       const operator = await prisma.$transaction(async (tx) => {

@@ -14,11 +14,20 @@
  *                                               their own fields, used by the trip hub too)
  *   hours     { opens: '08:00', closes: '20:00' } when the team answers chats (stage 13c),
  *                                               the same every day, local time
+ *   logo      { url, small }                    beside the name everywhere (stage 19b-1)
+ *   hero      { url, small, alt, credit }       the hero's photo (stage 19b-1)
  *
  * Stored as ONE JSON value (operators.site): read as a whole, never queried field by field.
  */
 import { z } from 'zod';
 import { normalizeEmail, normalizePhone } from '../contact.js';
+import { PhotoSchema } from './products.js';
+
+/**
+ * The business's logo (stage 19b-1): a picture the app made from an upload, 512 px and a
+ * 128 px copy for headers. Square works best; it's shown small.
+ */
+export const LogoSchema = z.object({ url: z.url(), small: z.url() });
 
 /** Optional text: trimmed; empty means "not given" (null). @param {number} max */
 const text = (max) =>
@@ -86,6 +95,10 @@ export const SiteSchema = z.object({
     )
     .max(SOCIAL_NETWORKS.length)
     .optional(),
+  // The logo beside the name (header, checkout, posters, link previews) and the website's
+  // hero photo (stage 19b-1). null removes one: the first letter, or the style's pattern.
+  logo: LogoSchema.nullable().optional(),
+  hero: PhotoSchema.nullable().optional(),
   hours: z
     .object({ opens: HHMM, closes: HHMM })
     // 'HH:MM' strings compare correctly as text. (Overnight hours aren't supported.)

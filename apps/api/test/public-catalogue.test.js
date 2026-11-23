@@ -33,6 +33,7 @@ describe('GET /public/:operatorSlug (tour cards)', () => {
       websiteStyle: 'lagoon', // the default since stage 12g (was "classic" before anyone chose)
       websiteMode: 'auto',
       pricesInclude: 'VAT', // "prices include VAT" (Ìrìn's prices include 7.5% VAT)
+      logo: null, // none uploaded: the first letter (19b-1)
     });
     expect(res.body.tours).toHaveLength(5);
 

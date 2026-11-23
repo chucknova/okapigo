@@ -1,0 +1,20 @@
+{
+  "name": "@okapigo/media",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Photos and logos: checks an upload, makes the sizes the app shows, and stores them (local disk now, Cloudflare R2 at deploy)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./testing": "./src/testing.js"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "vitest": "5.1.0"
+  }
+}

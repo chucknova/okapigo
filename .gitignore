@@ -21,3 +21,7 @@ coverage/
 # Playwright's results and traces (end-to-end tests)
 test-results/
 playwright-report/
+
+# Uploaded photos and logos on the local disk (19b-1): made by the app, not source code.
+# On the deployed app they live in Cloudflare R2.
+.data/

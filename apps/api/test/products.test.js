@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, afterAll, afterEach } from 'vitest';
 import request from 'supertest';
-import { createTestContext } from './helpers.js';
+import { createTestContext, uploadPhotos } from './helpers.js';
 
 const ctx = createTestContext();
 afterEach(() => ctx.cleanup());
@@ -121,6 +121,12 @@ describe('creating and publishing a tour', () => {
 
     expect((await owner.post(`/api/products/${id}/price-categories`).send(ADULT)).status).toBe(201);
     expect((await owner.post(`/api/products/${id}/price-categories`).send(CHILD)).status).toBe(201);
+
+    // Prices, but no photos yet (19b-1: 3 to go on sale).
+    const noPhotos = await owner.patch(`/api/products/${id}`).send({ status: 'published' });
+    expect(noPhotos.body.error.message).toBe('Add 3 photos before putting it on sale.');
+    const photos = await uploadPhotos(owner, 3);
+    expect((await owner.patch(`/api/products/${id}`).send({ photos })).status).toBe(200);
 
     const live = await owner.patch(`/api/products/${id}`).send({ status: 'published' });
     expect(live.status).toBe(200);

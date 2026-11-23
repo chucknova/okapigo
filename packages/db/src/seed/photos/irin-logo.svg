@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Ìrìn Lagos Tours">
+  <rect width="64" height="64" rx="16" fill="#111511"/>
+  <path d="M15 47 C 27 47, 21 31, 32 31 S 38 19, 48 19" fill="none" stroke="#9BD10F" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="0.5 8.5"/>
+  <circle cx="15" cy="47" r="4.5" fill="#FFFFFF"/>
+  <circle cx="48" cy="19" r="7" fill="#9BD10F"/>
+  <circle cx="48" cy="19" r="2.6" fill="#111511"/>
+</svg>

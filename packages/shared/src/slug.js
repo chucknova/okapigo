@@ -35,6 +35,7 @@ export const RESERVED_OPERATOR_SLUGS = new Set([
   'api',
   'auth',
   'health',
+  'media', // uploaded photos and logos (19b-1)
   'octo',
   'pay',
   'payments',
