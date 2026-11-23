@@ -157,6 +157,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 18a-2           | The companion on the trip page (C1–C2: suggestions, answers with their source, passed to the team and the reply, limit, paused, no signal, closed; saved on the phone), the inbox's question (C3: "The assistant wasn't sure", Add to the FAQs), **journey 7**                            | `91ae5f2`           | 18a-2          |
 | 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `30683a5`           | 18b            |
 | 18c             | The dashboard (D1): today's departures, bookings, money in, check-ins; 30-day trend against the 30 before; channels; seats filled; money in read from the ledger by the Lagos day; **journey 8**; the poster preview's blob: image allowed (an 18b bug)                                   | `a8ca993`           | 18c            |
+| 19a-1           | The demo's history (`seed/history.js`): 60 days of guided departures, ~155 past bookings (all channels, check-ins, cancellations and refunds, two no-shows, a weather cancellation, Sojourna's payments), ~20 upcoming, and five loose ends; held to the live rules by tests              | `(this commit)`     | 19a-1          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -435,12 +436,28 @@ menu. Journey 8 signs in its own new manager (one code a minute per address). Th
 now allows `blob:` images: 18b's poster preview never showed in the real app (found by a
 screenshot). **Session 18 is done; all eight PRD journeys have e2e tests.**
 
+**Session 19's plan (2026-11-23):** five parts: **19a** the full demo history (about 150 past
+and 20 upcoming bookings, a few via Sojourna, **a few loose ends** a manager would sort out:
+decided), the nightly reset and "Try it" visitor copies; **19b** uploads (photos, logo):
+**openly licensed photos** of the real places (Wikimedia Commons, credits kept; each file OK'd
+by you before download) and a drawn SVG logo; **19c** accessibility checks and polish; **19d**
+the README and the demo script; **19e** deploy: **Render, one web service + one worker** (the
+API already serves the guest web and staff app), Neon, Upstash, Cloudflare R2; you create the
+accounts and paste the keys.
+
+**With 19a-1 (2026-11-23):** `seedDemoHistory()` runs after `seedDemoOperator()` in `pnpm db:seed`
+/ `db:reset` only (never in tests or e2e: they keep a quiet business). It writes rows directly
+(the engine refuses past trips) but reuses the real pricer, postings, refund rule and
+reference makers, and a test holds it to the live rules (books balance, seats add up, timeline,
+money). Deterministic (seed 19). A growing business; loose ends: no guide tomorrow, a failed
+refund, cash with a guide, one overdue Badagry balance (when due), a change of date, a
+companion question. Extra test businesses use a smaller story (40/6).
+
 ## 7. Where we are
 
-- **Last done:** 18c, the dashboard and journey 8, committed `a8ca993`.
-  **Session 18 is done** (journeys 7 and 8).
-- **Next:** **session 19**, the demo: full seed, demo reset, uploads (photos, logo), a11y
-  checks, README, deploy.
+- **Last done:** 19a-1, the demo's history, committed `(this commit)`.
+- **Next:** **19a-2**, the nightly reset and "Try it" visitor copies.
+- **Run `pnpm db:reset`** to get the history in your dev data (it wipes it: yours to run).
 - **Designs for session 18:** https://claude.ai/artifact/UtCPPn8bor271AVpWMZTpD (private).
 - **To use Claude:** add `AI_PROVIDER=anthropic` and your `ANTHROPIC_API_KEY` to `.env` (see
   `.env.example`); until then the companion runs on the fake.
@@ -550,11 +567,22 @@ screenshot). **Session 18 is done; all eight PRD journeys have e2e tests.**
 - **Screenshots without touching your browser pane** (18c): a headless Chrome (`channel:
 'chrome'`) via Playwright from `apps/web`, against my :4300 API and the e2e database, signing
   in a throwaway user with a code (as journey 8 does).
+- **A seed that depends on the day** (19a-1): what runs and what's full changes with the date,
+  so the history test also seeds a Wednesday and a late Saturday. A crash only on the real
+  date was how this showed.
+- **Heavy seeding in tests slows the shared database**: four full histories at once made race
+  tests time out. Seed the full story once; use smaller ones elsewhere.
+- **A busy machine** (load 24+, once 190: Docker's VM, iCloud syncing, Wi-Fi daemons, Chrome,
+  Figma): timing-sensitive UI tests time out at random. Re-run alone; run the suite one package
+  at a time (`pnpm exec turbo run test --concurrency=1`), or wait for the load to fall.
+- **"Can't reach database server at localhost:5432"** in every database test: the Docker
+  services stopped (19a-1). `docker ps -a`, then `pnpm services:up`.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-23 · 19a-1 The demo's history.
 - 2026-11-23 · 18c The dashboard; journey 8 (session 18 done).
 - 2026-11-23 · 18b Posters.
 - 2026-11-23 · 18a-2 The companion on the trip page and in the inbox; journey 7.

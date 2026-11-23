@@ -279,6 +279,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@okapigo/payments':
+        specifier: workspace:*
+        version: link:../payments
       '@okapigo/shared':
         specifier: workspace:*
         version: link:../shared
