@@ -457,6 +457,8 @@ companion question. Extra test businesses use a smaller story (40/6).
 
 - **Last done:** 19a-1, the demo's history, committed `3e9e3e4`.
 - **Next:** **19a-2**, the nightly reset and "Try it" visitor copies.
+- **Deploy (19e) waits until December 2026** (decided 2026-11-23): 19a-2 to 19d are built
+  and checked locally first; the nightly reset runs in the local workers until then.
 - **Run `pnpm db:reset`** to get the history in your dev data (it wipes it: yours to run).
 - **Designs for session 18:** https://claude.ai/artifact/UtCPPn8bor271AVpWMZTpD (private).
 - **To use Claude:** add `AI_PROVIDER=anthropic` and your `ANTHROPIC_API_KEY` to `.env` (see
