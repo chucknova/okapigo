@@ -190,6 +190,7 @@ describe('tours.js', () => {
         runs: 'Not scheduled yet',
         tag: 'DRAFT',
         tone: 'warning',
+        needs: 'needs prices and 3 photos', // 19b-2a: what it still needs to go on sale
       },
       {
         id: 'p-badagry',
@@ -197,8 +198,9 @@ describe('tours.js', () => {
         runs: 'Saturdays 07:00 · 14 seats',
         tag: 'ON SALE',
         tone: 'success',
+        needs: 'needs 3 photos', // on sale before photos were needed: it keeps selling
       },
-      { id: 'p-old', title: 'Old Walk', runs: '', tag: 'RETIRED', tone: 'muted' },
+      { id: 'p-old', title: 'Old Walk', runs: '', tag: 'RETIRED', tone: 'muted', needs: null },
     ]);
     expect(statusLine('published')).toBe('Published (on sale)');
     expect(statusLine('draft')).toBe('Draft (not on sale yet)');
@@ -380,15 +382,27 @@ describe('tours.js', () => {
     });
 
     expect(saleWords(BADAGRY)).toMatchObject({ action: 'Take off sale', ready: true });
-    expect(saleWords(EPE)).toMatchObject({
+    expect(saleWords(EPE)).toEqual({
       action: 'Put on sale',
+      ask: null,
       ready: false,
-      why: expect.stringMatching(/^Add its prices before it goes on sale/),
+      missing: [
+        { part: 'prices', line: 'Add its prices', href: '#tour-prices' },
+        { part: 'photos', line: 'Add 3 photos', href: '#tour-photos' },
+      ],
     });
     expect(saleWords({ ...EPE, priceCategories: [{ isActive: false }] }).ready).toBe(false);
-    expect(saleWords({ ...EPE, priceCategories: [{ isActive: true }] })).toMatchObject({
+    const priced = { ...EPE, priceCategories: [{ isActive: true }] };
+    expect(saleWords(priced)).toMatchObject({
+      ready: false,
+      missing: [{ part: 'photos', line: 'Add 3 photos' }],
+    });
+    expect(saleWords({ ...priced, photos: [{}, {}] }).missing).toEqual([
+      { part: 'photos', line: 'Add 1 more photo (it has 2 of 3)', href: '#tour-photos' },
+    ]);
+    expect(saleWords({ ...priced, photos: [{}, {}, {}] })).toMatchObject({
       ready: true,
-      why: null,
+      missing: [],
     });
   });
 });
@@ -527,7 +541,11 @@ describe('Settings › Tours', () => {
       await screen.findByRole('button', { name: 'Put on sale' })
     );
     expect(put.disabled).toBe(true);
-    expect(screen.getByText(/^Add its prices before it goes on sale/)).toBeTruthy();
+    // What it still needs, each with a link to its section (19b-2a).
+    expect(screen.getByText('Before it goes on sale:')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Prices' }).getAttribute('href')).toBe('#tour-prices');
+    expect(screen.getByRole('link', { name: 'Photos' }).getAttribute('href')).toBe('#tour-photos');
+    expect(screen.getByText(/^Add 3 photos/)).toBeTruthy();
     // Its pin is only the city's: shown as not set.
     expect(screen.getByText(/^Not set: guests see the address/)).toBeTruthy();
   });

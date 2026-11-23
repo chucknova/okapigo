@@ -161,6 +161,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19a-1           | The demo's history (`seed/history.js`): 60 days of guided departures, ~155 past bookings (all channels, check-ins, cancellations and refunds, two no-shows, a weather cancellation, Sojourna's payments), ~20 upcoming, and five loose ends; held to the live rules by tests                                                                           | `3e9e3e4`           | 19a-1          |
 | 19a-2           | The nightly demo reset (workers, 04:00 Lagos, only with `DEMO_RESET=on`, never a non-demo business; `pnpm demo:reset` by hand); `is_demo` businesses never send for real (WhatsApp to the simulator, email kept)                                                                                                                                       | `02048eb`           | 19a-2          |
 | 19b-1           | Uploads, server side: `packages/media` (checks a file by its bytes, 1600/640 px photos and 512/128 px logos, hidden details stripped, stored by content hash; local disk now, R2 at deploy); `POST /api/uploads/:kind`, `/media/…`; only our own pictures on tours and the website; credits; **3 photos to go on sale**; the demo's 18 photos and logo | `603a673`           | 19b-1          |
+| 19b-2a          | Photos in the staff app: a tour's Photos section (cover, order, describe, credit, remove asks under 3 on sale), New tour with photos, a draft's "Before it goes on sale" checklist, the list's "needs 1 more photo", the logo and hero in Business details; uploads with progress (XHR)                                                                | `(this commit)`     | 19b-2a         |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -484,11 +485,18 @@ or the website (the owner, in the default roles; managers only look, so the canv
 the hero with the website. The demo's photos are seeded by `pnpm db:seed` and the nightly reset,
 not in the tests' quiet businesses.
 
+**With 19b-2a (2026-11-23):** New tour asks for photos right after the summary; missing
+descriptions show only once "Make the draft" is pressed. A tour's page keeps its one long page
+of sections (16e-4), so Photos is a section after Basics, not the canvas's tabs. Uploads happen
+when picked, the change on Save (which waits for uploads). The size limit and its words are
+shared (`@okapigo/shared/uploads`). Next, 19b-2b: what guests see.
+
 ## 7. Where we are
 
-- **Last done:** 19b-1, uploads (the server side), committed `603a673`.
-- **Next:** **19b-2**, the screens: Settings' logo and hero (U1), a tour's Photos tab (U2–U3),
-  New tour with photos (U7–U8), the guest pages (U4–U5), posters and link previews (U6).
+- **Last done:** 19b-2a, photos in the staff app, committed `(this commit)`.
+- **Next:** **19b-2b**, what guests see: the logo in every header, the website's hero, tour cards
+  and tour pages with photos and credits (the footer's credit list), the trip page's cover,
+  posters' photo panel and link previews (U4–U6).
 - **Run `pnpm db:reset`** to get the demo's photos and logo in your dev data (and its history).
 - **Deploy (19e) waits until December 2026** (decided 2026-11-23): 19a-2 to 19d are built
   and checked locally first; the nightly reset runs in the local workers until then.
@@ -621,11 +629,17 @@ not in the tests' quiet businesses.
   photo test has 180 s.
 - **helmet sets `Cross-Origin-Resource-Policy: same-origin`**: the guest web and staff app on
   other ports (and R2 later) couldn't show `/media` pictures; that route sets `cross-origin`.
+- **Run Prettier from the repo root** (19b-2a): from inside `apps/operator` it reformatted the
+  generated `tokens.css` (the root's `.prettierignore` didn't apply); a test caught it, and
+  `pnpm --filter @okapigo/operator tokens` makes it again.
+- **The WhatsApp paying tests (`whatsapp-paying.test.js`) fail in most full runs now** (under
+  load), and pass alone every time. Worth finding the race (19b-2a).
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-23 · 19b-2a Photos and the logo in the staff app.
 - 2026-11-23 · 19b-1 Uploads, the server side: photos and logo, 3 photos to go on sale, the demo's photos.
 - 2026-11-23 · 19a-2 The nightly demo reset; demo businesses never send.
 - 2026-11-23 · 19a-1 The demo's history.

@@ -319,6 +319,9 @@ importers:
 
   packages/media:
     dependencies:
+      '@okapigo/shared':
+        specifier: workspace:*
+        version: link:../shared
       sharp:
         specifier: 0.35.5
         version: 0.35.5(@types/node@26.6.6)

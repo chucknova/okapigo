@@ -24,6 +24,10 @@ import { ChannelsSettings } from './SettingsChannels.jsx';
 import { useLive } from '../lib/live.js';
 import { useEngine, useSync } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
+import { LogoField, HeroField } from '../components/PictureFields.jsx';
+import { usePicture } from '../lib/uploads.js';
+import { picturesForm, pictureChanges, pictureErrors, picturesSite } from '../lib/pictures.js';
+import { firstLetter } from '../lib/letter.js';
 import { localTime } from '@okapigo/shared/time';
 import {
   SECTIONS,
@@ -236,23 +240,42 @@ function StylePicker({ website }) {
 /** The business details form (designs: "Business details"; "Errors in a form"). @param {{ website: any, tz: string }} props */
 function BusinessDetails({ website, tz }) {
   const engine = useEngine();
+  const sync = useSync();
   const [saved, setSaved] = useState(() => detailsForm(website));
   const [form, setForm] = useState(saved);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState(/** @type {{ ok: boolean, text: string } | null} */ (null));
+  // The logo and hero photo (19b-2a; designs: U1): each uploads when picked, saved with the rest.
+  const [savedPics, setSavedPics] = useState(() => picturesForm(website));
+  const logo = usePicture(savedPics.logo, 'logo');
+  const hero = usePicture(savedPics.hero, 'photo');
+  const [heroText, setHeroText] = useState({
+    alt: savedPics.heroAlt,
+    credit: savedPics.heroCredit,
+  });
+  const pics = {
+    logo: logo.picture,
+    hero: hero.picture,
+    heroAlt: heroText.alt,
+    heroCredit: heroText.credit,
+  };
+  const picErrors = pictureErrors(pics);
+  const uploading = Boolean(logo.upload || hero.upload);
   const errors = detailsErrors(form);
-  const problems = Object.keys(errors).length;
-  const changed = changedFields(form, saved);
+  const problems = Object.keys(errors).length + Object.keys(picErrors).length;
+  const changed = [...changedFields(form, saved), ...pictureChanges(pics, savedPics)];
   const set = (/** @type {keyof typeof form} */ k) => (/** @type {any} */ e) =>
     setForm({ ...form, [k]: e.target.value });
 
   const save = async () => {
-    if (problems) return false;
+    if (problems || uploading) return false;
     setSaving(true);
     setNote(null);
+    const body = detailsBody(form, saved);
+    const site = { ...body.site, ...picturesSite(pics, savedPics) };
     const r = await act(engine, '/api/website', {
       method: 'PATCH',
-      body: detailsBody(form, saved),
+      body: Object.keys(site).length ? { ...body, site } : body,
     });
     setSaving(false);
     if (!r.ok) {
@@ -266,8 +289,16 @@ function BusinessDetails({ website, tz }) {
       return false;
     }
     setSaved(form);
+    setSavedPics(pics);
     setNote({ ok: true, text: `Saved · ${localTime(new Date(), tz)}.` });
     return true;
+  };
+  const discard = () => {
+    setForm(saved);
+    logo.reset(savedPics.logo);
+    hero.reset(savedPics.hero);
+    setHeroText({ alt: savedPics.heroAlt, credit: savedPics.heroCredit });
+    setNote(null);
   };
 
   /** @param {keyof typeof form} k @param {string} label @param {any} [extra] */
@@ -322,16 +353,16 @@ function BusinessDetails({ website, tz }) {
       </div>
       {field('address', 'Address')}
       {field('instagram', 'Instagram', { help: 'Your handle, like @irinlagostours' })}
-      <div className="field-pair">
-        <div className="upload-later">
-          <strong>Logo</strong>
-          <span className="small muted">Using your first letter · uploads come later</span>
-        </div>
-        <div className="upload-later">
-          <strong>Hero photo</strong>
-          <span className="small muted">Using the style’s pattern · uploads come later</span>
-        </div>
-      </div>
+      <LogoField logo={logo} letter={firstLetter(sync.me?.operator?.name ?? '')} />
+      <HeroField
+        hero={hero}
+        alt={heroText.alt}
+        credit={heroText.credit}
+        onAlt={(alt) => setHeroText({ ...heroText, alt })}
+        onCredit={(credit) => setHeroText({ ...heroText, credit })}
+        errors={picErrors}
+      />
+      {uploading && <p className="small muted">Save when the upload ends.</p>}
       {note && (
         <p role={note.ok ? 'status' : 'alert'} className={note.ok ? 'done-note' : 'field-error'}>
           {note.text}
@@ -348,12 +379,9 @@ function BusinessDetails({ website, tz }) {
       <SaveBar
         changed={changed}
         saving={saving}
-        blocked={problems > 0}
+        blocked={problems > 0 || uploading}
         onSave={save}
-        onDiscard={() => {
-          setForm(saved);
-          setNote(null);
-        }}
+        onDiscard={discard}
       />
       <LeaveGuard
         changed={changed}

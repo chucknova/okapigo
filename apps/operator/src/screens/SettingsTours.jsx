@@ -20,6 +20,15 @@ import { SaveBar, LeaveGuard } from '../components/SaveBar.jsx';
 import { useLive } from '../lib/live.js';
 import { useSaveParts, useSavePart } from '../lib/save-parts.js';
 import { Prices, Schedule, Extras, Pickups, Terms } from './SettingsTourSections.jsx';
+import { PhotoList } from '../components/PhotoList.jsx';
+import { usePhotoList } from '../lib/uploads.js';
+import {
+  photoItems,
+  photosBody,
+  photosChanged,
+  photoProblemCount,
+  uploadingCount,
+} from '../lib/photos.js';
 import { useEngine } from '../lib/engine.jsx';
 import { act, actionError } from '../lib/office.js';
 import { localTime } from '@okapigo/shared/time';
@@ -72,6 +81,7 @@ function TourList({ tz, canEdit }) {
                     <span className="grow stack-xs">
                       <strong>{t.title}</strong>
                       <span className="small muted">{t.runs}</span>
+                      {t.needs && <span className="small warning-text">{t.needs}</span>}
                     </span>
                     <span className={`chip chip--${t.tone}`}>{t.tag}</span>
                     <span aria-hidden="true">›</span>
@@ -94,7 +104,10 @@ function NewTour({ canEdit }) {
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(/** @type {string | null} */ (null));
+  // Photos from the start (decided 2026-11-23; designs: U7, U8). Optional for a draft.
+  const photos = usePhotoList([]);
   const errors = tried ? newTourErrors(form) : {};
+  const photoProblems = photoProblemCount(photos.items);
   const set = (/** @type {keyof typeof form} */ k) => (/** @type {any} */ e) =>
     setForm({ ...form, [k]: e.target.value });
   /** @param {keyof typeof form} k @param {string} label @param {any} [extra] */
@@ -122,7 +135,8 @@ function NewTour({ canEdit }) {
       <header>
         <h2 className="h-xl">New tour</h2>
         <p className="muted">
-          The basics first. It starts as a draft: nobody can book it until you put it on sale.
+          The basics and its photos. It starts as a draft: nobody can book it until you put it on
+          sale.
         </p>
       </header>
       <form
@@ -132,9 +146,15 @@ function NewTour({ canEdit }) {
           e.preventDefault();
           setTried(true);
           if (Object.keys(newTourErrors(form)).length) return;
+          if (uploadingCount(photos.items))
+            return setError('Wait for the photos to finish uploading.');
+          if (photoProblems) return setError('Describe each photo, or remove it.');
           setBusy(true);
           setError(null);
-          const r = await act(engine, '/api/products', { method: 'POST', body: newTourBody(form) });
+          const r = await act(engine, '/api/products', {
+            method: 'POST',
+            body: newTourBody(form, photosBody(photos.items)),
+          });
           setBusy(false);
           if (!r.ok) return setError(actionError(r.error));
           navigate(`/settings/tours/${r.body.product.id}`);
@@ -142,6 +162,14 @@ function NewTour({ canEdit }) {
       >
         {field('title', 'Name', { help: 'Like “Epe Fish Market Morning”' })}
         {field('summary', 'Summary', { help: 'One line for the tour’s card' })}
+        <fieldset className="plain-fieldset stack-xs new-tour-photos">
+          <legend className="h-sm">Photos</legend>
+          <p className="small muted">At least 3 before it goes on sale. The first is the cover.</p>
+          <PhotoList list={photos} credits={false} showErrors={tried} />
+          <p className="small muted">
+            Credits (for photos someone else took) are added in the tour’s Photos section.
+          </p>
+        </fieldset>
         <div className="field-pair">
           <fieldset className="plain-fieldset stack-xs">
             <legend className="strong">Duration</legend>
@@ -184,9 +212,15 @@ function NewTour({ canEdit }) {
             {error}
           </p>
         )}
-        <button type="submit" className="btn btn--dark btn--compact" disabled={busy}>
-          {busy ? 'Making it…' : 'Make the draft'}
-        </button>
+        <div className="row-wrap">
+          <button type="submit" className="btn btn--dark btn--compact" disabled={busy}>
+            {busy ? 'Making it…' : 'Make the draft'}
+          </button>
+          <span className="small muted">
+            No photos yet? Make the draft anyway and add them later. It can’t go on sale until it
+            has 3.
+          </span>
+        </div>
       </form>
     </div>
   );
@@ -247,6 +281,12 @@ function TourPage({ product, tz, canEdit }) {
           product={product}
           tz={tz}
           part={parts.part('basics')}
+        />
+        <TourPhotos
+          key={`photos-${product.id}`}
+          product={product}
+          tz={tz}
+          part={parts.part('photos')}
         />
         <Prices
           key={`prices-${product.id}`}
@@ -329,7 +369,21 @@ function OnSale({ product, canEdit }) {
           </button>
         )}
       </p>
-      {words.why && canEdit && <p className="small muted">{words.why}</p>}
+      {words.missing.length > 0 && canEdit && (
+        <div className="stack-xs">
+          <span className="small strong">Before it goes on sale:</span>
+          <ul className="small sale-checklist">
+            {words.missing.map((m) => (
+              <li key={m.part}>
+                {m.line} ·{' '}
+                <a className="text-link--inline" href={m.href}>
+                  {m.part === 'prices' ? 'Prices' : 'Photos'}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {asking && (
         <div className="stack-xs" role="group" aria-label="Take it off sale?">
           <p className="small">{words.ask}</p>
@@ -360,6 +414,74 @@ function OnSale({ product, canEdit }) {
     </div>
   );
 }
+
+/**
+ * Photos (19b-2a; designs: U2 desk, U3 phone): at least 3 to go on sale, up to 8, the first is
+ * the cover. Each photo uploads as soon as it's picked; the tour changes when it's saved, with
+ * the page's one save bar (and not while an upload is still on its way).
+ * @param {{ product: any, tz: string, part: import('../lib/save-parts.js').SavePart }} props
+ */
+function TourPhotos({ product, tz, part }) {
+  const engine = useEngine();
+  const list = usePhotoList(product.photos);
+  const [saved, setSaved] = useState(() => photoItems(product.photos));
+  const [note, setNote] = useState(/** @type {{ ok: boolean, text: string } | null} */ (null));
+  const problems = photoProblemCount(list.items);
+  const changed = photosChanged(list.items, saved) ? ['Photos'] : [];
+
+  const save = async () => {
+    if (problems || uploadingCount(list.items)) return false;
+    setNote(null);
+    const r = await act(engine, `/api/products/${product.id}`, {
+      method: 'PATCH',
+      body: { photos: photosBody(list.items) },
+    });
+    if (!r.ok) {
+      setNote({
+        ok: false,
+        text:
+          r.error.kind === 'offline' || r.error.kind === 'unreachable'
+            ? 'Didn’t save: no connection. Your photos are still here.'
+            : actionError(r.error),
+      });
+      return false;
+    }
+    setSaved(photoItems(r.body.product.photos));
+    list.reset(r.body.product.photos);
+    setNote({ ok: true, text: `Saved · ${localTime(new Date(), tz)}.` });
+    return true;
+  };
+  useSavePart(part, changed, problems > 0 || uploadingCount(list.items) > 0, save, () => {
+    list.reset(photosOf(saved));
+    setNote(null);
+  });
+
+  return (
+    <section id="tour-photos" className="panel panel--pad stack-sm" aria-label="Photos">
+      <div className="stack-xs">
+        <h3 className="h-md">Photos</h3>
+        <p className="small muted">
+          At least 3 to go on sale, up to 8. The first is the cover: the catalogue card, link
+          previews and posters use it.
+        </p>
+      </div>
+      {problems > 0 && (
+        <p role="alert" className="field-error">
+          {fixLine(problems)}
+        </p>
+      )}
+      <PhotoList list={list} product={product} />
+      {note && (
+        <p role={note.ok ? 'status' : 'alert'} className={note.ok ? 'done-note' : 'field-error'}>
+          {note.text}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Saved items back to the photos they came from (for Discard). @param {any[]} items */
+const photosOf = (items) => photosBody(items);
 
 /**
  * Basics (designs: name, short name, summary, duration, meeting point; the text lists).

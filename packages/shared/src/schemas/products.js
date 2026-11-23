@@ -10,6 +10,7 @@
  */
 import { z } from 'zod';
 import { RESERVED_TOUR_SLUGS } from '../slug.js';
+import { MAX_TOUR_PHOTOS } from '../ready-to-sell.js';
 
 const text = (max) => z.string().trim().min(1).max(max);
 /** Whole kobo, never negative. 0 is allowed (e.g. a free infant place). */
@@ -64,8 +65,7 @@ export const PhotoSchema = z.object({
     .optional(),
 });
 
-/** A tour shows at most this many photos (designs: "Up to 8"). */
-export const MAX_TOUR_PHOTOS = 8;
+export { MAX_TOUR_PHOTOS };
 
 export const PickupPointSchema = z.object({
   name: text(120),

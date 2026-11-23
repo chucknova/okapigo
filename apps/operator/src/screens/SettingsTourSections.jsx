@@ -119,7 +119,7 @@ export function Prices({ product, tz, part }) {
   });
 
   return (
-    <section className="panel panel--pad stack-sm" aria-label="Prices">
+    <section id="tour-prices" className="panel panel--pad stack-sm" aria-label="Prices">
       <div className="row-between">
         <h3 className="h-md">Prices</h3>
         <button

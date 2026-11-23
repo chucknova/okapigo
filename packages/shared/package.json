@@ -40,7 +40,8 @@
     "./companion": "./src/companion.js",
     "./posters": "./src/posters.js",
     "./dashboard": "./src/dashboard.js",
-    "./ready-to-sell": "./src/ready-to-sell.js"
+    "./ready-to-sell": "./src/ready-to-sell.js",
+    "./uploads": "./src/uploads.js"
   },
   "scripts": {
     "test": "vitest run"

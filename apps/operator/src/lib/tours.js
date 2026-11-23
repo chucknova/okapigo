@@ -18,6 +18,7 @@
  *
  * The pin is read by @okapigo/shared/map-pin ("paste a map link", decided 2026-11-21).
  */
+import { missingToSell, photosWanted } from '@okapigo/shared/ready-to-sell';
 import { readMapPin, pinText } from '@okapigo/shared/map-pin';
 import { findAgeOverlap } from '@okapigo/shared/catalogue';
 import { formatNaira } from '@okapigo/shared/money';
@@ -56,7 +57,30 @@ export const tourRows = (products) =>
       runs: p.runs ?? '',
       tag: statusTag(p.status),
       tone: p.status === 'published' ? 'success' : p.status === 'archived' ? 'muted' : 'warning',
+      needs: needsLine(p),
     }));
+
+/**
+ * What a tour still needs, for the list (19b-2a; designs: U7 "Settings › Tours: the list"):
+ *   a draft      "needs prices and 2 more photos" (what's missing to go on sale)
+ *   on sale      "needs 1 more photo" (it keeps selling: decided 2026-11-23)
+ *   retired, or nothing missing: null
+ * @param {any} p
+ */
+export function needsLine(p) {
+  if (p.status === 'archived') return null;
+  const photoCount = (p.photos ?? []).length;
+  const wanted = photosWanted(photoCount);
+  if (p.status === 'published') return wanted ? `needs ${wanted}` : null;
+  const parts = missingToSell({ activePrices: activePrices(p), photoCount }).map((m) =>
+    m.part === 'prices' ? 'prices' : wanted,
+  );
+  return parts.length ? `needs ${parts.join(' and ')}` : null;
+}
+
+/** @param {any} p */
+const activePrices = (p) =>
+  (p.priceCategories ?? []).filter((/** @type {any} */ c) => c.isActive).length;
 
 // --- The text lists ---------------------------------------------------------------------------
 
@@ -306,8 +330,13 @@ export function newTourErrors(f) {
   return e;
 }
 
-/** What POST /api/products gets (a draft; the description starts as the summary). @param {NewTourForm} f */
-export const newTourBody = (f) => ({
+/**
+ * What POST /api/products gets (a draft; the description starts as the summary), with its
+ * photos when it has some (19b-2a).
+ * @param {NewTourForm} f @param {Array<{ url: string, small: string, alt: string, credit: string | null }>} [photos]
+ */
+export const newTourBody = (f, photos = []) => ({
+  ...(photos.length > 0 && { photos }),
   title: f.title.trim(),
   summary: f.summary.trim(),
   description: f.summary.trim(),
@@ -320,26 +349,26 @@ export const newTourBody = (f) => ({
 // --- On sale ----------------------------------------------------------------------------------
 
 /**
- * Putting a tour on sale, or taking it off, in words.
+ * Putting a tour on sale, or taking it off, in words. A draft lists what it still needs
+ * (19b-2a; designs: U7 "The draft's page, until it's ready"), each with the section to go to.
  * @param {any} p
+ * @returns {{ action: string, ask: string | null, ready: boolean,
+ *   missing: Array<{ part: 'prices' | 'photos', line: string, href: string }> }}
  */
 export function saleWords(p) {
-  const prices = (p.priceCategories ?? []).filter((/** @type {any} */ c) => c.isActive).length;
   if (p.status === 'published') {
     return {
       action: 'Take off sale',
       ask: 'Take it off sale? Guests can’t book it any more. Bookings already made stay, and their trips still run.',
       ready: true,
-      why: null,
+      missing: [],
     };
   }
-  return {
-    action: 'Put on sale',
-    ask: null,
-    ready: prices > 0,
-    why:
-      prices > 0 ? null : 'Add its prices before it goes on sale (prices come in the next part).',
-  };
+  const missing = missingToSell({
+    activePrices: activePrices(p),
+    photoCount: (p.photos ?? []).length,
+  }).map((m) => ({ ...m, href: m.part === 'prices' ? '#tour-prices' : '#tour-photos' }));
+  return { action: 'Put on sale', ask: null, ready: missing.length === 0, missing };
 }
 
 // --- Prices (16e-4b) --------------------------------------------------------------------------

@@ -20,6 +20,9 @@
 /** Photos a tour needs before it goes on sale. */
 export const MIN_PHOTOS_TO_SELL = 3;
 
+/** A tour shows at most this many photos (designs: "Up to 8"). */
+export const MAX_TOUR_PHOTOS = 8;
+
 /** How many more photos it needs to go on sale (0 when it has enough). @param {number} count */
 export const photosShort = (count) => Math.max(0, MIN_PHOTOS_TO_SELL - count);
 

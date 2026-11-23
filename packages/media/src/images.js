@@ -21,6 +21,9 @@
  * No SVG, even for logos: an SVG is a document that can carry scripts.
  */
 import sharp from 'sharp';
+import { MAX_UPLOAD_BYTES, sizeWords, tooBigLine } from '@okapigo/shared/uploads';
+
+export { MAX_UPLOAD_BYTES, sizeWords };
 
 /** The two kinds of upload, and the sizes each becomes. */
 export const IMAGE_KINDS = /** @type {const} */ ({
@@ -29,8 +32,6 @@ export const IMAGE_KINDS = /** @type {const} */ ({
 });
 /** @typedef {keyof typeof IMAGE_KINDS} ImageKind */
 
-/** 10 MB: a phone's full-size photo fits; a video or a scan of a book doesn't. */
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 /**
  * 60 megapixels. A small file can still DECODE into a huge picture (a "decompression bomb":
  * a 50 KB PNG of 30,000 × 30,000 plain pixels would need gigabytes of memory). sharp refuses
@@ -46,12 +47,6 @@ export class ImageError extends Error {
     this.code = code;
   }
 }
-
-/** "14 MB", "800 KB": for messages. @param {number} bytes */
-export const sizeWords = (bytes) =>
-  bytes >= 1024 * 1024
-    ? `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`
-    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 /**
  * What a file really is, from its first bytes ("magic numbers"). Only the kinds we accept,
@@ -95,12 +90,8 @@ export async function processImage(bytes, kind) {
   if (!bytes || bytes.length === 0) {
     throw new ImageError('EMPTY', 'That file is empty. Pick the picture again.');
   }
-  if (bytes.length > MAX_UPLOAD_BYTES) {
-    throw new ImageError(
-      'TOO_BIG',
-      `That ${what} is ${sizeWords(bytes.length)}. Use one under ${sizeWords(MAX_UPLOAD_BYTES)}.`,
-    );
-  }
+  const tooBig = tooBigLine(kind, bytes.length);
+  if (tooBig) throw new ImageError('TOO_BIG', tooBig);
   const type = sniff(bytes);
   if (type === 'pdf' || type === 'gif' || type === 'heic' || type === 'svg') {
     throw new ImageError('WRONG_TYPE', REFUSED[type]);

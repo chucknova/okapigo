@@ -75,3 +75,20 @@ describe('the photo and logo shapes', () => {
     expect(SiteSchema.safeParse({ hero: { url } }).success).toBe(false); // a description too
   });
 });
+
+describe('upload limits (19b)', () => {
+  it('10 MB at most, said the same everywhere', async () => {
+    const { tooBigLine, sizeWords, MAX_UPLOAD_BYTES, ACCEPTED_PICTURES } =
+      await import('../src/uploads.js');
+    expect(MAX_UPLOAD_BYTES).toBe(10 * 1024 * 1024);
+    expect(tooBigLine('photo', MAX_UPLOAD_BYTES)).toBeNull();
+    expect(tooBigLine('photo', MAX_UPLOAD_BYTES + 1)).toBe(
+      'That photo is 10 MB. Use one under 10 MB.',
+    );
+    expect(tooBigLine('logo', 14.2 * 1024 * 1024)).toBe(
+      'That logo is 14.2 MB. Use one under 10 MB.',
+    );
+    expect(sizeWords(800 * 1024)).toBe('800 KB');
+    expect(ACCEPTED_PICTURES).toBe('image/jpeg,image/png,image/webp');
+  });
+});
