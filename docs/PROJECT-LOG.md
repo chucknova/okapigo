@@ -155,7 +155,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17d-2           | Sojourna's back office (M5: live statuses, cancel with the business's own refund preview, too late), its OCTO notifications subscription ("last sync"), **journey 3 end to end**; OCTO refundIfCancelledNow and refundAmount; contacts accept null                                        | `5317f7e`           | 17d-2          |
 | 18a-1           | The AI companion's server: `packages/ai` (Claude Haiku via Anthropic's SDK, a fake), its facts and rules, 20 a day, kept answers, the monthly spend cap, unsure → an inbox request (kind question); `GET/POST /public/bookings/:token/companion`                                          | `94a97db`           | 18a-1          |
 | 18a-2           | The companion on the trip page (C1–C2: suggestions, answers with their source, passed to the team and the reply, limit, paused, no signal, closed; saved on the phone), the inbox's question (C3: "The assistant wasn't sure", Add to the FAQs), **journey 7**                            | `91ae5f2`           | 18a-2          |
-| 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `(this commit)`     | 18b            |
+| 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `30683a5`           | 18b            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -426,7 +426,7 @@ discount engine: an Offer shows the owner's words and the real price.
 
 ## 7. Where we are
 
-- **Last done:** 18b, posters, committed `(this commit)`.
+- **Last done:** 18b, posters, committed `30683a5`.
 - **Next:** **18c**, the dashboard (D1) and journey 8 (a poster, then today on the dashboard).
 - **Designs for session 18:** https://claude.ai/artifact/UtCPPn8bor271AVpWMZTpD (private).
 - **To use Claude:** add `AI_PROVIDER=anthropic` and your `ANTHROPIC_API_KEY` to `.env` (see
