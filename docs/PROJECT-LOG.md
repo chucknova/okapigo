@@ -158,6 +158,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `30683a5`           | 18b            |
 | 18c             | The dashboard (D1): today's departures, bookings, money in, check-ins; 30-day trend against the 30 before; channels; seats filled; money in read from the ledger by the Lagos day; **journey 8**; the poster preview's blob: image allowed (an 18b bug)                                   | `a8ca993`           | 18c            |
 | 19a-1           | The demo's history (`seed/history.js`): 60 days of guided departures, ~155 past bookings (all channels, check-ins, cancellations and refunds, two no-shows, a weather cancellation, Sojourna's payments), ~20 upcoming, and five loose ends; held to the live rules by tests              | `3e9e3e4`           | 19a-1          |
+| 19a-2           | The nightly demo reset (workers, 04:00 Lagos, only with `DEMO_RESET=on`, never a non-demo business; `pnpm demo:reset` by hand); `is_demo` businesses never send for real (WhatsApp to the simulator, email kept)                                                                          | `(this commit)`     | 19a-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -453,10 +454,18 @@ money). Deterministic (seed 19). A growing business; loose ends: no guide tomorr
 refund, cash with a guide, one overdue Badagry balance (when due), a change of date, a
 companion question. Extra test businesses use a smaller story (40/6).
 
+**With 19a-2 (2026-11-23):** "Try it" visitor copies are **left out for now** (for later: owner +
+guest sides; "Reset my copy" in a visitor's copy; the public demo resets only at night). The
+nightly reset: `resetDemo()` deletes the demo slug's business and makes it again as a demo
+(`is_demo`) with its history; the workers schedule it at 04:00 Lagos **only with
+`DEMO_RESET=on`** and never touch a non-demo business; `pnpm demo:reset` by hand. Demo
+businesses never send for real (WhatsApp to the simulator, email kept, not sent); your own
+businesses send as before. Deploy (19e) in December.
+
 ## 7. Where we are
 
-- **Last done:** 19a-1, the demo's history, committed `3e9e3e4`.
-- **Next:** **19a-2**, the nightly reset and "Try it" visitor copies.
+- **Last done:** 19a-2, the nightly demo reset, committed `(this commit)`.
+- **Next:** **19b**, uploads (photos, logo): openly licensed photos, each OK'd by you first.
 - **Deploy (19e) waits until December 2026** (decided 2026-11-23): 19a-2 to 19d are built
   and checked locally first; the nightly reset runs in the local workers until then.
 - **Run `pnpm db:reset`** to get the history in your dev data (it wipes it: yours to run).
@@ -579,11 +588,15 @@ companion question. Extra test businesses use a smaller story (40/6).
   at a time (`pnpm exec turbo run test --concurrency=1`), or wait for the load to fall.
 - **"Can't reach database server at localhost:5432"** in every database test: the Docker
   services stopped (19a-1). `docker ps -a`, then `pnpm services:up`.
+- **The e2e database is migrated only when the e2e journeys start** (19a-2): a check against
+  it after adding a migration needs `prisma migrate deploy` with the e2e database first
+  ("column … does not exist").
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-23 · 19a-2 The nightly demo reset; demo businesses never send.
 - 2026-11-23 · 19a-1 The demo's history.
 - 2026-11-23 · 18c The dashboard; journey 8 (session 18 done).
 - 2026-11-23 · 18b Posters.

@@ -104,8 +104,15 @@ export async function sendGuestMessages(deps) {
         n.data = { .../** @type {object} */ (n.data ?? {}), chatMessageId: sent.chatMessageId };
       }
       if (n.channel === 'email') {
-        const id = await toEmail(deps, n.booking, n, words);
-        n.data = { .../** @type {object} */ (n.data ?? {}), emailId: id };
+        // A DEMO business's emails are kept, never sent (19a-2): its guests are made up.
+        const id = n.booking.product.operator.isDemo
+          ? null
+          : await toEmail(deps, n.booking, n, words);
+        n.data = {
+          .../** @type {object} */ (n.data ?? {}),
+          emailId: id,
+          ...(id === null && { demo: 'kept, not sent: a demo business' }),
+        };
       }
     } catch (err) {
       // A mailer's refusal says why in its own words; anything else is our bug.
@@ -172,14 +179,17 @@ export function testProblem(error) {
  */
 export async function sendToPhone(deps, { operator, phone, name, body, now = new Date() }) {
   const { prisma } = deps;
+  // A DEMO business (the public demo, 19a-2) only ever writes in the simulator: its guests'
+  // numbers are made up, and must never reach a real person on WhatsApp.
+  const demo = operator.isDemo === true;
   const existing = await prisma.conversation.findFirst({
-    where: { operatorId: operator.id, guestPhone: phone },
+    where: { operatorId: operator.id, guestPhone: phone, ...(demo && { channel: 'simulator' }) },
     orderBy: { lastMessageAt: 'desc' },
   });
   // Someone who never wrote (a website guest): a REAL WhatsApp chat when this server and
   // this business are connected to WhatsApp (stage 14c), else the simulator's.
   const channel =
-    deps.channels.whatsapp && operator.whatsappPhoneNumberId ? 'whatsapp' : 'simulator';
+    !demo && deps.channels.whatsapp && operator.whatsappPhoneNumberId ? 'whatsapp' : 'simulator';
   const conversation =
     existing ??
     (await prisma.conversation.upsert({

@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.js",
-    "./testing": "./src/testing.js"
+    "./testing": "./src/testing.js",
+    "./reset": "./src/seed/reset.js"
   },
   "scripts": {
     "generate": "prisma generate",
@@ -16,7 +17,8 @@
     "seed": "prisma db seed",
     "studio": "prisma studio",
     "test": "vitest run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "demo:reset": "node src/seed/reset-run.js"
   },
   "dependencies": {
     "@okapigo/payments": "workspace:*",

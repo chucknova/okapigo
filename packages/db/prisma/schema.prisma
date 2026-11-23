@@ -59,6 +59,9 @@ model Operator {
   // The business's number on the WhatsApp Cloud API: Meta's "phone number ID" (stage 13c-3).
   // A guest's message arrives addressed to it, so this says which business it's for.
   whatsappPhoneNumberId String?  @unique @map("whatsapp_phone_number_id")
+  // A DEMO business (the public demo, reset nightly: 19a-2): its messages never leave (WhatsApp
+  // to the simulator, email kept, not sent), so made-up guests' numbers never reach anyone.
+  isDemo                Boolean  @default(false) @map("is_demo")
   // The one-page website's business details (stage 12g-2): kind, tagline, intro, about,
   // whyUs, faqs, email, address, socials. Validated by SiteSchema
   // (packages/shared/src/schemas/website.js); read as a whole, so one JSON value.

@@ -21,6 +21,7 @@ import {
   queueBalanceNotices,
   pushChannelUpdates,
 } from '@okapigo/db';
+import { resetDemo } from '@okapigo/db/reset';
 import { JOBS } from '@okapigo/jobs';
 
 /**
@@ -93,6 +94,20 @@ export function createProcessors({ prisma, logger, provider, fetch: doFetch = fe
      * appears, something bypassed the rules: log it loudly and fail the job so it shows on the
      * jobs dashboard. (Alerting arrives with the error tracker, session 20.)
      */
+    /** The public demo's nightly reset (19a-2): only scheduled when DEMO_RESET=on. */
+    async [JOBS.resetDemo](data) {
+      const result = await resetDemo(prisma, {
+        slug: data?.slug || undefined,
+        onlyIfDemo: true, // never a real business that shares the slug
+      });
+      if (result.skipped) logger.warn({ reason: result.reason }, 'demo reset skipped');
+      else
+        logger.info(
+          { past: result.past, upcoming: result.upcoming, ms: result.ms },
+          'demo reset: wiped and made again',
+        );
+      return result;
+    },
     async [JOBS.verifyLedger]() {
       const result = await verifyLedger(prisma);
       for (const issue of result.issues) {

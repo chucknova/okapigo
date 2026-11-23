@@ -81,9 +81,13 @@ export const IRIN_SITE = {
  * Creates the operator, its preset roles and its staff, all-or-nothing.
  *
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {{ slug?: string, now?: Date }} [options] `now` lets tests pin the calendar
+ * @param {{ slug?: string, now?: Date, demo?: boolean }} [options] `now` lets tests pin the
+ *   calendar; `demo` marks the public demo (its messages never leave: 19a-2)
  */
-export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new Date() } = {}) {
+export async function seedDemoOperator(
+  prisma,
+  { slug = DEFAULT_SLUG, now = new Date(), demo = false } = {},
+) {
   // $transaction: either EVERY row below is written, or (on any error) NONE are.
   // A half-created business (operator but no staff) would be worse than nothing.
   const { operator, scheduleIds } = await prisma.$transaction(
@@ -103,6 +107,8 @@ export async function seedDemoOperator(prisma, { slug = DEFAULT_SLUG, now = new 
           phone: '+2348090000123',
           whatsapp: '+2348090000123',
           site: IRIN_SITE, // the one-page website's words (stage 12g-2)
+          // The public demo (19a-2): its messages never leave. Your own seed: false.
+          isDemo: demo,
         },
       });
 

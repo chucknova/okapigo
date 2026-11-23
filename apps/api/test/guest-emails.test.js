@@ -100,6 +100,22 @@ async function paidBooking(
   return { token, bookingId };
 }
 
+describe('a demo business (19a-2)', () => {
+  it('its emails are kept, never sent: its guests are made up', async () => {
+    const { operator } = await seedOperator();
+    await ctx.prisma.operator.update({ where: { id: operator.id }, data: { isDemo: true } });
+    const { bookingId } = await paidBooking(operator.slug);
+    const fake = fakeMailer();
+    expect(await send(fake.mailer)).toMatchObject({ sent: 1, failed: 0 });
+    expect(fake.sent).toEqual([]);
+    const n = await ctx.prisma.notification.findFirstOrThrow({
+      where: { bookingId, channel: 'email' },
+    });
+    expect(n.status).toBe('sent');
+    expect(n.data).toMatchObject({ emailId: null, demo: 'kept, not sent: a demo business' });
+  });
+});
+
 describe('the confirmation email (your layout)', () => {
   it('from the business, to the guest, replies to the business; the card, the words, a text copy', async () => {
     const { operator } = await seedOperator();

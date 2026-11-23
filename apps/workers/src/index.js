@@ -11,6 +11,7 @@
  *        sweep-webhooks    every 60 seconds
  *        reconcile         every 10 minutes (payments and refunds webhooks missed)
  *        push-channels     every 30 seconds (tell connected OTAs what changed: 17c)
+ *        reset-demo        every night at 04:00 Lagos time, ONLY when DEMO_RESET=on (19a-2)
  *   2. starts a BullMQ Worker per queue that runs jobs as they become due
  *   3. shuts down gracefully, finishing the current job before exiting
  *
@@ -103,6 +104,26 @@ await maintenance.upsertJobScheduler(
   { every: 30_000 },
   { name: JOBS.pushChannels, opts: { removeOnComplete: 100, removeOnFail: 1000 } },
 );
+// The public demo's nightly reset (19a-2): at 04:00 Lagos, after the ledger check. ONLY when
+// DEMO_RESET=on (the deployed demo); otherwise any old timetable entry is removed, so turning
+// it off really stops it. It never touches a business that isn't a demo one.
+if (process.env.DEMO_RESET === 'on') {
+  await maintenance.upsertJobScheduler(
+    JOBS.resetDemo,
+    { pattern: '0 4 * * *', tz: 'Africa/Lagos' },
+    {
+      name: JOBS.resetDemo,
+      data: { slug: process.env.DEMO_SLUG || undefined },
+      opts: { removeOnComplete: 30, removeOnFail: 100 },
+    },
+  );
+  logger.info(
+    { slug: process.env.DEMO_SLUG || 'irin-lagos-tours' },
+    'demo reset: every night at 04:00',
+  );
+} else {
+  await maintenance.removeJobScheduler(JOBS.resetDemo);
+}
 await maintenance.close();
 
 // --- 2. Workers -----------------------------------------------------------------------

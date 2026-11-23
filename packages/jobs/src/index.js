@@ -34,6 +34,8 @@ export const JOBS = /** @type {const} */ ({
   balanceReminders: 'balance-reminders',
   // Tell connected OTAs what changed (17c, DST-02: within 60 seconds).
   pushChannels: 'push-channels',
+  // The public demo, wiped and made again every night (19a-2): only when DEMO_RESET=on.
+  resetDemo: 'reset-demo',
 });
 
 /**

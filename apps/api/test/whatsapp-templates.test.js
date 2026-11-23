@@ -201,4 +201,34 @@ describe('sending: real WhatsApp, a website guest', () => {
     expect(meta.sent[0]).toMatchObject({ type: 'text' });
     expect(meta.sent[0].text.body).toMatch(/^Hi Adaeze, your booking is confirmed!/);
   });
+
+  it('a DEMO business (19a-2) never writes on real WhatsApp, even when connected: the simulator only', async () => {
+    const { operator } = await paidWebsiteBooking();
+    await ctx.prisma.operator.update({ where: { id: operator.id }, data: { isDemo: true } });
+    // Even a guest who once wrote on real WhatsApp gets the simulator from a demo business.
+    const booking = await ctx.prisma.booking.findFirstOrThrow({
+      where: { operatorId: operator.id },
+    });
+    await ctx.prisma.conversation.create({
+      data: {
+        operatorId: operator.id,
+        channel: 'whatsapp',
+        guestPhone: /** @type {string} */ (booking.leadPhone),
+        guestName: 'Adaeze',
+        lastMessageAt: new Date(),
+      },
+    });
+    const meta = fakeMeta();
+    expect(await send(meta.channels, operator.id)).toMatchObject({ sent: 1, failed: 0 });
+    expect(meta.sent).toEqual([]);
+    const chats = await ctx.prisma.conversation.findMany({
+      where: { operatorId: operator.id },
+      include: { messages: true },
+      orderBy: { channel: 'asc' },
+    });
+    expect(chats.map((c) => [c.channel, c.messages.length])).toEqual([
+      ['simulator', 1],
+      ['whatsapp', 0],
+    ]);
+  });
 });

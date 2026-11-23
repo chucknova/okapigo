@@ -1,7 +1,7 @@
 {
   "name": "okapigo",
   "private": true,
-  "description": "OkapiGo — booking, payments and operations for Nigerian tour operators (MVP)",
+  "description": "OkapiGo \u2014 booking, payments and operations for Nigerian tour operators (MVP)",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
   "engines": {
@@ -20,7 +20,8 @@
     "db:studio": "pnpm --filter @okapigo/db studio",
     "services:up": "docker compose up -d --wait",
     "services:down": "docker compose down",
-    "services:reset": "docker compose down -v && docker compose up -d --wait"
+    "services:reset": "docker compose down -v && docker compose up -d --wait",
+    "demo:reset": "pnpm --filter @okapigo/db demo:reset"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
