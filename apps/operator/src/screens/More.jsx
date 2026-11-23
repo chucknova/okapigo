@@ -1,16 +1,21 @@
 // @ts-check
 /**
  * More (the office's fifth tab on a phone): the rest, in a list (Settings since 16e, Posters
- * since 18b).
+ * since 18b, the Dashboard since 18c).
  */
 import { Link } from 'wouter';
 import { Icon } from '../components/Icon.jsx';
 import { useSync } from '../lib/engine.jsx';
 import { canMakePosters } from '../lib/posters.js';
+import { canSeeDashboard } from '../lib/dashboard.js';
 
 export function More() {
   const s = useSync();
   const items = [
+    // The dashboard (18c): for the owner and managers (reports).
+    ...(canSeeDashboard(s.me, s.session)
+      ? [{ href: '/dashboard', label: 'Dashboard', note: 'Today, and the last 30 days' }]
+      : []),
     // Posters (18b): for the owner and managers (marketing).
     ...(canMakePosters(s.me, s.session)
       ? [{ href: '/posters', label: 'Posters', note: 'Square or story, ready to post' }]

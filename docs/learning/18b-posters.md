@@ -120,6 +120,10 @@ departure is full."); a long name.
   - the business was deleted afterwards
   - the screen itself is checked by its tests, not in a browser this time
 
+**Correction (found in 18c):** the screen's preview never showed in the real built app: the
+API's security policy didn't allow `blob:` images, and the tests (a fake server) couldn't see
+that. Download worked. Fixed in 18c; see its note.
+
 ## 6. Concepts to study
 
 - **Server-side rendering of images**: layout engines (satori) vs drawing by hand.

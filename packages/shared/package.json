@@ -38,7 +38,8 @@
     "./map-pin": "./src/map-pin.js",
     "./octo": "./src/octo.js",
     "./companion": "./src/companion.js",
-    "./posters": "./src/posters.js"
+    "./posters": "./src/posters.js",
+    "./dashboard": "./src/dashboard.js"
   },
   "scripts": {
     "test": "vitest run"

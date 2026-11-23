@@ -102,7 +102,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 5       | deposit, then the balance by link      | `journey-5-deposit-then-balance.spec.js`      |
 | 6       | a guide checks in offline, then syncs  | `journey-6-guide-offline.spec.js`             |
 | 7       | ask the AI companion; staff reply      | `journey-7-companion.spec.js`                 |
-| 8       | posters and the dashboard              | not yet                                       |
+| 8       | a poster, then the dashboard           | `journey-8-poster-dashboard.spec.js`          |
 | —       | the booking widget (4 cases)           | `widget-embed.spec.js`                        |
 
 ## 5. What's built, session by session
@@ -156,6 +156,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 18a-1           | The AI companion's server: `packages/ai` (Claude Haiku via Anthropic's SDK, a fake), its facts and rules, 20 a day, kept answers, the monthly spend cap, unsure → an inbox request (kind question); `GET/POST /public/bookings/:token/companion`                                          | `94a97db`           | 18a-1          |
 | 18a-2           | The companion on the trip page (C1–C2: suggestions, answers with their source, passed to the team and the reply, limit, paused, no signal, closed; saved on the phone), the inbox's question (C3: "The assistant wasn't sure", Add to the FAQs), **journey 7**                            | `91ae5f2`           | 18a-2          |
 | 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `30683a5`           | 18b            |
+| 18c             | The dashboard (D1): today's departures, bookings, money in, check-ins; 30-day trend against the 30 before; channels; seats filled; money in read from the ledger by the Lagos day; **journey 8**; the poster preview's blob: image allowed (an 18b bug)                                   | `(this commit)`     | 18c            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -166,7 +167,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | ~~16d~~ | inbox (O9): chats (take over), requests, alerts                                                                                                                                                  | —                         |
 | ~~16e~~ | settings (O10): website, embed, messages, WhatsApp, staff, tours                                                                                                                                 | —                         |
 | **17**  | OCTO: ~~17a~~ catalogue; ~~17b~~ bookings; ~~17c~~ ~~17c-2~~ channel manager; ~~17c-3~~ via Sojourna everywhere; ~~17d-1~~ Sojourna's guest side; ~~17d-2~~ its back office, journey 3. **Done** | DST-01–03                 |
-| 18      | AI companion, posters, dashboard (journeys 7, 8): 18a the companion (journey 7); 18b posters; 18c the dashboard, journey 8. Brief: `docs/flows/09-…`                                             | GST-16, MKT-01/02, RPT-01 |
+| ~~18~~  | AI companion, posters, dashboard (journeys 7, 8): **Done**. 18a the companion (journey 7); 18b posters; 18c the dashboard, journey 8. Brief: `docs/flows/09-…`                                   | GST-16, MKT-01/02, RPT-01 |
 | 19      | full seed, demo reset, uploads (photos, logo), a11y checks, README, deploy                                                                                                                       | step 10                   |
 
 ## 6. Decisions (dated)
@@ -424,10 +425,22 @@ marketing "view" or more (owner, managers); More › Posters on a phone, the sid
 desk. Seats left: departures with seats in 14 days; This weekend: the coming Sat/Sun. No
 discount engine: an Offer shows the owner's words and the real price.
 
+**With 18c (2026-11-23):** the dashboard reads MONEY IN from the ledger's money accounts (Cash,
+Paystack clearing, Bank) by the Lagos day: in = payments, cash, OTA payments; out = refunds
+sent; Paystack's fee left out; reversals net out. A booking MADE = its hold converted (a
+lapsed hold's "cancelled" booking isn't one). Departures and check-ins today; 30 days vs the
+30 before (no % from nothing); channels (OTA by name, money it paid); seats filled (a smaller
+van counts as its seats). For reports "view" (owner, managers): More › Dashboard, the desk
+menu. Journey 8 signs in its own new manager (one code a minute per address). The API's CSP
+now allows `blob:` images: 18b's poster preview never showed in the real app (found by a
+screenshot). **Session 18 is done; all eight PRD journeys have e2e tests.**
+
 ## 7. Where we are
 
-- **Last done:** 18b, posters, committed `30683a5`.
-- **Next:** **18c**, the dashboard (D1) and journey 8 (a poster, then today on the dashboard).
+- **Last done:** 18c, the dashboard and journey 8, committed `(this commit)`.
+  **Session 18 is done** (journeys 7 and 8).
+- **Next:** **session 19**, the demo: full seed, demo reset, uploads (photos, logo), a11y
+  checks, README, deploy.
 - **Designs for session 18:** https://claude.ai/artifact/UtCPPn8bor271AVpWMZTpD (private).
 - **To use Claude:** add `AI_PROVIDER=anthropic` and your `ANTHROPIC_API_KEY` to `.env` (see
   `.env.example`); until then the companion runs on the fake.
@@ -530,11 +543,19 @@ discount engine: an Offer shows the owner's words and the real price.
 - **Satori puts padding OUTSIDE a box's size** (18b): a poster of `height: 100%` with padding
   was cut off at the bottom. Give such boxes `boxSizing: 'border-box'`. Draw every template
   and look at them together after any layout change.
+- **The API's Content-Security-Policy applies only in the real app** (18c): unit tests fake the
+  server, so an image the policy blocks still "works" there, and Playwright's `toBeVisible`
+  passes for a broken image. 18b's poster preview (a `blob:` image) never showed in the built
+  staff app. Check images' `naturalWidth` in e2e, and screenshot new screens in the real build.
+- **Screenshots without touching your browser pane** (18c): a headless Chrome (`channel:
+'chrome'`) via Playwright from `apps/web`, against my :4300 API and the e2e database, signing
+  in a throwaway user with a code (as journey 8 does).
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-23 · 18c The dashboard; journey 8 (session 18 done).
 - 2026-11-23 · 18b Posters.
 - 2026-11-23 · 18a-2 The companion on the trip page and in the inbox; journey 7.
 - 2026-11-22 · 18a-1 The AI companion's server side.

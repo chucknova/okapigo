@@ -71,6 +71,14 @@ describe('the choices', () => {
     expect(again.departures.map((/** @type {any} */ x) => x.id)).not.toContain(first.id);
   });
 
+  it('the staff app may show the preview it fetched (a blob: image)', async () => {
+    const s = await asRole('manager');
+    const res = await s.get('/api/posters');
+    expect(res.headers['content-security-policy']).toContain(
+      "img-src 'self' data: blob: https://tile.openstreetmap.org",
+    );
+  });
+
   it('a guide can’t (posters are marketing)', async () => {
     const s = await asRole('guide');
     expect((await s.get('/api/posters')).status).toBe(403);

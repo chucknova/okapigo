@@ -115,3 +115,4 @@ export * from './channel-bookings.js';
 export * from './channel-sync.js';
 export * from './channel-money.js';
 export * from './companion.js';
+export * from './dashboard.js';

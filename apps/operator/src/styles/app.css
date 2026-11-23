@@ -3238,3 +3238,110 @@ li + li > .tour-row {
   height: 100%;
   object-fit: contain;
 }
+
+/* --- Dashboard (18c, design D1) ------------------------------------------------------------ */
+.dash-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (min-width: 960px) {
+  .dash-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.dash-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dash-value {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.dash-charts,
+.dash-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+@media (min-width: 960px) {
+  .dash-charts,
+  .dash-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.dash-chart {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-chart figcaption {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* One bar a day: the business's green-ink, today in the bright green (design D1). */
+.dash-bars {
+  height: 140px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+.dash-bars span {
+  flex: 1;
+  min-height: 1px;
+  background: var(--color-primary-ink);
+  border-radius: 2px 2px 0 0;
+}
+.dash-bars span.is-today {
+  background: var(--color-primary);
+}
+.dash-change {
+  font-weight: 700;
+}
+.dash-change--up {
+  color: var(--color-success);
+}
+.dash-change--down {
+  color: var(--color-danger);
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dash-table th {
+  text-align: left;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.dash-table th:not(:first-child),
+.dash-table td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.dash-table td {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-surface-2);
+}
+.dash-fill {
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+.dash-fill span {
+  display: block;
+  height: 8px;
+  background: var(--color-primary-ink);
+}

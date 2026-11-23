@@ -10,6 +10,7 @@ import { Icon } from './Icon.jsx';
 import { useSync } from '../lib/engine.jsx';
 import { GUIDE_TABS, OFFICE_TABS, isOffice, whoLine } from '../lib/roles.js';
 import { canMakePosters } from '../lib/posters.js';
+import { canSeeDashboard } from '../lib/dashboard.js';
 
 /** @param {{ badges?: Record<string, number> }} props */
 function useTabs({ badges = {} }) {
@@ -61,6 +62,9 @@ export function SideNav(props) {
   const items = office
     ? [
         ...tabs.filter((t) => t.href !== '/more'),
+        ...(canSeeDashboard(s.me, s.session)
+          ? [{ href: '/dashboard', label: 'Dashboard', icon: 'more', badge: null }]
+          : []),
         ...(canMakePosters(s.me, s.session)
           ? [{ href: '/posters', label: 'Posters', icon: 'more', badge: null }]
           : []),
