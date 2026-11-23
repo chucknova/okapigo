@@ -41,7 +41,7 @@ const QUIET_ZONE = 4;
 const TICKET = { width: 460, height: 560, scale: 2 };
 
 /** The QR alone as an SVG: black on white, whatever the brand (scanners read contrast). @param {string} text */
-function qrSvg(text) {
+export function qrSvg(text) {
   const { size, path } = qrPath(text);
   const full = size + QUIET_ZONE * 2;
   return (

@@ -1,14 +1,20 @@
 // @ts-check
 /**
- * More (the office's fifth tab on a phone): the rest, in a list (Settings since 16e).
+ * More (the office's fifth tab on a phone): the rest, in a list (Settings since 16e, Posters
+ * since 18b).
  */
 import { Link } from 'wouter';
 import { Icon } from '../components/Icon.jsx';
 import { useSync } from '../lib/engine.jsx';
+import { canMakePosters } from '../lib/posters.js';
 
 export function More() {
   const s = useSync();
   const items = [
+    // Posters (18b): for the owner and managers (marketing).
+    ...(canMakePosters(s.me, s.session)
+      ? [{ href: '/posters', label: 'Posters', note: 'Square or story, ready to post' }]
+      : []),
     { href: '/settings', label: 'Settings', note: 'Website, messages, WhatsApp, staff, tours' },
     {
       href: '/sync',

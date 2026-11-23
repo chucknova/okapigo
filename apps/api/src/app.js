@@ -45,6 +45,7 @@ import { todayRouter } from './routes/today.js';
 import { boardRouter } from './routes/board.js';
 import { deskRouter } from './routes/desk.js';
 import { inboxRouter } from './routes/inbox.js';
+import { postersRouter } from './routes/posters.js';
 import { createChannels } from './whatsapp/channels.js';
 import { sharePagesRouter } from './routes/share-pages.js';
 import { publicCatalogueRouter } from './routes/public-catalogue.js';
@@ -322,6 +323,7 @@ export function createApp({
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // The channel manager (17c): OTAs selling through OCTO (Settings › Channels).
   api.use(channelsRouter({ prisma, apiPublicUrl }));
+  api.use(postersRouter({ prisma, webPublicUrl })); // posters (18b)
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
 

@@ -37,7 +37,8 @@
     "./operator-tokens": "./src/operator-tokens.js",
     "./map-pin": "./src/map-pin.js",
     "./octo": "./src/octo.js",
-    "./companion": "./src/companion.js"
+    "./companion": "./src/companion.js",
+    "./posters": "./src/posters.js"
   },
   "scripts": {
     "test": "vitest run"

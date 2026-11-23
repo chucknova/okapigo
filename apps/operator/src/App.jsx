@@ -23,6 +23,7 @@ import { Departure } from './screens/Departure.jsx';
 import { Bookings } from './screens/Bookings.jsx';
 import { Inbox } from './screens/Inbox.jsx';
 import { Settings } from './screens/Settings.jsx';
+import { Posters } from './screens/Posters.jsx';
 import { Sheet } from './components/Sheet.jsx';
 import { useEngine, useSync } from './lib/engine.jsx';
 import { REFRESH_EVERY_MS } from './lib/sync.js';
@@ -121,6 +122,11 @@ function Shell() {
             <Route path="/inbox/:id?">
               {officeOnly(() => (
                 <Inbox tab="chats" />
+              ))}
+            </Route>
+            <Route path="/posters">
+              {officeOnly(() => (
+                <Posters />
               ))}
             </Route>
             <Route path="/settings/:section?/:item?">

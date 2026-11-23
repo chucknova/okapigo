@@ -155,6 +155,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17d-2           | Sojourna's back office (M5: live statuses, cancel with the business's own refund preview, too late), its OCTO notifications subscription ("last sync"), **journey 3 end to end**; OCTO refundIfCancelledNow and refundAmount; contacts accept null                                        | `5317f7e`           | 17d-2          |
 | 18a-1           | The AI companion's server: `packages/ai` (Claude Haiku via Anthropic's SDK, a fake), its facts and rules, 20 a day, kept answers, the monthly spend cap, unsure → an inbox request (kind question); `GET/POST /public/bookings/:token/companion`                                          | `94a97db`           | 18a-1          |
 | 18a-2           | The companion on the trip page (C1–C2: suggestions, answers with their source, passed to the team and the reply, limit, paused, no signal, closed; saved on the phone), the inbox's question (C3: "The assistant wasn't sure", Add to the FAQs), **journey 7**                            | `91ae5f2`           | 18a-2          |
+| 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `(this commit)`     | 18b            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -415,11 +416,18 @@ carries the team's reply (first name) and no longer shows in the trip page's req
 In the inbox, a question has no Move or Cancel buttons and links to the tour's FAQs. Journey 7
 signs the owner in (journey 3 uses the manager's one code a minute).
 
+**With 18b (2026-11-23):** posters are drawn on the SERVER like the link-preview cards
+(satori → resvg, our Inter fonts): the preview is the real PNG, prices and seats read when
+drawn, kept 60 s. Four templates × square/story; each complete without a photo (a panel
+where it'll go). The QR opens the tour's booking page (This weekend: the website). Who:
+marketing "view" or more (owner, managers); More › Posters on a phone, the side menu on the
+desk. Seats left: departures with seats in 14 days; This weekend: the coming Sat/Sun. No
+discount engine: an Offer shows the owner's words and the real price.
+
 ## 7. Where we are
 
-- **Last done:** 18a-2, the companion on the trip page, its question in the inbox, and
-  journey 7, committed `91ae5f2`.
-- **Next:** **18b**, posters, from the canvas's P1–P2 and the four templates.
+- **Last done:** 18b, posters, committed `(this commit)`.
+- **Next:** **18c**, the dashboard (D1) and journey 8 (a poster, then today on the dashboard).
 - **Designs for session 18:** https://claude.ai/artifact/UtCPPn8bor271AVpWMZTpD (private).
 - **To use Claude:** add `AI_PROVIDER=anthropic` and your `ANTHROPIC_API_KEY` to `.env` (see
   `.env.example`); until then the companion runs on the fake.
@@ -519,11 +527,15 @@ signs the owner in (journey 3 uses the manager's one code a minute).
 - **"The next departures" differ by day.** On Wednesdays the Lekki half-day (08:00, 5 h) and the
   Heritage Walk (09:00) overlap, and one guide can't be on both (a database rule). A test that
   assigns one guide to "the next two" failed on Mon 23 Nov; pick one tour's departures.
+- **Satori puts padding OUTSIDE a box's size** (18b): a poster of `height: 100%` with padding
+  was cut off at the bottom. Give such boxes `boxSizing: 'border-box'`. Draw every template
+  and look at them together after any layout change.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-23 · 18b Posters.
 - 2026-11-23 · 18a-2 The companion on the trip page and in the inbox; journey 7.
 - 2026-11-22 · 18a-1 The AI companion's server side.
 - 2026-11-22 · 17d-2 Sojourna's back office; journey 3 (session 17 done).
