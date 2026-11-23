@@ -158,7 +158,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `30683a5`           | 18b            |
 | 18c             | The dashboard (D1): today's departures, bookings, money in, check-ins; 30-day trend against the 30 before; channels; seats filled; money in read from the ledger by the Lagos day; **journey 8**; the poster preview's blob: image allowed (an 18b bug)                                   | `a8ca993`           | 18c            |
 | 19a-1           | The demo's history (`seed/history.js`): 60 days of guided departures, ~155 past bookings (all channels, check-ins, cancellations and refunds, two no-shows, a weather cancellation, Sojourna's payments), ~20 upcoming, and five loose ends; held to the live rules by tests              | `3e9e3e4`           | 19a-1          |
-| 19a-2           | The nightly demo reset (workers, 04:00 Lagos, only with `DEMO_RESET=on`, never a non-demo business; `pnpm demo:reset` by hand); `is_demo` businesses never send for real (WhatsApp to the simulator, email kept)                                                                          | `(this commit)`     | 19a-2          |
+| 19a-2           | The nightly demo reset (workers, 04:00 Lagos, only with `DEMO_RESET=on`, never a non-demo business; `pnpm demo:reset` by hand); `is_demo` businesses never send for real (WhatsApp to the simulator, email kept)                                                                          | `02048eb`           | 19a-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -464,7 +464,7 @@ businesses send as before. Deploy (19e) in December.
 
 ## 7. Where we are
 
-- **Last done:** 19a-2, the nightly demo reset, committed `(this commit)`.
+- **Last done:** 19a-2, the nightly demo reset, committed `02048eb`.
 - **Next:** **19b**, uploads (photos, logo): openly licensed photos, each OK'd by you first.
 - **Deploy (19e) waits until December 2026** (decided 2026-11-23): 19a-2 to 19d are built
   and checked locally first; the nightly reset runs in the local workers until then.
