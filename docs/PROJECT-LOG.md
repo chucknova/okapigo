@@ -157,7 +157,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 18a-2           | The companion on the trip page (C1–C2: suggestions, answers with their source, passed to the team and the reply, limit, paused, no signal, closed; saved on the phone), the inbox's question (C3: "The assistant wasn't sure", Add to the FAQs), **journey 7**                            | `91ae5f2`           | 18a-2          |
 | 18b             | Posters (P1–P2): four templates (New tour, Offer, Seats left, This weekend), square or story, drawn on the server (satori → PNG) with a QR to book; More › Posters and the desk menu (marketing access); kept a minute                                                                    | `30683a5`           | 18b            |
 | 18c             | The dashboard (D1): today's departures, bookings, money in, check-ins; 30-day trend against the 30 before; channels; seats filled; money in read from the ledger by the Lagos day; **journey 8**; the poster preview's blob: image allowed (an 18b bug)                                   | `a8ca993`           | 18c            |
-| 19a-1           | The demo's history (`seed/history.js`): 60 days of guided departures, ~155 past bookings (all channels, check-ins, cancellations and refunds, two no-shows, a weather cancellation, Sojourna's payments), ~20 upcoming, and five loose ends; held to the live rules by tests              | `(this commit)`     | 19a-1          |
+| 19a-1           | The demo's history (`seed/history.js`): 60 days of guided departures, ~155 past bookings (all channels, check-ins, cancellations and refunds, two no-shows, a weather cancellation, Sojourna's payments), ~20 upcoming, and five loose ends; held to the live rules by tests              | `3e9e3e4`           | 19a-1          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -455,7 +455,7 @@ companion question. Extra test businesses use a smaller story (40/6).
 
 ## 7. Where we are
 
-- **Last done:** 19a-1, the demo's history, committed `(this commit)`.
+- **Last done:** 19a-1, the demo's history, committed `3e9e3e4`.
 - **Next:** **19a-2**, the nightly reset and "Try it" visitor copies.
 - **Run `pnpm db:reset`** to get the history in your dev data (it wipes it: yours to run).
 - **Designs for session 18:** https://claude.ai/artifact/UtCPPn8bor271AVpWMZTpD (private).
