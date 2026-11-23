@@ -128,7 +128,7 @@ test run must still never call Claude or spend.
 - `packages/shared/test/companion.test.js` (9): the facts (tour and booking; balance, pickup, one
   traveller, Sojourna; nothing made up for what a tour lacks); the rules; the question key;
   suggestions.
-- `apps/api/test/companion.test.js` (19):
+- `apps/api/test/companion.test.js` (18; this note first said 19, corrected in 18a-2):
   - through the API: the card; "What should I wear?" answered from the FAQ; a drone question
     handed over (the request, the inbox label, the trip page's "sent"); bad input; cancelled;
     the cap; the day's limit; a finished trip

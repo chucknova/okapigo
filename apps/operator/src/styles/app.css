@@ -3174,3 +3174,10 @@ li + li > .tour-row {
   border: 1px solid var(--color-text-soft);
   font-weight: 800;
 }
+
+/* Asked the assistant (18a-2): "Add to the FAQs", under the reply. */
+.faq-nudge {
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}

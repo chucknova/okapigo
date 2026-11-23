@@ -208,8 +208,10 @@ function guestView(b, { secret, now = new Date() }) {
       : null,
     // "Your request was sent on Tue 1 Dec" (stage 12f-2): the guest's open requests, newest
     // first. Staff's notes stay on the staff side.
+    // A question the AI companion handed over (kind "question", 18a) shows in its own card
+    // instead, with its reply: not here too.
     openRequests: (b.guestRequests ?? [])
-      .filter((/** @type {any} */ r) => r.status === 'open')
+      .filter((/** @type {any} */ r) => r.status === 'open' && r.kind !== 'question')
       .map((/** @type {any} */ r) => ({
         kind: r.kind,
         message: r.message,
@@ -219,7 +221,7 @@ function guestView(b, { secret, now = new Date() }) {
     // guest asks something newer.
     lastReply: (() => {
       const r = [...(b.guestRequests ?? [])]
-        .filter((/** @type {any} */ x) => x.reply && x.repliedAt)
+        .filter((/** @type {any} */ x) => x.reply && x.repliedAt && x.kind !== 'question')
         .sort((/** @type {any} */ x, /** @type {any} */ y) => y.repliedAt - x.repliedAt)[0];
       return r ? { message: r.message, reply: r.reply, repliedAt: r.repliedAt } : null;
     })(),

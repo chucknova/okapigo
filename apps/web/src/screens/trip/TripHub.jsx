@@ -14,8 +14,8 @@
  * cancelling now would give back) comes from tripSituation() in @okapigo/shared/trip-hub, run
  * again every minute against the phone's clock. This file only turns it into words.
  *
- * "Change or cancel" opens TripChange.jsx (stage 12f-2). Still to come: the AI companion
- * (session 17), "Today's guide" (guide assignment, session 15).
+ * "Change or cancel" opens TripChange.jsx (stage 12f-2); "Ask a question", the AI companion,
+ * is AskCard.jsx (18a-2).
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
@@ -41,6 +41,7 @@ import { StatusPanel } from '../../components/StatusPanel.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
 import { useLook } from '../../lib/look.js';
+import { AskCard } from './AskCard.jsx';
 
 const MINUTE_MS = 60_000;
 
@@ -164,7 +165,11 @@ export function TripHub({ params }) {
 
           <Travellers b={b} op={op} />
           <Payment b={b} s={s} token={token} offline={offline} />
-          {onTrip && <AskPlaceholder op={op} />}
+          {/* The AI companion (18a-2): open while there's a trip and after it; closed once
+              cancelled. */}
+          {s.phase !== 'not_booked' && (
+            <AskCard token={token} b={b} op={op} phase={s.phase} offline={offline} />
+          )}
           {s.phase !== 'today' && <Contact b={b} title={`Contact ${op}`} />}
           {s.phase === 'upcoming' && (
             <ChangeOrCancel b={b} s={s} op={op} token={token} offline={offline} />
@@ -659,40 +664,6 @@ function Payment({ b, s, token, offline }) {
           <PayButton token={token} amountKobo={s.balance.amountKobo} offline={offline} />
         </>
       )}
-    </section>
-  );
-}
-
-/** The AI companion's place (session 17). @param {{ op: string }} props */
-function AskPlaceholder({ op }) {
-  return (
-    <section className="okg-card okg-trip__card">
-      <h2 className="okg-trip__h2">Ask a question</h2>
-      <p className="okg-muted okg-small">
-        Answers will come from {op}’s tour notes. If it’s not sure, it passes you to the team.
-      </p>
-      <label className="okg-trip__ask">
-        <span className="okg-strong okg-small">Your question</span>
-        <span className="okg-trip__ask-row">
-          <input
-            className="okg-field__input"
-            placeholder="Ask about what to wear, where to meet…"
-            disabled
-            aria-describedby="okg-ask-soon"
-          />
-          <button
-            type="button"
-            className="okg-btn okg-btn--primary okg-trip__ask-send"
-            disabled
-            aria-label="Send"
-          >
-            ➜
-          </button>
-        </span>
-      </label>
-      <p className="okg-muted okg-small" id="okg-ask-soon">
-        Coming soon. For now, message {op} below.
-      </p>
     </section>
   );
 }

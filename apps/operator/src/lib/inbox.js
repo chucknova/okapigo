@@ -70,6 +70,21 @@ export const movedReply = (to) =>
 export const replyLabel = (markAnswered) =>
   markAnswered ? 'Send and mark answered' : 'Send reply';
 
+/**
+ * A question the AI companion wasn't sure of (kind "question", 18a-2; designs: C3): what it
+ * did, and the nudge to add the answer to the tour's FAQs. Null for other kinds.
+ * @param {{ kind: string, lead: string, booking: { tour: string } }} r
+ * @returns {null | { title: string, body: string, faqs: string }}
+ */
+export function assistantNote(r) {
+  if (r.kind !== 'question') return null;
+  return {
+    title: 'The assistant wasn’t sure',
+    body: `Nothing in the ${r.booking.tour}’s notes covers this, so it told ${firstName(r.lead)} the team would reply. It said nothing else.`,
+    faqs: 'Guests may ask this again. Add it to the tour’s FAQs and the assistant answers it next time.',
+  };
+}
+
 // --- Alerts (16d-3) ------------------------------------------------------------------------
 
 /** The tab's label: "Alerts · 4". @param {number} n */

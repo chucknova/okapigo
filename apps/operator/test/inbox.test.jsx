@@ -24,6 +24,7 @@ import {
   chatsTab,
   deliveryWord,
   takeOverQuestion,
+  assistantNote,
 } from '../src/lib/inbox.js';
 
 afterEach(() => {
@@ -442,6 +443,45 @@ describe('requests (16d-2)', () => {
     );
     expect(replyLabel(true)).toBe('Send and mark answered');
     expect(replyLabel(false)).toBe('Send reply');
+  });
+
+  it('asked the assistant (18a-2, C3): what it did, no Move or Cancel, "Add to the FAQs"', async () => {
+    const question = {
+      ...OPEN.rows[0],
+      id: 'r9',
+      kind: 'question',
+      kindLabel: 'Asked the assistant',
+      lead: 'Hannah Weber',
+      message: 'Can I fly my drone over Freedom Park?',
+      booking: { ...OPEN.rows[0].booking, productId: 'p1' },
+    };
+    fakeFetch(
+      routes({
+        'GET /api/inbox/requests?tab=open': () => [
+          200,
+          { requests: { ...OPEN, rows: [question] } },
+        ],
+      }),
+    );
+    await show('/inbox/requests/r9');
+    expect(await screen.findByText('“Can I fly my drone over Freedom Park?”')).toBeTruthy();
+    expect(screen.getAllByText('Asked the assistant').length).toBeGreaterThan(0);
+    expect(screen.getByText('The assistant wasn’t sure')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Nothing in the Heritage Walk’s notes covers this, so it told Hannah the team would reply. It said nothing else.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Move to another date…' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Cancel with a refund…' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Open booking' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Add to the FAQs' }).getAttribute('href')).toMatch(
+      /\/settings\/tours\/p1$/,
+    );
+  });
+
+  it('other kinds: no assistant box, no FAQ nudge', () => {
+    expect(assistantNote(OPEN.rows[0])).toBeNull();
   });
 
   it('the tab, a request; moved (the reply ready), then the reply sent', async () => {

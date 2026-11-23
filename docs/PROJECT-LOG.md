@@ -101,7 +101,8 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 4       | cancel yourself from the trip page     | `journey-4-cancel-yourself.spec.js`           |
 | 5       | deposit, then the balance by link      | `journey-5-deposit-then-balance.spec.js`      |
 | 6       | a guide checks in offline, then syncs  | `journey-6-guide-offline.spec.js`             |
-| 7, 8    | AI companion; posters/dashboard        | not yet                                       |
+| 7       | ask the AI companion; staff reply      | `journey-7-companion.spec.js`                 |
+| 8       | posters and the dashboard              | not yet                                       |
 | —       | the booking widget (4 cases)           | `widget-embed.spec.js`                        |
 
 ## 5. What's built, session by session
@@ -153,6 +154,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 17d-1           | Sojourna, the mock OTA (`apps/mock-ota`, :4400): its own server, OCTO client and store; M1 storefront, M2 tour (calendar, who, pickups, the hold), M3 checkout, M4 booked, their states; OCTO content and pickups capabilities, refundRules                                               | `5551a6b`           | 17d-1          |
 | 17d-2           | Sojourna's back office (M5: live statuses, cancel with the business's own refund preview, too late), its OCTO notifications subscription ("last sync"), **journey 3 end to end**; OCTO refundIfCancelledNow and refundAmount; contacts accept null                                        | `5317f7e`           | 17d-2          |
 | 18a-1           | The AI companion's server: `packages/ai` (Claude Haiku via Anthropic's SDK, a fake), its facts and rules, 20 a day, kept answers, the monthly spend cap, unsure → an inbox request (kind question); `GET/POST /public/bookings/:token/companion`                                          | `94a97db`           | 18a-1          |
+| 18a-2           | The companion on the trip page (C1–C2: suggestions, answers with their source, passed to the team and the reply, limit, paused, no signal, closed; saved on the phone), the inbox's question (C3: "The assistant wasn't sure", Add to the FAQs), **journey 7**                            | `(this commit)`     | 18a-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -405,11 +407,20 @@ $10) across all businesses; costs in millionths of a dollar. Guests can ask unti
 over (completed included); not once cancelled. Unsure becomes a GuestRequest of kind
 **question** ("Asked the assistant" in the inbox). **18a-2** builds the card from your designs.
 
+**With 18a-2 (2026-11-23):** you asked me to draw session 18's screens (a design canvas,
+approved: C1–C3, P1–P2, D1); 18a-2 builds C1–C3. The card's states and words live in
+`apps/web/src/lib/ask.js`; it's saved on the phone like the trip page. It stays after the
+trip and closes once cancelled; "questions left" only from 5 down. A handed-over question
+carries the team's reply (first name) and no longer shows in the trip page's request banner.
+In the inbox, a question has no Move or Cancel buttons and links to the tour's FAQs. Journey 7
+signs the owner in (journey 3 uses the manager's one code a minute).
+
 ## 7. Where we are
 
-- **Last done:** 18a-1, the AI companion's server side, committed `94a97db`.
-- **Next:** **18a-2**, the companion's card on the trip page and its "Question" in the inbox,
-  from your designs (C1–C3), then journey 7.
+- **Last done:** 18a-2, the companion on the trip page, its question in the inbox, and
+  journey 7, committed `(this commit)`.
+- **Next:** **18b**, posters, from the canvas's P1–P2 and the four templates.
+- **Designs for session 18:** https://claude.ai/artifact/UtCPPn8bor271AVpWMZTpD (private).
 - **To use Claude:** add `AI_PROVIDER=anthropic` and your `ANTHROPIC_API_KEY` to `.env` (see
   `.env.example`); until then the companion runs on the fake.
 - **To try Sojourna:** `pnpm dev`, then http://localhost:4400 (after `pnpm db:reset`, so the
@@ -499,11 +510,21 @@ over (completed included); not once cancelled. Unsure becomes a GuestRequest of 
 - **The AI companion in tests:** the API's tests get the fake by default (`buildApp`), and the
   e2e API is forced to `AI_PROVIDER: 'fake'` in `playwright.config.js`, so a key in `.env` never
   makes a test run call Claude or spend. Keep it that way for any new test runner.
+- **One sign-in code per address per minute** (18a-2): two e2e journeys signing the same
+  person in within a minute fail ("Too many codes asked for"). Journey 3 uses the manager,
+  journey 7 the owner; a new journey that signs in needs its own person.
+- **`playwright test` alone uses whatever is built.** `pnpm e2e` rebuilds the web, staff and
+  Sojourna apps; running one journey directly after changing the staff app needs
+  `pnpm --filter @okapigo/operator build` first (18a-2: the new inbox box "wasn't there").
+- **"The next departures" differ by day.** On Wednesdays the Lekki half-day (08:00, 5 h) and the
+  Heritage Walk (09:00) overlap, and one guide can't be on both (a database rule). A test that
+  assigns one guide to "the next two" failed on Mon 23 Nov; pick one tour's departures.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-23 · 18a-2 The companion on the trip page and in the inbox; journey 7.
 - 2026-11-22 · 18a-1 The AI companion's server side.
 - 2026-11-22 · 17d-2 Sojourna's back office; journey 3 (session 17 done).
 - 2026-11-21 · 17d-1 Sojourna, the guest side (OCTO content and pickups).

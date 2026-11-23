@@ -11,6 +11,8 @@
  * still work, just without the saved copy. Old trips are cleared two weeks after they end,
  * so a shared phone doesn't keep everyone's bookings forever.
  */
+import { ASK_COPY } from './ask.js';
+
 const COPY = 'okg-trip:';
 const TICKS = 'okg-trip-ticks:';
 const KEEP_AFTER_TRIP_MS = 14 * 86_400_000;
@@ -53,6 +55,8 @@ function forgetOldTrips(now) {
     if (!copy || (Number.isFinite(ended) && now - ended > KEEP_AFTER_TRIP_MS)) {
       localStorage.removeItem(key);
       if (copy?.booking?.reference) localStorage.removeItem(TICKS + copy.booking.reference);
+      // The companion's conversation (ask.js), saved under the same link.
+      localStorage.removeItem(ASK_COPY + key.slice(COPY.length));
     }
   }
 }

@@ -320,8 +320,15 @@ describe('removing', () => {
     const s = await setup();
     const g = s.guides[0];
     const token = await ctx.tokenFor(g.id);
+    // Two Heritage Walks (one a day, never overlapping): on some days the next two departures
+    // of any tour overlap (Wednesday: Lekki at 08:00 for 5 h, the walk at 09:00), and a guide
+    // can't be on both (found on Mon 23 Nov 2026, in 18a-2).
     const coming = await ctx.prisma.departure.findMany({
-      where: { operatorId: s.operator.id, startsAt: { gt: new Date(Date.now() + 86_400_000) } },
+      where: {
+        operatorId: s.operator.id,
+        product: { slug: 'lagos-island-heritage-walk' },
+        startsAt: { gt: new Date(Date.now() + 86_400_000) },
+      },
       orderBy: { startsAt: 'asc' },
       take: 2,
     });

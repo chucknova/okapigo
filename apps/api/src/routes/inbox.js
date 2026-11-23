@@ -332,6 +332,8 @@ export function inboxRouter({ prisma }) {
               message: r.message,
               booking: {
                 id: b.id,
+                // "Add to the FAQs" on a question the assistant wasn't sure of (18a-2).
+                productId: b.productId,
                 reference: b.reference,
                 tour: b.product.shortTitle || b.product.title,
                 when: formatAt(b.departure.startsAt.getTime(), tz),

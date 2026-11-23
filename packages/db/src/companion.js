@@ -47,15 +47,31 @@ const INCLUDE = {
   channelBooking: { select: { channel: { select: { name: true } } } },
 };
 
-/** The trip page's view of one question. @param {any} m */
-const messageView = (m) => ({
-  id: m.id,
-  question: m.question,
-  answer: m.answer,
-  outcome: m.outcome,
-  source: m.source,
-  createdAt: m.createdAt,
-});
+/**
+ * The trip page's view of one question. A handed-over one carries the team's reply once
+ * there is one (designs: "Reply from Ìrìn · Tunde · Sun 22 Nov, 17:05"), with the replier's
+ * first name only.
+ * @param {any} m  with guestRequest, when loaded
+ * @param {Map<string, string>} [names]  user id → name
+ */
+const messageView = (m, names = new Map()) => {
+  const r = m.guestRequest;
+  return {
+    id: m.id,
+    question: m.question,
+    answer: m.answer,
+    outcome: m.outcome,
+    source: m.source,
+    createdAt: m.createdAt,
+    reply: r?.reply // set with repliedAt, always (replyGuestRequest)
+      ? {
+          text: r.reply,
+          at: r.repliedAt,
+          by: (names.get(r.repliedById) ?? '').split(/\s+/)[0] || null,
+        }
+      : null,
+  };
+};
 
 /**
  * When the business's "today" began, as an instant (questions per day are per Lagos day).
@@ -230,7 +246,19 @@ export async function companionState(prisma, { bookingId, monthlyCapMicroUsd, no
     where: { bookingId },
     orderBy: { createdAt: 'asc' },
     take: 100,
+    include: { guestRequest: true },
   });
+  const ids = [
+    ...new Set(messages.map((m) => m.guestRequest?.repliedById).filter((x) => x != null)),
+  ];
+  const names = new Map(
+    (
+      await prisma.user.findMany({
+        where: { operatorId: b.operatorId, id: { in: /** @type {string[]} */ (ids) } },
+        select: { id: true, name: true },
+      })
+    ).map((u) => [u.id, u.name]),
+  );
   const today = messages.filter((m) => m.createdAt >= startOfLocalDay(now, op.timeZone)).length;
   const left = Math.max(0, COMPANION_LIMITS.perBookingPerDay - today);
   /** @type {'closed' | 'limit' | 'paused' | null} */
@@ -246,6 +274,6 @@ export async function companionState(prisma, { bookingId, monthlyCapMicroUsd, no
     reason,
     left,
     suggestions: companionSuggestions(/** @type {any} */ (b.product.faqs)),
-    messages: messages.map(messageView),
+    messages: messages.map((m) => messageView(m, names)),
   };
 }

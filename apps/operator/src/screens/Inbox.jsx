@@ -36,6 +36,7 @@ import {
   deliveryWord,
   firstName,
   takeOverQuestion,
+  assistantNote,
 } from '../lib/inbox.js';
 
 /** @param {{ tab?: 'chats' | 'requests' | 'alerts' }} props */
@@ -604,6 +605,8 @@ function RequestCard({ r }) {
   const [done, setDone] = useState(/** @type {string | null} */ (null));
   const [sheet, setSheet] = useState(/** @type {'move' | 'note' | null} */ (null));
   const first = firstName(r.lead);
+  // Asked the assistant (18a-2): a question to answer, not a booking to change.
+  const note = assistantNote(r);
 
   /** @param {string} path @param {any} body @param {string} said */
   const send = async (path, body, said) => {
@@ -632,6 +635,12 @@ function RequestCard({ r }) {
         {!isOpen && <div className="small muted">{r.done}</div>}
       </header>
       <blockquote className="request-quote">“{r.message}”</blockquote>
+      {note && (
+        <div className="info-box">
+          <strong>{note.title}</strong>
+          <span>{note.body}</span>
+        </div>
+      )}
       {done && (
         <p role="status" className="done-note">
           {done}
@@ -656,7 +665,7 @@ function RequestCard({ r }) {
           {r.booking.when} · {r.booking.people} · {r.booking.paid}
         </div>
         <div className="row-gap">
-          {isOpen && r.booking.canMove && (
+          {isOpen && !note && r.booking.canMove && (
             <button
               type="button"
               className="btn btn--dark btn--compact"
@@ -665,7 +674,7 @@ function RequestCard({ r }) {
               Move to another date…
             </button>
           )}
-          {isOpen && (
+          {isOpen && !note && (
             <Link href={`/bookings/${r.booking.id}`} className="btn btn--outline btn--compact">
               Cancel with a refund…
             </Link>
@@ -726,6 +735,15 @@ function RequestCard({ r }) {
             </button>
           </div>
         </form>
+      )}
+
+      {note && (
+        <div className="row-between faq-nudge">
+          <span className="small muted">{note.faqs}</span>
+          <Link href={`/settings/tours/${r.booking.productId}`} className="text-link">
+            Add to the FAQs
+          </Link>
+        </div>
       )}
 
       {sheet === 'move' && (

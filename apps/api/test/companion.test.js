@@ -127,9 +127,35 @@ describe('on the trip page (the fake model)', () => {
         .set('Authorization', `Bearer ${await ctx.tokenFor(manager.id)}`)
     ).body.requests;
     expect(inbox.rows[0]).toMatchObject({ kind: 'question', kindLabel: 'Asked the assistant' });
-    // And the trip page says it was sent (its existing "Your request was sent").
+    // The card shows it, so the trip page's request banner doesn't repeat it (18a-2).
     const view = (await request(ctx.app).get(`/public/bookings/${token}`)).body;
-    expect(view.booking.openRequests).toEqual([expect.objectContaining({ kind: 'question' })]);
+    expect(view.booking.openRequests).toEqual([]);
+
+    // The office replies from the inbox: the reply shows in the card, under the question,
+    // with the replier's first name; still not in the banner.
+    const staff = await ctx.prisma.user.findUniqueOrThrow({ where: { id: manager.id } });
+    const sent = await request(ctx.app)
+      .post(`/api/guest-requests/${req.id}/reply`)
+      .set('Authorization', `Bearer ${await ctx.tokenFor(manager.id)}`)
+      .send({ text: 'Freedom Park doesn’t allow drones, sorry.' });
+    expect(sent.status).toBe(201);
+    const after = (await card(token)).body.messages[0];
+    expect(after.reply).toMatchObject({
+      text: 'Freedom Park doesn’t allow drones, sorry.',
+      by: staff.name.split(' ')[0],
+    });
+    expect(Number.isNaN(Date.parse(after.reply.at))).toBe(false);
+    expect((await request(ctx.app).get(`/public/bookings/${token}`)).body.booking.lastReply).toBe(
+      null,
+    );
+  });
+
+  it('an answered question has no reply; a request of another kind still shows in the banner', async () => {
+    const { token, bookingId } = await paidBooking();
+    expect((await ask(token, 'What should I wear?')).body.message.reply).toBeNull();
+    await createGuestRequest(ctx.prisma, { bookingId, kind: 'other', message: 'Hi' });
+    const view = (await request(ctx.app).get(`/public/bookings/${token}`)).body;
+    expect(view.booking.openRequests).toEqual([expect.objectContaining({ kind: 'other' })]);
   });
 
   it('an empty or over-long question is refused in words; a bad link is 404', async () => {

@@ -256,7 +256,8 @@ describe('on the day and after', () => {
       '/irin',
     );
     expect(screen.queryByRole('img', { name: /QR ticket/ })).toBeNull();
-    expect(screen.queryByText('Ask a question')).toBeNull();
+    // The assistant stays after the trip (18a-2: lost property, "what was that dish?").
+    expect(screen.getByRole('heading', { name: 'Ask a question' })).toBeTruthy();
   });
 });
 

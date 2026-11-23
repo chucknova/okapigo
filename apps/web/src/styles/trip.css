@@ -404,3 +404,150 @@
   background: var(--color-danger);
   color: var(--color-surface);
 }
+
+/* --- Ask a question: the AI companion (designs C1–C2, stage 18a-2) ------------------------ */
+
+.okg-ask {
+  gap: var(--space-4);
+}
+.okg-ask__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.okg-ask__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.okg-ask__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* The guest's words on the right; the answers on the left (designs C2). */
+.okg-ask__q {
+  align-self: flex-end;
+  max-width: 82%;
+  background: var(--color-surface-2);
+  border-radius: 16px 16px 4px 16px;
+  padding: 10px 14px;
+}
+.okg-ask__answer {
+  align-self: flex-start;
+  max-width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.okg-ask__a {
+  align-self: flex-start;
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 16px 16px 16px 4px;
+  padding: var(--space-3) 14px;
+}
+.okg-ask__source {
+  padding-left: var(--space-1);
+}
+.okg-ask__thinking {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+}
+.okg-ask__dots {
+  display: flex;
+  gap: 4px;
+}
+.okg-ask__dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+.okg-ask__dots span:nth-child(2) {
+  opacity: 0.7;
+}
+.okg-ask__dots span:nth-child(3) {
+  opacity: 0.4;
+}
+.okg-ask__team,
+.okg-ask__reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) 14px;
+}
+.okg-ask__team--handed {
+  background: var(--color-primary-soft);
+}
+.okg-ask__team--unsure {
+  background: var(--color-surface-2);
+}
+.okg-ask__reply {
+  border: var(--border-width) solid var(--color-border);
+}
+.okg-ask__try {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.okg-ask__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.okg-ask__chip {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--radius-pill);
+  border: var(--border-width) solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.okg-ask__label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.okg-ask__notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) 14px;
+}
+.okg-ask__notice--neutral {
+  background: var(--color-surface-2);
+}
+.okg-ask__notice--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+/* No signal: the dark strip, like the page's own offline banner. */
+.okg-ask__notice--dark {
+  background: var(--color-strip-bg);
+  color: var(--color-strip-text);
+}
+.okg-ask__problem {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+.okg-ask__foot {
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: var(--space-3);
+}
