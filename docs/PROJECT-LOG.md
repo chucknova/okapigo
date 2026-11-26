@@ -163,6 +163,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19b-1           | Uploads, server side: `packages/media` (checks a file by its bytes, 1600/640 px photos and 512/128 px logos, hidden details stripped, stored by content hash; local disk now, R2 at deploy); `POST /api/uploads/:kind`, `/media/…`; only our own pictures on tours and the website; credits; **3 photos to go on sale**; the demo's 18 photos and logo | `603a673`           | 19b-1          |
 | 19b-2a          | Photos in the staff app: a tour's Photos section (cover, order, describe, credit, remove asks under 3 on sale), New tour with photos, a draft's "Before it goes on sale" checklist, the list's "needs 1 more photo", the logo and hero in Business details; uploads with progress (XHR)                                                                | `c08497c`           | 19b-2a         |
 | 19b-2b          | Photos and the logo for guests: the logo in every header, the website's hero photo and card covers with a footer of credits, a tour page's swipeable photos with the shown photo's credit, the trip page's cover; posters (Seats left, Offer) and link previews with the cover and its credit                                                          | `d001a1b`           | 19b-2b         |
+| 19c-1           | Accessibility: axe checks every guest page against WCAG 2.1 AA in the browser (3 styles × light/dark, phone and desk; checkout with errors; trip, payment link, widget, not found); fixed: the photo strip unreachable by keyboard, date buttons whose names didn't contain their visible words                                                        | `(this commit)`     | 19c-1          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -498,11 +499,16 @@ would push out (my call: tell me if you'd rather). Cards show no credit; the web
 lists every credit on the page. Drawn pictures (posters, previews) read only our own stored
 pictures. **Session 19b is done.**
 
+**With 19c-1 (2026-11-26):** `apps/web/e2e/a11y.spec.js` runs with the journeys (`pnpm e2e`),
+so every stage is checked for WCAG 2.1 AA problems a tool can find. A date button's name is
+its own text now (no `aria-label`): the parts not shown are visually hidden between the shown
+ones. axe-core is pinned to 4.14.0 (its 4.14.1 was under two weeks old).
+
 ## 7. Where we are
 
-- **Last done:** 19b-2b, photos and the logo for guests, committed `d001a1b`. **19b done.**
-- **Next:** **19c**, accessibility checks (axe, WCAG 2.1 AA on the guest pages) and polish
-  (the staff app's script over 500 kB).
+- **Last done:** 19c-1, the accessibility checks, committed `(this commit)`.
+- **Next:** **19c-2**, polish: the staff app's script over 500 kB (split it so a guide's phone
+  loads less).
 - **The flaky WhatsApp paying tests are fixed on a branch**, `claude/reverent-snyder-a98e81`
   (`cc9f1c8`, from its own session), not merged here. It also found two more flaky tests:
   `octo-bookings` (a sort tie) and the ledger's race test.
@@ -647,11 +653,16 @@ pictures. **Session 19b is done.**
   the old build's file names and pages fall back to their no-JavaScript version.
 - **Other sessions' working copies live in `.claude/worktrees/`** inside the repo: Prettier
   ignores them now (`.prettierignore`); don't format or lint them.
+- **Tests that pick "the 4th date"** break near a month's end, when a month's tab holds fewer
+  (19c-1: the widget's "Book now" journey). Pick the first or the last.
+- **An accessible name trims each part's edges, and Chrome spaces flex items**: put spaces
+  outside visually hidden text, and punctuation inside the item it follows (19c-1).
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-26 · 19c-1 Accessibility checks on every guest page (WCAG 2.1 AA, axe).
 - 2026-11-26 · 19b-2b Photos and the logo where guests see them (19b done).
 - 2026-11-23 · 19b-2a Photos and the logo in the staff app.
 - 2026-11-23 · 19b-1 Uploads, the server side: photos and logo, 3 photos to go on sale, the demo's photos.

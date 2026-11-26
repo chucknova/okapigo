@@ -11,6 +11,7 @@
  * Pure, so it's tested without a browser.
  */
 import { addDays } from '@okapigo/shared/time';
+import { formatLocalDay } from '@okapigo/shared/preview';
 
 /** Show at most this many dates on the tour page. */
 export const TILE_COUNT = 4;
@@ -47,4 +48,17 @@ export function seatsLabel(d) {
   if (d.soldOut) return { text: 'Sold out', tone: 'soldOut' };
   if (d.seatsAvailable <= FEW_SEATS) return { text: `Only ${d.seatsAvailable} left`, tone: 'few' };
   return { text: `${d.seatsAvailable} left`, tone: 'normal' };
+}
+
+/**
+ * A date's parts for the small tiles and rows that show only some of them (19c-1).
+ *   { weekday: "Fri", day: "27", month: "Nov" }
+ * The parts not shown go in visually hidden text BETWEEN the shown ones, so a button's name
+ * is its own text, read in order ("Fri 27 Nov, 09:00, 14 left"), and always contains the words
+ * a person sees (WCAG 2.5.3, "label in name": someone using voice control says what they see).
+ * @param {string} localDate "2026-11-27"
+ */
+export function dateParts(localDate) {
+  const [weekday, day, month] = formatLocalDay(localDate).split(' '); // "Fri 27 Nov"
+  return { weekday, day, month };
 }

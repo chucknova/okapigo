@@ -21,7 +21,7 @@ import { formatLocalDay } from '@okapigo/shared/preview';
 import { describePolicy, formatDurationShort } from '@okapigo/shared/tour-facts';
 import { takeEmbedded, useApi } from '../../lib/data.js';
 import { useLook } from '../../lib/look.js';
-import { seatsLabel, summariseDates } from '../../lib/dates.js';
+import { seatsLabel, summariseDates, dateParts } from '../../lib/dates.js';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
 import { useTourForCheckout } from '../checkout/CheckoutFrame.jsx';
@@ -160,25 +160,27 @@ export function EmbedTour({ params }) {
 /** @param {{ d: any, href: string }} props */
 function DateTile({ d, href }) {
   const seats = seatsLabel(d);
-  const weekday = formatLocalDay(d.localDate).split(' ')[0]; // "Wed"
-  const day = Number(d.localDate.slice(8, 10)); // 18
-  const label = `${formatLocalDay(d.localDate)}, ${d.localTime}: ${seats.text}`;
-  if (seats.tone === 'soldOut') {
-    return (
-      <span className="okg-embed__tile okg-embed__tile--full" aria-label={label}>
-        <span className="okg-embed__wd">{weekday}</span>
-        <span className="okg-embed__day">{day}</span>
-        <span className="okg-embed__seats">Full</span>
+  const { weekday, day, month } = dateParts(d.localDate);
+  // Its name is its own text, the hidden parts in between: "Wed 18 Nov, 09:00, 12 left"
+  // (19c-1: an aria-label here didn't contain the words shown, WCAG 2.5.3).
+  const parts = (/** @type {string} */ seatsText) => (
+    <>
+      <span className="okg-embed__wd">{weekday}</span> <span className="okg-embed__day">{day}</span>{' '}
+      {/* The spaces sit OUTSIDE the hidden text: a name trims each part's own edges. */}
+      <span className="okg-visually-hidden">
+        {month}, {d.localTime},
+      </span>{' '}
+      <span className={`okg-embed__seats${seats.tone === 'few' ? ' okg-embed__seats--few' : ''}`}>
+        {seatsText}
       </span>
-    );
+    </>
+  );
+  if (seats.tone === 'soldOut') {
+    return <span className="okg-embed__tile okg-embed__tile--full">{parts('Full')}</span>;
   }
   return (
-    <Link className="okg-embed__tile" href={href} aria-label={label}>
-      <span className="okg-embed__wd">{weekday}</span>
-      <span className="okg-embed__day">{day}</span>
-      <span className={`okg-embed__seats${seats.tone === 'few' ? ' okg-embed__seats--few' : ''}`}>
-        {seats.text}
-      </span>
+    <Link className="okg-embed__tile" href={href}>
+      {parts(seats.text)}
     </Link>
   );
 }

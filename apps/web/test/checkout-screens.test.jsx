@@ -141,7 +141,9 @@ describe('step 1 → step 2', () => {
     const memory = renderAt('/irin/walk/book');
     const row = await screen.findByRole('button', { name: /09:00, 12 left/ });
     // Sold-out dates are listed, but not buttons.
-    expect(screen.getByLabelText(/09:00: sold out/)).toBeTruthy();
+    // Its own text is its name, in order, the month hidden in between (19c-1).
+    expect(row.textContent).toMatch(/^\w{3} \d+ \w{3}, 09:00, 12 left$/);
+    expect(screen.getByText('Sold out').closest('.okg-date-row--sold-out')).toBeTruthy();
 
     fireEvent.click(row);
 

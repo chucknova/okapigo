@@ -39,6 +39,13 @@ export function TourPhotos({ photos }) {
         <div
           ref={strip}
           className="okg-photos__strip"
+          // It scrolls sideways: with more than one photo it can be reached with Tab, and the
+          // arrow keys scroll it (WCAG 2.1.1; found by the accessibility check, 19c-1).
+          {...(count > 1 && {
+            tabIndex: 0,
+            role: 'region',
+            'aria-label': 'Photos, scroll sideways for more',
+          })}
           onScroll={(e) => {
             const el = e.currentTarget;
             setIndex(shownIndex(el.scrollLeft, el.clientWidth, count));

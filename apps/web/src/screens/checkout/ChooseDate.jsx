@@ -15,6 +15,7 @@ import { formatDurationShort } from '@okapigo/shared/tour-facts';
 import { useApi } from '../../lib/data.js';
 import { ApiError } from '../../lib/api.js';
 import { monthTabs, initialMonth, groupByWeek, seatsChip } from '../../lib/checkout.js';
+import { dateParts } from '../../lib/dates.js';
 import { useCheckout } from '../../lib/checkout-state.js';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
@@ -161,14 +162,22 @@ export function ChooseDate({ params }) {
  */
 function DateRow({ d, onChoose }) {
   const chip = seatsChip(d);
-  const [weekday, day] = formatLocalDay(d.localDate).split(' ');
+  const { weekday, day, month } = dateParts(d.localDate);
+  // Its name is its own text, the month hidden in between: "Fri 27 Nov, 09:00, 14 left"
+  // (19c-1: an aria-label here didn't contain the words shown, WCAG 2.5.3).
   const content = (
     <>
       <span className="okg-date-row__day">
-        <span className="okg-date-row__weekday">{weekday}</span>
-        <span className="okg-date-row__num">{day}</span>
-      </span>
-      <span className="okg-date-row__time">{d.localTime}</span>
+        <span className="okg-date-row__weekday">{weekday}</span>{' '}
+        <span className="okg-date-row__num">{day}</span>{' '}
+        {/* The space sits OUTSIDE the hidden text: a name trims each part's own edges. */}
+        <span className="okg-visually-hidden">{month},</span>
+      </span>{' '}
+      <span className="okg-date-row__time">
+        {d.localTime}
+        {/* Inside the time's own span: in a flex row a browser puts a space between items. */}
+        <span className="okg-visually-hidden">,</span>
+      </span>{' '}
       {chip.tone === 'soldOut' ? (
         <span className="okg-date-row__sold">Sold out</span>
       ) : (
@@ -179,20 +188,9 @@ function DateRow({ d, onChoose }) {
   return (
     <li>
       {d.soldOut ? (
-        <div
-          className="okg-date-row okg-date-row--sold-out"
-          aria-label={`${formatLocalDay(d.localDate)}, ${d.localTime}: sold out`}
-        >
-          {content}
-        </div>
+        <div className="okg-date-row okg-date-row--sold-out">{content}</div>
       ) : (
-        <button
-          type="button"
-          className="okg-date-row"
-          onClick={() => onChoose(d)}
-          // One clear name for screen readers: "Thu 19 Nov, 09:00, 15 left".
-          aria-label={`${formatLocalDay(d.localDate)}, ${d.localTime}, ${chip.text}`}
-        >
+        <button type="button" className="okg-date-row" onClick={() => onChoose(d)}>
           {content}
         </button>
       )}

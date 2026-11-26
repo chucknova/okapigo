@@ -21,3 +21,6 @@ overrides:
   # get it through satori (the preview-card renderer), which only unpacks our own font
   # files, so the risk was low, but the fix is a compatible patch release.
   fflate: '>=0.7.5 <0.8.0'
+  # The accessibility checker (19c) asks for axe-core ~4.14.0, which would pick the newest
+  # 4.14.x; we take only releases at least two weeks old, so this pins the one from October.
+  axe-core: 4.14.0

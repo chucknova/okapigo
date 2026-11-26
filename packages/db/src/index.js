@@ -37,6 +37,7 @@ export {
   MANUAL_STATUSES,
 } from './bookings.js';
 export { seedDemoOperator, DEFAULT_SLUG, IRIN_SITE } from './seed/demo-operator.js';
+export { seedDemoPhotos } from './seed/photos.js';
 export {
   createLedgerAccounts,
   postTransaction,

@@ -12,6 +12,8 @@
  */
 import { defineConfig, devices } from '@playwright/test';
 import { isolate } from '@okapigo/db/testing';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // The browser tests' own database and Redis (okapigo_e2e, Redis database 2): not your dev
 // ones (your `pnpm dev` used to answer the tests' WhatsApp tickets, 15c-4), and not the unit
@@ -20,6 +22,8 @@ const services = isolate('e2e');
 
 export const E2E_PORT = 4100;
 const base = `http://localhost:${E2E_PORT}`;
+/** The API's pictures during the browser tests (19c): a temporary folder, never the repo's. */
+export const E2E_MEDIA_DIR = join(tmpdir(), 'okapigo-e2e-media');
 
 export default defineConfig({
   testDir: './e2e',
@@ -64,6 +68,9 @@ export default defineConfig({
         // The guest messages' emails go to the local mailbox (Mailpit, pnpm services:up), and
         // the journeys read them there (stage 14c). Nothing leaves this machine.
         EMAIL_PROVIDER: 'mailpit',
+        // Uploaded photos and logos (19b): a temporary folder (the accessibility check seeds
+        // the demo's photos there).
+        MEDIA_DIR: E2E_MEDIA_DIR,
       },
       reuseExistingServer: false,
       timeout: 60_000,

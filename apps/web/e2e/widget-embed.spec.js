@@ -130,7 +130,9 @@ test('the "Book now" button: checkout in an overlay, paid in a new tab, confirme
 
   // Open again and book: a date, one adult, details, review.
   await button.click();
-  await overlay.getByRole('button', { name: /left$/ }).nth(3).click();
+  // The last date listed: near a month's end its first tab may hold only two or three
+  // (on Thu 26 Nov it held three, and the fourth this test used to pick didn't exist).
+  await overlay.getByRole('button', { name: /left$/ }).last().click();
   await expect(overlay.getByText('Who’s coming?', { exact: true }).first()).toBeVisible();
   await expect(overlay.getByRole('link', { name: 'Back' })).toBeVisible(); // beside Close now
   await overlay.getByRole('button', { name: 'Continue' }).last().click();

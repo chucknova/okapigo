@@ -86,9 +86,10 @@ describe('one tour', () => {
 
     expect(await screen.findByRole('heading', { name: 'Lagos Island Heritage Walk' })).toBeTruthy();
     expect(screen.getByText('₦25,000')).toBeTruthy();
-    const first = await screen.findByRole('link', { name: 'Wed 18 Nov, 09:00: 12 left' });
+    // Its own text is its name, in order, the hidden parts in between (19c-1).
+    const first = await screen.findByRole('link', { name: 'Wed 18 Nov, 09:00, 12 left' });
     expect(first.getAttribute('href')).toBe('/irin/walk/book?departure=a');
-    expect(screen.getByLabelText('Fri 20 Nov, 09:00: Sold out').tagName).toBe('SPAN'); // not a link
+    expect(screen.getByText('Full').closest('span.okg-embed__tile')).toBeTruthy(); // not a link
     expect(screen.getAllByRole('link', { name: /Nov, 09:00/ })).toHaveLength(5); // 6 tiles, 1 full
     expect(screen.getByRole('link', { name: 'More dates' }).getAttribute('href')).toBe(
       '/irin/walk/book',

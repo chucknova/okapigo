@@ -63,3 +63,11 @@ describe('seatsLabel', () => {
     expect(seatsLabel(dep('2026-11-18', 0))).toEqual({ text: 'Sold out', tone: 'soldOut' });
   });
 });
+
+describe('a date’s parts (19c-1: label in name)', () => {
+  it('weekday, day and month, for tiles that show only some of them', async () => {
+    const { dateParts } = await import('../src/lib/dates.js');
+    expect(dateParts('2026-11-27')).toEqual({ weekday: 'Fri', day: '27', month: 'Nov' });
+    expect(dateParts('2026-12-05')).toEqual({ weekday: 'Sat', day: '5', month: 'Dec' });
+  });
+});

@@ -19,7 +19,9 @@
     "wouter": "3.13.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@okapigo/db": "workspace:*",
+    "@okapigo/media": "workspace:*",
     "@playwright/test": "1.65.1",
     "@testing-library/react": "16.3.3",
     "@vitejs/plugin-react": "6.3.0",

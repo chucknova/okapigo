@@ -227,6 +227,9 @@ describe('a tour page (U5)', () => {
     expect(within(fig).getByText('Photo: Sho photography, CC BY-SA 4.0')).toBeTruthy();
     expect(within(fig).queryByRole('button', { name: 'Previous photo' })).toBeNull();
 
+    // It scrolls sideways, so a keyboard can reach it (19c-1, WCAG 2.1.1).
+    const region = within(fig).getByRole('region', { name: 'Photos, scroll sideways for more' });
+    expect(region.getAttribute('tabindex')).toBe('0');
     const strip = /** @type {HTMLElement} */ (fig.querySelector('.okg-photos__strip'));
     strip.scrollTo = vi.fn();
     fireEvent.click(within(fig).getByRole('button', { name: 'Next photo' }));
@@ -256,6 +259,7 @@ describe('a tour page (U5)', () => {
     show(PHOTOS.slice(0, 1));
     const fig = screen.getByRole('figure', { name: 'Photo' });
     expect(within(fig).queryByRole('button')).toBeNull();
+    expect(within(fig).queryByRole('region')).toBeNull(); // nothing to scroll: not a Tab stop
     expect(within(fig).queryByText(/of 1/)).toBeNull();
     cleanup();
     resetEmbedded();
