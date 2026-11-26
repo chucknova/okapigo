@@ -37,6 +37,7 @@ import {
   TILE,
 } from '../../lib/map.js';
 import { Shell } from '../../components/Shell.jsx';
+import { creditLine } from '../../lib/photos.js';
 import { StatusPanel } from '../../components/StatusPanel.jsx';
 import { Bar } from '../../components/Skeleton.jsx';
 import { ErrorState } from '../../components/ErrorState.jsx';
@@ -111,7 +112,7 @@ export function TripHub({ params }) {
   const savedAt = fresh ? now : (saved?.savedAt ?? now);
 
   return (
-    <Shell operatorName={b.operator.name} aside="Your trip">
+    <Shell operatorName={b.operator.name} logo={b.operator.logo} aside="Your trip">
       <div className="okg-trip">
         {offline && (
           <Banner tone="neutral" title="You’re offline">
@@ -400,6 +401,13 @@ function TripHeading({ b, s }) {
           : `In ${s.daysToGo} days`;
   return (
     <section className="okg-trip__heading">
+      {/* The tour's cover, short (19b-2b; designs: U5): the 640 px copy, and its credit. */}
+      {b.tour.photo && (
+        <figure className="okg-trip__cover">
+          <img src={b.tour.photo.small ?? b.tour.photo.url} alt={b.tour.photo.alt} />
+          {creditLine(b.tour.photo) && <figcaption>{creditLine(b.tour.photo)}</figcaption>}
+        </figure>
+      )}
       <p className="okg-trip__when">{when}</p>
       <h1 className="okg-trip__title">{b.tour.title}</h1>
       <p className="okg-trip__date">

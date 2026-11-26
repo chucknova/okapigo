@@ -168,7 +168,71 @@
 }
 
 .okg-tour__band {
-  display: none; /* phones: no photo band (designs) */
+  display: none; /* phones: no pattern band (designs) */
+}
+/* The tour's photos (19b-2b; designs: U5): on a phone too, edge to edge, 260 px tall. */
+.okg-tour__band--photos {
+  display: block;
+}
+.okg-photos {
+  margin: 0;
+}
+.okg-photos__frame {
+  position: relative;
+}
+/* The strip swipes: scroll snapping stops on each photo; no scrollbar. */
+.okg-photos__strip {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.okg-photos__strip::-webkit-scrollbar {
+  display: none;
+}
+.okg-photos__img {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 260px;
+  object-fit: cover;
+  scroll-snap-align: start;
+}
+.okg-photos__count {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-band-bg);
+  color: var(--color-band-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+.okg-photos__nav {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: var(--control-min-target);
+  height: var(--control-min-target);
+  margin-top: calc(var(--control-min-target) / -2);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--elevation-1);
+  cursor: pointer;
+}
+.okg-photos__nav--prev {
+  left: var(--space-3);
+}
+.okg-photos__nav--next {
+  right: var(--space-3);
+}
+.okg-photos__credit {
+  padding: 6px var(--space-4) 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 .okg-tour__hero {
   display: flex;
@@ -425,10 +489,20 @@ a.okg-date:hover {
     overflow: hidden;
     margin-bottom: 20px;
   }
-  .okg-tour__band img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+  /* Desktop: the photos sit in the band's rounded box; the credit under it. */
+  .okg-tour__band--photos {
+    height: auto;
+    overflow: visible;
+  }
+  .okg-tour__band--photos .okg-photos__frame {
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+  }
+  .okg-tour__band--photos .okg-photos__img {
+    height: 300px;
+  }
+  .okg-tour__band--photos .okg-photos__credit {
+    padding-left: 0;
   }
   /* No photo: thin diagonal lines on a pale green (designs). */
   .okg-tour__band--pattern {

@@ -85,6 +85,7 @@ export function ChooseDate({ params }) {
       title="Choose a date"
       subtitle={`${tour.title} · Step 1 of 4`}
       operatorName={operator.name}
+      logo={operator.logo}
       backHref={`/${opSlug}/${tourSlug}`}
       aside={<TourSummary tour={tour} />}
     >

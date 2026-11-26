@@ -331,7 +331,7 @@ export function createApp({
   api.use(conversationsRouter({ prisma, quotes, jobs, webPublicUrl, channels })); // WhatsApp chats: take over, reply (13b)
   // The channel manager (17c): OTAs selling through OCTO (Settings › Channels).
   api.use(channelsRouter({ prisma, apiPublicUrl }));
-  api.use(postersRouter({ prisma, webPublicUrl })); // posters (18b)
+  api.use(postersRouter({ prisma, webPublicUrl, media })); // posters (18b; photos 19b-2b)
   api.use(dashboardRouter({ prisma })); // the dashboard (18c)
   // Future sessions mount more routers here (holds, bookings, payments, ...).
   app.use('/api', api);
@@ -352,7 +352,7 @@ export function createApp({
 
   // --- Share pages with link previews: /:operatorSlug and /:operatorSlug/:tourSlug ------
   // LAST, so every route above wins; reserved words are skipped (see share-pages.js).
-  app.use(sharePagesRouter({ prisma, webPublicUrl, webAssets }));
+  app.use(sharePagesRouter({ prisma, webPublicUrl, webAssets, media }));
 
   // --- Errors (must come after all routes) -----------------------------------
   app.use(notFound);

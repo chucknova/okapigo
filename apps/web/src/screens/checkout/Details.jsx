@@ -97,6 +97,7 @@ export function Details({ params }) {
       title="Your details"
       subtitle={`${dateLine} · ${slots.length} ${slots.length === 1 ? 'traveller' : 'travellers'} · Step 3 of 4`}
       operatorName={operator.name}
+      logo={operator.logo}
       backHref={back}
       aside={
         <div className="okg-summary">

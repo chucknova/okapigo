@@ -366,3 +366,49 @@ it('a link that doesn’t exist says so', async () => {
   renderHub();
   expect(await screen.findByText('This trip link doesn’t work')).toBeTruthy();
 });
+
+describe('photos and the logo (19b-2b)', () => {
+  it("the tour's cover, short, above the trip, with its credit; the logo by the name", async () => {
+    clock('2026-11-17 10:00');
+    const t = trip();
+    fakeApi([
+      200,
+      {
+        booking: {
+          ...t,
+          operator: {
+            ...t.operator,
+            logo: { url: 'http://x/media/logos/l.png', small: 'http://x/media/logos/l-128.png' },
+          },
+          tour: {
+            ...t.tour,
+            photo: {
+              url: 'http://x/media/photos/c.jpg',
+              small: 'http://x/media/photos/c-640.jpg',
+              alt: 'The Cathedral Church of Christ’s tower',
+              credit: 'Sho photography, CC BY-SA 4.0',
+            },
+          },
+        },
+      },
+    ]);
+    renderHub();
+    const cover = await screen.findByRole('img', {
+      name: 'The Cathedral Church of Christ’s tower',
+    });
+    expect(cover.getAttribute('src')).toBe('http://x/media/photos/c-640.jpg');
+    expect(screen.getByText('Photo: Sho photography, CC BY-SA 4.0')).toBeTruthy();
+    const mark = document.querySelector('.okg-header .okg-mark--logo');
+    expect(mark?.getAttribute('src')).toBe('http://x/media/logos/l-128.png');
+    expect(mark?.getAttribute('alt')).toBe(''); // the name is written beside it
+  });
+
+  it('no photo, no logo: no cover, and the first letter', async () => {
+    clock('2026-11-17 10:00');
+    fakeApi([200, { booking: trip() }]);
+    renderHub();
+    await screen.findByRole('heading', { name: 'Lagos Island Heritage Walk' });
+    expect(document.querySelector('.okg-trip__cover')).toBeNull();
+    expect(document.querySelector('.okg-header .okg-mark')?.textContent).toBe('Ì');
+  });
+});

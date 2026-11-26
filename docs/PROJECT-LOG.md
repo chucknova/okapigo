@@ -162,6 +162,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19a-2           | The nightly demo reset (workers, 04:00 Lagos, only with `DEMO_RESET=on`, never a non-demo business; `pnpm demo:reset` by hand); `is_demo` businesses never send for real (WhatsApp to the simulator, email kept)                                                                                                                                       | `02048eb`           | 19a-2          |
 | 19b-1           | Uploads, server side: `packages/media` (checks a file by its bytes, 1600/640 px photos and 512/128 px logos, hidden details stripped, stored by content hash; local disk now, R2 at deploy); `POST /api/uploads/:kind`, `/media/…`; only our own pictures on tours and the website; credits; **3 photos to go on sale**; the demo's 18 photos and logo | `603a673`           | 19b-1          |
 | 19b-2a          | Photos in the staff app: a tour's Photos section (cover, order, describe, credit, remove asks under 3 on sale), New tour with photos, a draft's "Before it goes on sale" checklist, the list's "needs 1 more photo", the logo and hero in Business details; uploads with progress (XHR)                                                                | `c08497c`           | 19b-2a         |
+| 19b-2b          | Photos and the logo for guests: the logo in every header, the website's hero photo and card covers with a footer of credits, a tour page's swipeable photos with the shown photo's credit, the trip page's cover; posters (Seats left, Offer) and link previews with the cover and its credit                                                          | `(this commit)`     | 19b-2b         |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -491,12 +492,20 @@ of sections (16e-4), so Photos is a section after Basics, not the canvas's tabs.
 when picked, the change on Save (which waits for uploads). The size limit and its words are
 shared (`@okapigo/shared/uploads`). Next, 19b-2b: what guests see.
 
+**With 19b-2b (2026-11-26):** the cover photo goes in Seats left's panel and Offer's circle;
+New tour and This weekend keep their panels (the route, the weekend's trips), which a photo
+would push out (my call: tell me if you'd rather). Cards show no credit; the website's footer
+lists every credit on the page. Drawn pictures (posters, previews) read only our own stored
+pictures. **Session 19b is done.**
+
 ## 7. Where we are
 
-- **Last done:** 19b-2a, photos in the staff app, committed `c08497c`.
-- **Next:** **19b-2b**, what guests see: the logo in every header, the website's hero, tour cards
-  and tour pages with photos and credits (the footer's credit list), the trip page's cover,
-  posters' photo panel and link previews (U4–U6).
+- **Last done:** 19b-2b, photos and the logo for guests, committed `(this commit)`. **19b done.**
+- **Next:** **19c**, accessibility checks (axe, WCAG 2.1 AA on the guest pages) and polish
+  (the staff app's script over 500 kB).
+- **The flaky WhatsApp paying tests are fixed on a branch**, `claude/reverent-snyder-a98e81`
+  (`cc9f1c8`, from its own session), not merged here. It also found two more flaky tests:
+  `octo-bookings` (a sort tie) and the ledger's race test.
 - **Run `pnpm db:reset`** to get the demo's photos and logo in your dev data (and its history).
 - **Deploy (19e) waits until December 2026** (decided 2026-11-23): 19a-2 to 19d are built
   and checked locally first; the nightly reset runs in the local workers until then.
@@ -634,11 +643,16 @@ shared (`@okapigo/shared/uploads`). Next, 19b-2b: what guests see.
   `pnpm --filter @okapigo/operator tokens` makes it again.
 - **The WhatsApp paying tests (`whatsapp-paying.test.js`) fail in most full runs now** (under
   load), and pass alone every time. Worth finding the race (19b-2a).
+- **Rebuild the guest web, then restart any API serving it** (19b-2b): the running API keeps
+  the old build's file names and pages fall back to their no-JavaScript version.
+- **Other sessions' working copies live in `.claude/worktrees/`** inside the repo: Prettier
+  ignores them now (`.prettierignore`); don't format or lint them.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-26 · 19b-2b Photos and the logo where guests see them (19b done).
 - 2026-11-23 · 19b-2a Photos and the logo in the staff app.
 - 2026-11-23 · 19b-1 Uploads, the server side: photos and logo, 3 photos to go on sale, the demo's photos.
 - 2026-11-23 · 19a-2 The nightly demo reset; demo businesses never send.

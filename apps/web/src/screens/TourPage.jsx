@@ -19,7 +19,8 @@ import { takeEmbedded, useApi } from '../lib/data.js';
 import { ApiError } from '../lib/api.js';
 import { summariseDates, seatsLabel } from '../lib/dates.js';
 import { Icon } from '../components/Icon.jsx';
-import { firstLetter } from '../components/Shell.jsx';
+import { Mark } from '../components/Shell.jsx';
+import { TourPhotos } from '../components/Photos.jsx';
 import { Bar } from '../components/Skeleton.jsx';
 import { ErrorState } from '../components/ErrorState.jsx';
 import { NotFound } from './NotFound.jsx';
@@ -71,7 +72,6 @@ export function TourPage({ params }) {
     `Up to ${tour.maxGuests} guests`,
     tour.scheduleSummary,
   ].filter(Boolean);
-  const photo = tour.photos[0] ?? null;
 
   return (
     <div className="okg-tour">
@@ -83,9 +83,7 @@ export function TourPage({ params }) {
         >
           <Icon name="back" size={22} />
         </a>
-        <span className="okg-mark okg-desktop-only" aria-hidden="true">
-          {firstLetter(operator.name)}
-        </span>
+        <Mark name={operator.name} logo={operator.logo} className="okg-desktop-only" />
         <span className="okg-header__name">{operator.name}</span>
         <a className="okg-link okg-desktop-only" href={`/${operator.slug}`}>
           All tours
@@ -94,8 +92,11 @@ export function TourPage({ params }) {
       </header>
 
       <div className="okg-tour__layout">
-        <div className={`okg-tour__band${photo ? '' : ' okg-tour__band--pattern'}`}>
-          {photo && <img src={photo.url} alt={photo.alt} loading="lazy" />}
+        {/* The photos swipe; with none, the style's pattern (desktop) as before (19b-2b). */}
+        <div
+          className={`okg-tour__band${tour.photos.length ? ' okg-tour__band--photos' : ' okg-tour__band--pattern'}`}
+        >
+          {tour.photos.length > 0 && <TourPhotos photos={tour.photos} />}
         </div>
 
         <section className="okg-tour__hero">

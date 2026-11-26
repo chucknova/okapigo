@@ -15,6 +15,10 @@
  *
  * The card's look is from the design file; its colours are fixed (a dark card reads well in
  * any chat app's light or dark mode).
+ *
+ * Photos (19b-2b; designs: U6): with a photo (a tour's cover, or the website's hero), it fills
+ * the right 500 px with its credit on it, and the words keep to the left. The logo, when there
+ * is one, replaces the letter mark.
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -76,6 +80,8 @@ export function loadFonts() {
  *   title: string,              // "Lagos Island Heritage Walk"
  *   price: string | null,       // "₦25,000" (already formatted), or null
  *   action?: string,            // the button: "Book now"
+ *   logo?: string | null,       // the logo's address (19b-2b)
+ *   photo?: { url: string, credit: string | null } | null,   // the photo's address and credit
  * }} CardInput
  */
 
@@ -84,7 +90,8 @@ export function loadFonts() {
  * facts 30, title 84 bold, price 64 in bright green, button bottom right).
  * @param {CardInput} input
  */
-function cardElement({ operatorName, facts, title, price, action = 'Book now' }) {
+function cardElement({ operatorName, facts, title, price, action = 'Book now' }, pictures = {}) {
+  const { logo = null, photo = null, credit = null } = pictures;
   /** @param {string} type @param {Record<string, unknown>} style @param {...unknown} children */
   const el = (type, style, ...children) => ({
     type,
@@ -93,8 +100,18 @@ function cardElement({ operatorName, facts, title, price, action = 'Book now' })
   const letter =
     [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(operatorName.trim())][0]
       ?.segment ?? '';
-  // Long titles would run into the price: step the size down instead.
-  const titleSize = title.length > 44 ? 60 : title.length > 30 ? 72 : 84;
+  // Long titles would run into the price: step the size down instead (sooner beside a photo).
+  const titleSize = photo
+    ? title.length > 34
+      ? 48
+      : title.length > 22
+        ? 56
+        : 68
+    : title.length > 44
+      ? 60
+      : title.length > 30
+        ? 72
+        : 84;
   const circle = (size, x, y, filled) =>
     el('div', {
       position: 'absolute',
@@ -116,41 +133,79 @@ function cardElement({ operatorName, facts, title, price, action = 'Book now' })
       boxSizing: 'border-box',
       display: 'flex',
       flexDirection: 'column',
-      padding: '64px 72px',
+      // Beside a photo, the words keep to the left 700 px.
+      padding: photo ? '56px 556px 56px 64px' : '64px 72px',
       backgroundColor: C.bg,
       fontFamily: FONT_STACK,
       position: 'relative',
     },
-    circle(564, 756, -120, false),
-    circle(404, 836, -40, false),
-    circle(200, 940, 60, true),
+    ...(photo
+      ? [
+          {
+            type: 'img',
+            props: {
+              src: photo,
+              width: 500,
+              height: CARD_HEIGHT,
+              style: { position: 'absolute', right: 0, top: 0, objectFit: 'cover' },
+            },
+          },
+          credit
+            ? el(
+                'div',
+                {
+                  position: 'absolute',
+                  right: 16,
+                  bottom: 14,
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  backgroundColor: C.bg,
+                  color: C.muted,
+                  fontSize: 16,
+                },
+                `Photo: ${credit}`,
+              )
+            : null,
+        ].filter(Boolean)
+      : [circle(564, 756, -120, false), circle(404, 836, -40, false), circle(200, 940, 60, true)]),
     el(
       'div',
       { display: 'flex', alignItems: 'center' },
-      el(
-        'div',
-        {
-          width: 56,
-          height: 56,
-          borderRadius: 14,
-          backgroundColor: C.primary,
-          color: C.onPrimary,
-          fontSize: 30,
-          fontWeight: 800,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        letter,
-      ),
+      logo
+        ? {
+            type: 'img',
+            // A ring: a dark logo would vanish into the dark card.
+            props: {
+              src: logo,
+              width: 56,
+              height: 56,
+              style: { borderRadius: 14, border: `2px solid ${C.ring}` },
+            },
+          }
+        : el(
+            'div',
+            {
+              width: 56,
+              height: 56,
+              borderRadius: 14,
+              backgroundColor: C.primary,
+              color: C.onPrimary,
+              fontSize: 30,
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            letter,
+          ),
       el('div', { marginLeft: 16, color: C.text, fontSize: 30, fontWeight: 700 }, operatorName),
     ),
-    el('div', { marginTop: 96, color: C.muted, fontSize: 30, fontWeight: 600 }, facts),
+    el('div', { marginTop: photo ? 72 : 96, color: C.muted, fontSize: 30, fontWeight: 600 }, facts),
     el(
       'div',
       {
         marginTop: 10,
-        width: 820,
+        width: photo ? 580 : 820,
         color: C.text,
         fontSize: titleSize,
         lineHeight: 1.02,
@@ -196,10 +251,14 @@ function cardElement({ operatorName, facts, title, price, action = 'Book now' })
  * The card as SVG. `onMissingGlyph` hears about any character no loaded font can draw
  * (tests use it to prove ₦, Ìrìn and Ọ̀ṣun all render).
  * @param {CardInput} input
- * @param {{ onMissingGlyph?: (text: string) => void }} [options]
+ * @param {{ onMissingGlyph?: (text: string) => void,
+ *   readPicture?: (url: string | null | undefined) => Promise<string | null> }} [options]
+ *   readPicture: our own pictures as data (lib/pictures.js); anything else: none
  */
-export function cardSvg(input, { onMissingGlyph } = {}) {
-  return satori(/** @type {any} */ (cardElement(input)), {
+export async function cardSvg(input, { onMissingGlyph, readPicture = async () => null } = {}) {
+  const [logo, photo] = await Promise.all([readPicture(input.logo), readPicture(input.photo?.url)]);
+  const pictures = { logo, photo, credit: photo ? (input.photo?.credit ?? null) : null };
+  return satori(/** @type {any} */ (cardElement(input, pictures)), {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     fonts: loadFonts(),
@@ -215,10 +274,11 @@ export function cardSvg(input, { onMissingGlyph } = {}) {
 /**
  * Draws a card as PNG bytes.
  * @param {CardInput} input
+ * @param {{ readPicture?: (url: string | null | undefined) => Promise<string | null> }} [options]
  * @returns {Promise<Buffer>}
  */
-export async function renderShareCard(input) {
-  const svg = await cardSvg(input);
+export async function renderShareCard(input, { readPicture } = {}) {
+  const svg = await cardSvg(input, { readPicture });
   return new Resvg(svg, { fitTo: { mode: 'width', value: CARD_WIDTH } }).render().asPng();
 }
 
@@ -227,8 +287,10 @@ export async function renderShareCard(input) {
  * hash of everything printed on the card, so editing the tour (title, price…) draws a new
  * one automatically. Oldest entries are dropped beyond `limit`.
  * @param {number} [limit]
+ * @param {(url: string | null | undefined) => Promise<string | null>} [readPicture]
+ *   the logo's and photos' bytes (19b-2b); their addresses are in the key, and change with them
  */
-export function createCardCache(limit = 200) {
+export function createCardCache(limit = 200, readPicture = async () => null) {
   /** @type {Map<string, Promise<Buffer>>} */
   const cache = new Map();
   return {
@@ -241,7 +303,7 @@ export function createCardCache(limit = 200) {
       const key = this.key(input);
       let png = cache.get(key);
       if (!png) {
-        png = renderShareCard(input);
+        png = renderShareCard(input, { readPicture });
         // A failed render mustn't stay cached: drop it so the next request tries again.
         png.catch(() => cache.delete(key));
         cache.set(key, png);

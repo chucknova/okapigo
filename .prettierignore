@@ -7,3 +7,6 @@ docs/designs
 apps/web/src/styles/tokens.css
 apps/simulators/src/styles/tokens.css
 apps/operator/src/styles/tokens.css
+
+# Other Claude Code sessions' working copies of this repo (separate checkouts, not our files)
+.claude/worktrees/

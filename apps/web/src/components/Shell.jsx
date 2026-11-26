@@ -2,21 +2,19 @@
 /**
  * The page frame every guest screen sits in: the operator's header, then the content.
  *
- * The letter mark is the first letter of the business name ("Ì" for Ìrìn) until logos
- * arrive with uploads (session 18). It's decorative: screen readers read the name next to it.
+ * The mark is the business's logo (19b-2b), or the first letter of its name ("Ì" for Ìrìn)
+ * when it has none. It's decorative: screen readers read the name next to it.
  *
- * @param {{ operatorName: string, aside?: string, children: import('react').ReactNode }} props
+ * @param {{ operatorName: string, logo?: Logo | null, aside?: string, children: import('react').ReactNode }} props
  *   operatorName: '' while loading · aside: small words on the right ("Your trip")
  */
-export function Shell({ operatorName, aside, children }) {
+export function Shell({ operatorName, logo = null, aside, children }) {
   return (
     <>
       <header className="okg-header">
         {operatorName ? (
           <>
-            <span className="okg-mark" aria-hidden="true">
-              {firstLetter(operatorName)}
-            </span>
+            <Mark name={operatorName} logo={logo} />
             <span className="okg-header__name">{operatorName}</span>
             {aside && <span className="okg-header__aside">{aside}</span>}
           </>
@@ -27,6 +25,23 @@ export function Shell({ operatorName, aside, children }) {
       </header>
       <main className="okg-page">{children}</main>
     </>
+  );
+}
+
+/** @typedef {{ url: string, small: string }} Logo */
+
+/**
+ * The business's mark: its logo (the 128 px copy), else its first letter. Decorative (alt="",
+ * aria-hidden): the name is always written beside it.
+ * @param {{ name: string, logo?: Logo | null, className?: string }} props
+ */
+export function Mark({ name, logo = null, className = '' }) {
+  const cls = `okg-mark${className ? ` ${className}` : ''}`;
+  if (logo) return <img className={`${cls} okg-mark--logo`} src={logo.small} alt="" />;
+  return (
+    <span className={cls} aria-hidden="true">
+      {firstLetter(name)}
+    </span>
   );
 }
 

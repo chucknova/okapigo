@@ -116,6 +116,7 @@ export function WhoComing({ params }) {
       title="Who’s coming?"
       subtitle={`${tour.title} · ${dateLine} · Step 2 of 4`}
       operatorName={operator.name}
+      logo={operator.logo}
       backHref={`/${opSlug}/${tourSlug}/book`}
       aside={
         <div className="okg-summary">

@@ -87,7 +87,7 @@ export function PaymentLink({ params, done = false }) {
 
   if (link.state === 'paid') {
     return (
-      <Shell operatorName={name}>
+      <Shell operatorName={name} logo={link.operator.logo}>
         <StatusPanel
           tone="success"
           title="This link has been paid. Thank you!"
@@ -134,7 +134,7 @@ export function PaymentLink({ params, done = false }) {
       },
     }[link.state];
     return (
-      <Shell operatorName={name}>
+      <Shell operatorName={name} logo={link.operator.logo}>
         <StatusPanel tone={states.tone} title={states.title} context={context}>
           {states.body}
         </StatusPanel>
@@ -145,7 +145,7 @@ export function PaymentLink({ params, done = false }) {
   if (done) {
     // Came back from Paystack but the money isn't confirmed yet.
     return (
-      <Shell operatorName={name}>
+      <Shell operatorName={name} logo={link.operator.logo}>
         <StatusPanel tone="pending" title="Confirming your payment…" context={context}>
           This takes a few seconds. If it takes longer, we’ll confirm by message. You can close this
           page.
@@ -173,7 +173,7 @@ export function PaymentLink({ params, done = false }) {
 
   if (paying === 'starting') {
     return (
-      <Shell operatorName={name}>
+      <Shell operatorName={name} logo={link.operator.logo}>
         <p className="okg-test-bar">Test mode · no real money moves</p>
         <StatusPanel tone="pending" title="Setting up your payment…" context={context}>
           You’ll be taken to Paystack in a moment. Tapping again won’t charge you twice.
@@ -183,7 +183,7 @@ export function PaymentLink({ params, done = false }) {
   }
   if (paying === 'unavailable') {
     return (
-      <Shell operatorName={name}>
+      <Shell operatorName={name} logo={link.operator.logo}>
         <p className="okg-test-bar">Test mode · no real money moves</p>
         <StatusPanel
           tone="warning"
@@ -202,7 +202,7 @@ export function PaymentLink({ params, done = false }) {
   }
 
   return (
-    <Shell operatorName={name}>
+    <Shell operatorName={name} logo={link.operator.logo}>
       <p className="okg-test-bar">Test mode · no real money moves</p>
       <div>
         <p className="okg-label okg-strong">Payment request</p>

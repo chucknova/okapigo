@@ -27,6 +27,7 @@
  * server works out the amount from the same rules that listed the options, so a tampered
  * request can't pay ₦1 and call it a deposit.
  */
+import { readSite } from '@okapigo/shared/schemas/website';
 import { Router } from 'express';
 import { z } from 'zod';
 import {
@@ -126,10 +127,14 @@ function guestView(b, { secret, now = new Date() }) {
       // The look (stage 12g): trip pages are private, so the style arrives with the data.
       websiteStyle: b.product.operator.websiteStyle,
       websiteMode: b.product.operator.websiteMode,
+      // The logo beside the name (19b-2b); null: the first letter.
+      logo: readSite(b.product.operator.site).logo ?? null,
     },
     tour: {
       slug: b.product.slug,
       title: b.product.title,
+      // The cover photo, short, above "Your trip" (19b-2b; designs: U5); null: none.
+      photo: /** @type {any[]} */ (b.product.photos ?? [])[0] ?? null,
       durationMinutes: b.product.durationMinutes,
       meetingPoint: b.product.meetingPoint,
       whatToBring: b.product.whatToBring,

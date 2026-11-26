@@ -272,6 +272,12 @@
   color: var(--color-mark-text);
   font-weight: 800;
 }
+/* The logo in the mark's place (19b-2b): kept whole, never cropped. */
+.okg-mark--logo {
+  display: block;
+  object-fit: contain;
+  background: transparent;
+}
 
 .okg-header__name {
   font-weight: var(--weight-bold);

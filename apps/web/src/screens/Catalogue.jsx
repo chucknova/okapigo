@@ -30,25 +30,28 @@ import { takeEmbedded, useApi } from '../lib/data.js';
 import { ApiError } from '../lib/api.js';
 import { useLook } from '../lib/look.js';
 import { whatsappUrl } from '../lib/map.js';
-import { Shell, firstLetter } from '../components/Shell.jsx';
+import { Shell, Mark } from '../components/Shell.jsx';
+import { creditLine, siteCredits, srcSet } from '../lib/photos.js';
 import { Bar } from '../components/Skeleton.jsx';
 import { ErrorState } from '../components/ErrorState.jsx';
 import { NotFound } from './NotFound.jsx';
 
 /**
- * @typedef {{ slug: string, name: string, city: string | null, pricesInclude: string | null, timeZone: string, websiteStyle?: string, websiteMode?: string }} PublicOperator
+ * @typedef {{ slug: string, name: string, city: string | null, pricesInclude: string | null, timeZone: string, websiteStyle?: string, websiteMode?: string, logo?: import('../components/Shell.jsx').Logo | null }} PublicOperator
  * @typedef {{
  *   kind: string | null, tagline: string | null, intro: string | null, about: string | null,
  *   whyUs: Array<{ title: string, text: string }>,
  *   faqs: Array<{ question: string, answer: string }>,
  *   contact: { phone: string | null, whatsapp: string | null, email: string | null, address: string | null,
  *              socials: Array<{ network: string, url: string }> },
+ *   hero?: import('../lib/photos.js').Photo | null,
  * }} PublicSite
  * @typedef {{
  *   slug: string, title: string, summary: string, durationMinutes: number,
  *   activityLabel: string | null, fromPriceKobo: number | null, scheduleSummary?: string | null,
  *   cancellationHeadline: string | null,
  *   nextDeparture: { localDate: string, localTime: string } | null,
+ *   photo?: import('../lib/photos.js').Photo | null,
  * }} TourCard
  */
 
@@ -101,6 +104,7 @@ export function Catalogue({ params }) {
   const hasTours = tours.length > 0;
   const hasContact = Boolean(c.whatsapp || c.phone || c.email || c.address || c.socials.length);
   const op = shortName(operator.name);
+  const credits = siteCredits(site.hero, tours);
   const eyebrow = site.tagline
     ? [site.kind, operator.city].filter(Boolean).join(' · ')
     : operator.city
@@ -111,9 +115,7 @@ export function Catalogue({ params }) {
     <div className="okg-site">
       <header className="okg-site__header">
         <div className="okg-site__bar">
-          <span className="okg-mark" aria-hidden="true">
-            {firstLetter(operator.name)}
-          </span>
+          <Mark name={operator.name} logo={operator.logo} />
           <span className="okg-header__name okg-site__name">{operator.name}</span>
           <nav className="okg-site__nav" aria-label="On this page">
             {hasTours && <a href="#tours">Tours</a>}
@@ -130,7 +132,7 @@ export function Catalogue({ params }) {
       </header>
 
       <main>
-        <section className="okg-site-hero">
+        <section className={`okg-site-hero${site.hero ? ' okg-site-hero--photo' : ''}`}>
           <span className="okg-site-hero__ring" aria-hidden="true" />
           <span className="okg-site-hero__dot" aria-hidden="true" />
           <div className="okg-site__inner okg-site-hero__inner">
@@ -141,6 +143,19 @@ export function Catalogue({ params }) {
               <a className="okg-btn okg-btn--primary okg-site-hero__cta" href="#tours">
                 See tours and dates
               </a>
+            )}
+            {/* The hero photo (19b-2b; designs: U4): under the words on a phone, beside them on
+                a desk; its credit under it. None: the style's pattern, as before. */}
+            {site.hero && (
+              <figure className="okg-site-hero__photo">
+                <img
+                  src={site.hero.url}
+                  srcSet={srcSet(site.hero)}
+                  sizes="(min-width: 960px) 560px, 100vw"
+                  alt={site.hero.alt}
+                />
+                {creditLine(site.hero) && <figcaption>{creditLine(site.hero)}</figcaption>}
+              </figure>
             )}
           </div>
         </section>
@@ -279,6 +294,8 @@ export function Catalogue({ params }) {
 
       <footer className="okg-site__inner okg-site__footer">
         <span>© {operator.name} · Bookings by OkapiGo</span>
+        {/* The cards stay clean; everyone whose photo is on this page is named here (19b-2b). */}
+        {credits && <span className="okg-site__credits">{credits}</span>}
       </footer>
       {loading && <p className="okg-visually-hidden">Updating…</p>}
     </div>
@@ -307,7 +324,19 @@ function facts(t) {
 function Card({ operatorSlug, tour }) {
   const next = tour.nextDeparture ? formatLocalDay(tour.nextDeparture.localDate) : null;
   return (
-    <Link className="okg-card okg-tour-card okg-site-card" href={`/${operatorSlug}/${tour.slug}`}>
+    <Link
+      className={`okg-card okg-tour-card okg-site-card${tour.photo ? ' okg-site-card--photo' : ''}`}
+      href={`/${operatorSlug}/${tour.slug}`}
+    >
+      {/* The cover (19b-2b): the 640 px copy, loaded as it scrolls into view. */}
+      {tour.photo && (
+        <img
+          className="okg-site-card__photo"
+          src={tour.photo.small ?? tour.photo.url}
+          alt={tour.photo.alt}
+          loading="lazy"
+        />
+      )}
       <span className="okg-tour-card__meta">{facts(tour)}</span>
       <h3 className="okg-tour-card__title">{tour.title}</h3>
       <span className="okg-muted okg-small">{tour.summary}</span>

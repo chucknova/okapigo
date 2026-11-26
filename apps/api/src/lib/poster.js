@@ -11,8 +11,10 @@
  *   This weekend  dark: the weekend's departures, with "3 left" on the nearly full ones
  *
  * Square (1080 × 1080) or story (1080 × 1920): the same boxes, stacked for the tall size.
- * No tour has photos yet (uploads come in session 19), so every template is complete without
- * one: the coloured panel is where a photo will go.
+ * Photos (19b-2b): with a cover photo, Seats left's panel and Offer's circle show it, with its
+ * credit small at the bottom; New tour and This weekend keep their panels (the route, the
+ * weekend's trips), which a photo would push out. The logo, when there is one, replaces the
+ * letter mark on all four. Without them every template is complete as before.
  *
  * The QR is black on white whatever the colours around it: scanners need the contrast.
  */
@@ -44,11 +46,13 @@ const C = {
  *   template: import('@okapigo/shared/posters').PosterTemplate,
  *   size: import('@okapigo/shared/posters').PosterSize,
  *   words: string,
- *   business: { name: string, site: string },
+ *   business: { name: string, site: string, logo?: string | null },  // logo: its address
+ *   pictures?: { logo?: string | null, photo?: string | null },    // as data (renderPoster)
  *   url: string,                          // what the QR opens
  *   tour?: {
  *     title: string, summary: string, stops: string[], meetingPoint: string,
  *     price: string | null, childPrice: string | null, duration: string, runs: string | null,
+ *     photo?: { url: string, credit: string | null } | null,  // the cover (19b-2b)
  *   },
  *   departure?: { when: string, seats: number },
  *   weekend?: Array<{ day: string, trips: Array<{ time: string, title: string, price: string | null, seats: number }> }>,
@@ -79,22 +83,28 @@ export function fit(s, steps, smallest) {
 export const clip = (s, max) =>
   s.length <= max ? s : `${s.slice(0, s.lastIndexOf(' ', max - 1)).replace(/[.,;:]$/, '')}…`;
 
-/** The business's letter mark: "Ì" for Ìrìn. @param {string} name @param {string} bg @param {string} fg @param {number} px */
-const mark = (name, bg, fg, px = 64) =>
-  text(
-    {
-      width: px,
-      height: px,
-      borderRadius: px / 4,
-      background: bg,
-      color: fg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontWeight: 800,
-      fontSize: px * 0.56,
-    },
-    Array.from(name)[0] ?? 'O',
-  );
+/**
+ * The business's mark: its logo (19b-2b), else its letter ("Ì" for Ìrìn).
+ * @param {string} name @param {string} bg @param {string} fg @param {number} px
+ * @param {string | null | undefined} logo the logo as data
+ */
+const mark = (name, bg, fg, px = 64, logo = null) =>
+  logo
+    ? picture(logo, px, px, { borderRadius: px / 4, objectFit: 'contain' })
+    : text(
+        {
+          width: px,
+          height: px,
+          borderRadius: px / 4,
+          background: bg,
+          color: fg,
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 800,
+          fontSize: px * 0.56,
+        },
+        Array.from(name)[0] ?? 'O',
+      );
 
 /** The top line: the mark and the name, and a tag pill on the right. */
 const header = (
@@ -106,7 +116,7 @@ const header = (
     { justifyContent: 'space-between', alignItems: 'center' },
     [
       row({ alignItems: 'center', gap: 16 }, [
-        mark(d.business.name, c.markBg, c.markFg),
+        mark(d.business.name, c.markBg, c.markFg, 64, d.pictures?.logo),
         text({ fontSize: 30, fontWeight: 700, color: c.color }, d.business.name),
       ]),
       right,
@@ -126,6 +136,24 @@ const pill = (/** @type {string} */ words, /** @type {string} */ bg, /** @type {
     },
     words,
   );
+
+/**
+ * A picture (as data), filling its box: `objectFit: 'cover'` crops it to fill, like CSS.
+ * @param {string} src @param {number | string} width @param {number} height @param {object} [style]
+ */
+const picture = (src, width, height, style = {}) => ({
+  type: 'img',
+  props: { src, width, height, style: { objectFit: 'cover', ...style } },
+});
+
+/** "Photo: Liesel81, CC BY-SA 4.0", small, at the bottom right (the licence asks for it). */
+const photoCredit = (/** @type {PosterData} */ d, /** @type {string} */ color) =>
+  d.pictures?.photo && d.tour?.photo?.credit
+    ? text(
+        { position: 'absolute', right: 72, bottom: 26, fontSize: 18, color },
+        `Photo: ${d.tour.photo.credit}`,
+      )
+    : null;
 
 /** The QR, black on white, on its own white tile. @param {string} url @param {number} px */
 const qr = (url, px) => ({
@@ -281,22 +309,25 @@ function offer(d) {
     },
     d.words,
   );
-  const circle = text(
-    {
-      width: story ? 420 : 300,
-      height: story ? 420 : 300,
-      flexShrink: 0,
-      borderRadius: 999,
-      border: `14px solid ${C.green}`,
-      background: '#E6EDE2',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 150,
-      fontWeight: 800,
-      color: C.greenInk,
-    },
-    Array.from(d.business.name)[0] ?? '',
-  );
+  const size = story ? 420 : 300;
+  const circle = d.pictures?.photo
+    ? picture(d.pictures.photo, size, size, { borderRadius: 999, border: `14px solid ${C.green}` })
+    : text(
+        {
+          width: story ? 420 : 300,
+          height: story ? 420 : 300,
+          flexShrink: 0,
+          borderRadius: 999,
+          border: `14px solid ${C.green}`,
+          background: '#E6EDE2',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 150,
+          fontWeight: 800,
+          color: C.greenInk,
+        },
+        Array.from(d.business.name)[0] ?? '',
+      );
   return col(
     {
       width: '100%',
@@ -307,6 +338,7 @@ function offer(d) {
       color: C.ink,
       gap: 48,
       justifyContent: 'space-between',
+      position: 'relative',
     },
     [
       header(
@@ -363,11 +395,12 @@ function offer(d) {
           ]),
         ],
       ),
-    ],
+      photoCredit(d, C.mutedDark),
+    ].filter(Boolean),
   );
 }
 
-/** Waves under a sun: the boat panel on Seats left (a photo goes here once tours have them). */
+/** Waves under a sun: Seats left's panel when the tour has no photo. */
 const WAVES =
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="140" viewBox="0 0 200 140" fill="none" stroke="#9BD10F" stroke-width="7" stroke-linecap="round"><circle cx="150" cy="38" r="20"/><path d="M10 86c20-14 40-14 60 0s40 14 60 0 40-14 60 0"/><path d="M10 116c20-14 40-14 60 0s40 14 60 0 40-14 60 0"/></svg>';
 
@@ -376,27 +409,32 @@ function seatsLeft(d) {
   const t = /** @type {NonNullable<PosterData['tour']>} */ (d.tour);
   const dep = /** @type {NonNullable<PosterData['departure']>} */ (d.departure);
   const story = d.size === 'story';
-  const panel = row(
-    {
-      width: story ? '100%' : 260,
-      height: story ? 360 : 260,
-      flexShrink: 0,
-      borderRadius: 28,
-      background: C.ink,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    [
-      {
-        type: 'img',
-        props: {
-          src: `data:image/svg+xml;base64,${Buffer.from(WAVES).toString('base64')}`,
-          width: 200,
-          height: 140,
+  const photo = d.pictures?.photo;
+  const panel = photo
+    ? row({ flexShrink: 0 }, [
+        picture(photo, story ? 936 : 300, story ? 420 : 300, { borderRadius: 28 }),
+      ])
+    : row(
+        {
+          width: story ? '100%' : 260,
+          height: story ? 360 : 260,
+          flexShrink: 0,
+          borderRadius: 28,
+          background: C.ink,
+          alignItems: 'center',
+          justifyContent: 'center',
         },
-      },
-    ],
-  );
+        [
+          {
+            type: 'img',
+            props: {
+              src: `data:image/svg+xml;base64,${Buffer.from(WAVES).toString('base64')}`,
+              width: 200,
+              height: 140,
+            },
+          },
+        ],
+      );
   const big = row({ alignItems: 'flex-end', gap: 24, flex: 1 }, [
     text(
       {
@@ -422,6 +460,7 @@ function seatsLeft(d) {
       color: C.ink,
       justifyContent: 'space-between',
       gap: 40,
+      position: 'relative',
     },
     [
       header(d, { markBg: C.ink, markFg: C.green, color: C.ink }, pill(d.words, C.ink, C.green)),
@@ -465,7 +504,8 @@ function seatsLeft(d) {
           ],
         ),
       ]),
-    ],
+      photoCredit(d, C.greenInk),
+    ].filter(Boolean),
   );
 }
 
@@ -600,12 +640,20 @@ export function posterElement(d) {
 }
 
 /**
+ * Draws the poster. Its logo and photo are given as addresses; `readPicture` turns our own into
+ * data (lib/pictures.js), and anything else into nothing (the no-photo look).
  * @param {PosterData} d
+ * @param {{ readPicture?: (url: string | null | undefined) => Promise<string | null> }} [o]
  * @returns {Promise<Buffer>}
  */
-export async function renderPoster(d) {
+export async function renderPoster(d, { readPicture = async () => null } = {}) {
   const { width, height } = POSTER_SIZES[d.size];
-  const svg = await satori(/** @type {any} */ (posterElement(d)), {
+  const [logo, photo] = await Promise.all([
+    readPicture(d.business.logo),
+    readPicture(d.tour?.photo?.url),
+  ]);
+  const drawn = { ...d, pictures: { logo, photo } };
+  const svg = await satori(/** @type {any} */ (posterElement(drawn)), {
     width,
     height,
     fonts: loadFonts(),

@@ -92,6 +92,18 @@ export const fileFor = (c, tourSlug, businessSlug) =>
   posterFileName(c.template === 'weekend' ? businessSlug : tourSlug, c.template, c.size);
 
 /** "Download PNG · 1080 × 1080". @param {PosterChoice['size']} size */
+/**
+ * The line about the photo under the preview (19b-2b): Seats left and Offer show the tour's
+ * cover; New tour and This weekend keep their panels (the route, the weekend's trips).
+ * @param {string} template @param {{ hasPhoto?: boolean } | undefined} tour
+ */
+export function photoNote(template, tour) {
+  if (template !== 'seats_left' && template !== 'offer') return null;
+  return tour?.hasPhoto
+    ? 'The tour’s cover photo is in it, with its credit.'
+    : 'No photo yet: add photos in Settings › Tours and the cover goes in.';
+}
+
 export const downloadLabel = (size) =>
   `Download PNG · ${POSTER_SIZES[size].width} × ${POSTER_SIZES[size].height}`;
 

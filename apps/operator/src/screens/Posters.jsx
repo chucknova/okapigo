@@ -24,6 +24,7 @@ import {
   firstChoice,
   posterPath,
   savedWords,
+  photoNote,
 } from '../lib/posters.js';
 import {
   POSTER_SIZES,
@@ -248,7 +249,7 @@ function PosterMaker({ data, businessSlug }) {
         )}
         <p className="small muted">
           The QR code opens {c.template === 'weekend' ? 'your website' : 'this tour’s booking page'}
-          . No photo yet: photos come with uploads.
+          .{photoNote(c.template, tour) && ` ${photoNote(c.template, tour)}`}
         </p>
       </aside>
     </div>

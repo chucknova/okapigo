@@ -40,6 +40,7 @@ import { RESERVED_OPERATOR_SLUGS, RESERVED_TOUR_SLUGS } from '@okapigo/shared/sl
 import { escapeHtml } from './payments.js';
 import { webAssetTags } from '../lib/web-assets.js';
 import { createCardCache, CARD_WIDTH, CARD_HEIGHT } from '../lib/share-card.js';
+import { pictureReader, noPictures } from '../lib/pictures.js';
 import {
   loadCatalogueView,
   loadTourView,
@@ -223,12 +224,14 @@ function standInHeader(operatorName) {
  *   prisma: import('@prisma/client').PrismaClient,
  *   webPublicUrl: string,
  *   webAssets?: import('../lib/web-assets.js').WebAssets | null,
+ *   media?: import('@okapigo/media').Storage,  // the logo and photos on the cards (19b-2b)
  * }} deps
  */
-export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
+export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null, media }) {
   const router = Router();
   const base = webPublicUrl.replace(/\/+$/, '');
-  const cards = createCardCache();
+  // The logo and photos are read from our own storage when a card is drawn (19b-2b).
+  const cards = createCardCache(200, media ? pictureReader(media) : noPictures);
 
   /**
    * What a tour's card says. Also hashed into the card's address (?v=…), so a changed title
@@ -237,6 +240,11 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
    */
   const tourCard = ({ operator, tour }) => ({
     operatorName: operator.name,
+    logo: operator.logo?.url ?? null,
+    // The cover (19b-2b): the card shows it, with its credit.
+    photo: tour.photos?.[0]
+      ? { url: tour.photos[0].url, credit: tour.photos[0].credit ?? null }
+      : null,
     facts: [formatDuration(tour.durationMinutes), scheduleSentence(tour.scheduleSummary)]
       .filter(Boolean)
       .join(' · '),
@@ -244,10 +252,13 @@ export function sharePagesRouter({ prisma, webPublicUrl, webAssets = null }) {
     price: tour.fromPriceKobo !== null ? formatNaira(tour.fromPriceKobo) : null,
   });
   /** @param {NonNullable<Awaited<ReturnType<typeof loadCatalogueView>>>} view */
-  const catalogueCard = ({ operator, tours }) => {
+  const catalogueCard = ({ operator, site, tours }) => {
     const prices = tours.map((t) => t.fromPriceKobo).filter((p) => p !== null);
     return {
       operatorName: operator.name,
+      logo: operator.logo?.url ?? null,
+      // The website's card shows its hero photo (19b-2b).
+      photo: site?.hero ? { url: site.hero.url, credit: site.hero.credit ?? null } : null,
       facts: `${tours.length} ${tours.length === 1 ? 'tour' : 'tours'}`,
       title: operator.city ? `Tours in ${operator.city}` : `Tours by ${operator.name}`,
       price: prices.length > 0 ? formatNaira(Math.min(...prices)) : null,

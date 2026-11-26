@@ -394,3 +394,18 @@ describe('sendPicture', () => {
     expect(FakeXhr.last).toBeNull();
   });
 });
+
+describe('the poster maker’s photo line (19b-2b)', () => {
+  it('Seats left and Offer use the cover; the others keep their panels', async () => {
+    const { photoNote } = await import('../src/lib/posters.js');
+    expect(photoNote('seats_left', { hasPhoto: true })).toBe(
+      'The tour’s cover photo is in it, with its credit.',
+    );
+    expect(photoNote('offer', { hasPhoto: false })).toBe(
+      'No photo yet: add photos in Settings › Tours and the cover goes in.',
+    );
+    expect(photoNote('offer', undefined)).toMatch(/^No photo yet/);
+    expect(photoNote('new_tour', { hasPhoto: true })).toBeNull();
+    expect(photoNote('weekend', { hasPhoto: true })).toBeNull();
+  });
+});

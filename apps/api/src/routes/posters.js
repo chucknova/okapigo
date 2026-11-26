@@ -39,6 +39,8 @@ import { requirePermission } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { renderPoster } from '../lib/poster.js';
+import { pictureReader, noPictures } from '../lib/pictures.js';
+import { readSite } from '@okapigo/shared/schemas/website';
 
 const PngQuery = z.object({
   template: z.enum(['new_tour', 'offer', 'seats_left', 'weekend']),
@@ -56,9 +58,12 @@ const PngQuery = z.object({
 const KEEP_MS = 60_000;
 
 /**
- * @param {{ prisma: import('@prisma/client').PrismaClient, webPublicUrl: string, now?: () => Date }} deps
+ * @param {{ prisma: import('@prisma/client').PrismaClient, webPublicUrl: string, now?: () => Date,
+ *   media?: import('@okapigo/media').Storage }} deps  media: where the logo and photos are
  */
-export function postersRouter({ prisma, webPublicUrl, now = () => new Date() }) {
+export function postersRouter({ prisma, webPublicUrl, media, now = () => new Date() }) {
+  // The logo and the cover photo, read from our own storage when drawing (19b-2b).
+  const readPicture = media ? pictureReader(media) : noPictures;
   const router = Router();
   /** @type {Map<string, { at: number, png: Promise<Buffer> }>} */
   const kept = new Map();
@@ -117,6 +122,8 @@ export function postersRouter({ prisma, webPublicUrl, now = () => new Date() }) 
           slug: p.slug,
           title: p.title,
           posterTitle: posterTitle(p),
+          // Has a cover photo (19b-2b): Seats left and Offer show it.
+          hasPhoto: /** @type {unknown[]} */ (p.photos ?? []).length > 0,
           meta: [
             from !== null && `From ${formatNaira(from)}`,
             formatDurationShort(p.durationMinutes),
@@ -157,7 +164,7 @@ export function postersRouter({ prisma, webPublicUrl, now = () => new Date() }) 
         template: q.template,
         size: q.size,
         words: q.words || template?.words || '',
-        business: { name: op.name, site },
+        business: { name: op.name, site, logo: readSite(op.site).logo?.url ?? null },
         url: `${webPublicUrl}/${op.slug}`,
       };
       let slug = op.slug;
@@ -212,6 +219,11 @@ export function postersRouter({ prisma, webPublicUrl, now = () => new Date() }) 
           childPrice: child ? formatNaira(child.amountKobo) : null,
           duration: formatDuration(p.durationMinutes),
           runs: scheduleSummary(p.schedules),
+          // The cover (19b-2b): Seats left's panel and Offer's circle show it.
+          photo: (() => {
+            const cover = /** @type {any[]} */ (p.photos ?? [])[0];
+            return cover ? { url: cover.url, credit: cover.credit ?? null } : null;
+          })(),
         };
         if (q.template === 'seats_left') {
           const d = q.departureId
@@ -236,7 +248,7 @@ export function postersRouter({ prisma, webPublicUrl, now = () => new Date() }) 
       const at = Date.now();
       let entry = kept.get(key);
       if (!entry || at - entry.at > KEEP_MS) {
-        entry = { at, png: renderPoster(data) };
+        entry = { at, png: renderPoster(data, { readPicture }) };
         // A failed drawing mustn't stay kept: the next request tries again.
         entry.png.catch(() => kept.delete(key));
         kept.set(key, entry);

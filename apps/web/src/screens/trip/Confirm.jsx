@@ -122,7 +122,7 @@ export function Confirm({ params }) {
   if (payment?.status === 'succeeded' && !between) {
     // The money arrived after the seats were released (rare): the booking couldn't be kept.
     return (
-      <Shell operatorName={operatorName}>
+      <Shell operatorName={operatorName} logo={b.operator.logo}>
         <StatusPanel
           tone="warning"
           title="We got your payment after your seats were released"
@@ -143,7 +143,7 @@ export function Confirm({ params }) {
       ? Math.max(1, Math.round((new Date(b.holdExpiresAt).getTime() - now) / 60_000))
       : 0;
     return (
-      <Shell operatorName={operatorName}>
+      <Shell operatorName={operatorName} logo={b.operator.logo}>
         <p className="okg-test-bar">Test mode · no real money moves</p>
         <StatusPanel
           tone="danger"
@@ -169,7 +169,7 @@ export function Confirm({ params }) {
 
   // --- Still waiting ------------------------------------------------------------------------
   return (
-    <Shell operatorName={operatorName}>
+    <Shell operatorName={operatorName} logo={b.operator.logo}>
       <p className="okg-test-bar">Test mode · no real money moves</p>
       {waited < SLOW_AFTER_MS ? (
         <StatusPanel
@@ -252,7 +252,7 @@ function Confirmed({ b, token, contacts }) {
   };
 
   return (
-    <Shell operatorName={b.operator.name}>
+    <Shell operatorName={b.operator.name} logo={b.operator.logo}>
       <section className="okg-confirmed-band">
         <div className="okg-confirmed-band__title">
           <span className="okg-confirmed-band__check" aria-hidden="true">

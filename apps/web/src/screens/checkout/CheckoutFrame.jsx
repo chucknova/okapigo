@@ -9,7 +9,7 @@
  *            test-mode strip · two columns: content | summary card
  */
 import { Link } from 'wouter';
-import { firstLetter } from '../../components/Shell.jsx';
+import { Mark } from '../../components/Shell.jsx';
 import { Icon } from '../../components/Icon.jsx';
 import { takeEmbedded, useApi } from '../../lib/data.js';
 import { useLook } from '../../lib/look.js';
@@ -41,6 +41,7 @@ export function useTourForCheckout(operatorSlug, tourSlug) {
  *   title: string,                 // "Choose a date", "Who's coming?"
  *   subtitle: string,              // "Lagos Island Heritage Walk · Step 1 of 4"
  *   operatorName: string,
+ *   logo?: import('../../components/Shell.jsx').Logo | null,   // beside the name (19b-2b)
  *   backHref: string,
  *   aside?: import('react').ReactNode,       // desktop summary card
  *   bottomBar?: import('react').ReactNode,   // phone: total + Continue
@@ -53,6 +54,7 @@ export function CheckoutFrame({
   title,
   subtitle,
   operatorName,
+  logo = null,
   backHref,
   aside,
   bottomBar,
@@ -101,9 +103,7 @@ export function CheckoutFrame({
           ))}
         </div>
         <div className="okg-checkout__desktop-head okg-desktop-only">
-          <span className="okg-mark" aria-hidden="true">
-            {firstLetter(operatorName)}
-          </span>
+          <Mark name={operatorName} logo={logo} />
           <span className="okg-header__name">{operatorName}</span>
           {headerExtra}
           <ol className="okg-steps">

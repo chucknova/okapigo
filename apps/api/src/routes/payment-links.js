@@ -16,6 +16,7 @@
  *
  * Sending a link by WhatsApp or email arrives with automated messages (session 14).
  */
+import { readSite } from '@okapigo/shared/schemas/website';
 import { Router } from 'express';
 import { z } from 'zod';
 import {
@@ -234,6 +235,7 @@ export function paymentLinksRouters({
         name: operator.name,
         websiteStyle: operator.websiteStyle, // the look (stage 12g)
         websiteMode: operator.websiteMode,
+        logo: readSite(operator.site).logo ?? null, // beside the name (19b-2b)
       },
       tour: { title: booking.product.title },
       departure: {
