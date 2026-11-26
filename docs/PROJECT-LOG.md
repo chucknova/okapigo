@@ -163,7 +163,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19b-1           | Uploads, server side: `packages/media` (checks a file by its bytes, 1600/640 px photos and 512/128 px logos, hidden details stripped, stored by content hash; local disk now, R2 at deploy); `POST /api/uploads/:kind`, `/media/…`; only our own pictures on tours and the website; credits; **3 photos to go on sale**; the demo's 18 photos and logo | `603a673`           | 19b-1          |
 | 19b-2a          | Photos in the staff app: a tour's Photos section (cover, order, describe, credit, remove asks under 3 on sale), New tour with photos, a draft's "Before it goes on sale" checklist, the list's "needs 1 more photo", the logo and hero in Business details; uploads with progress (XHR)                                                                | `c08497c`           | 19b-2a         |
 | 19b-2b          | Photos and the logo for guests: the logo in every header, the website's hero photo and card covers with a footer of credits, a tour page's swipeable photos with the shown photo's credit, the trip page's cover; posters (Seats left, Offer) and link previews with the cover and its credit                                                          | `d001a1b`           | 19b-2b         |
-| 19c-1           | Accessibility: axe checks every guest page against WCAG 2.1 AA in the browser (3 styles × light/dark, phone and desk; checkout with errors; trip, payment link, widget, not found); fixed: the photo strip unreachable by keyboard, date buttons whose names didn't contain their visible words                                                        | `(this commit)`     | 19c-1          |
+| 19c-1           | Accessibility: axe checks every guest page against WCAG 2.1 AA in the browser (3 styles × light/dark, phone and desk; checkout with errors; trip, payment link, widget, not found); fixed: the photo strip unreachable by keyboard, date buttons whose names didn't contain their visible words                                                        | `9a96566`           | 19c-1          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -506,7 +506,7 @@ ones. axe-core is pinned to 4.14.0 (its 4.14.1 was under two weeks old).
 
 ## 7. Where we are
 
-- **Last done:** 19c-1, the accessibility checks, committed `(this commit)`.
+- **Last done:** 19c-1, the accessibility checks, committed `9a96566`.
 - **Next:** **19c-2**, polish: the staff app's script over 500 kB (split it so a guide's phone
   loads less).
 - **The flaky WhatsApp paying tests are fixed on a branch**, `claude/reverent-snyder-a98e81`
