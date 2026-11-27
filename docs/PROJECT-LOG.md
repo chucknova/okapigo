@@ -166,6 +166,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19c-1           | Accessibility: axe checks every guest page against WCAG 2.1 AA in the browser (3 styles × light/dark, phone and desk; checkout with errors; trip, payment link, widget, not found); fixed: the photo strip unreachable by keyboard, date buttons whose names didn't contain their visible words                                                        | `9a96566`           | 19c-1          |
 | 19c-2           | The staff app's script split: the office's screens in their own file (`screens/office.js`, React.lazy), main script 552 → 334 kB (158 → 105 kB compressed), offline kept (precache lists it); the trip day's page heading; the dashboard test and the accessibility journey no longer depend on the clock                                              | `050352c`           | 19c-2          |
 | 19c-3           | axe's best-practice rules too: a `<main>` on the tour page, the widget and the server's 404; the phone's checkout step title is the main heading; the widget's list has one (hidden); sticky bars and "Test mode" are named regions; nothing looks different                                                                                           | `4944a55`           | 19c-3          |
+| 19d             | The README rewritten (what it is, seven screenshots of the demo, how to run and sign in, how it's built, testing, honest limits) and `docs/demo-script.md` (15 minutes, eight parts), walked once and corrected                                                                                                                                        | (this commit)       | 19d            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -516,10 +517,18 @@ checkout's phone steps and the widget) are beyond WCAG AA: **yours to decide** w
 best-practice rules as well as WCAG 2.1 AA, and the check keeps both on. The check lists every
 page's problems (`expect.soft`), not just the first.
 
+**With 19d (2026-11-27):** the README is the project's front page: screenshots of the real app
+(a throwaway copy of the demo, reset as if at 04:00), every claim checked against the code, and
+the honest limits. Inbox and poster shots left out (empty, and the throwaway address). The
+demo script was walked once; three small wording bugs it found are **left for you to decide**
+(19d §4), not fixed in a docs stage.
+
 ## 7. Where we are
 
-- **Last done:** 19c-3, landmarks and main headings, committed `4944a55`. **19c done.**
-- **Next:** **19d**, the README and the demo script.
+- **Last done:** 19d, the README and the demo script, committed (this commit).
+- **Next:** the three wording bugs from the demo walk, if you want them (19d note §4: checkout's
+  past "free cancellation" date, first run's "good until", the inbox's "replied by"); then
+  **19e**, deploy, in December.
 - **The flaky WhatsApp paying tests are fixed on a branch**, `claude/reverent-snyder-a98e81`
   (`cc9f1c8`, from its own session), not merged here. It also found two more flaky tests:
   `octo-bookings` (a sort tie) and the ledger's race test.
@@ -533,8 +542,6 @@ page's problems (`expect.soft`), not just the first.
   demo business has its Sojourna channel and key).
 - **Your dev database** needs `pnpm db:reset` for the Sojourna channel (none, or the old "Mock
   OTA", until then).
-- **The operator app's script is over 500 kB** since 16e-4c (Vite warns at build). Not urgent
-  for staff phones on a good connection; splitting Settings into its own chunk would fix it.
 - **Your dev data:** a real alert, **Refund to send: ₦100,000, Akinbote Temiloluwa
   (ILT-HP97TV)**.
 - **For real WhatsApp:** submit `okapigo_chat_followup` and `okapigo_booking_moved` in Meta.
@@ -672,9 +679,13 @@ page's problems (`expect.soft`), not just the first.
   counted the Friday food crawl at 08:00. Call the seed's other trips off, or use a quiet day.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
+- **Screenshots or a demo late in the day** (19d): a reset places "today" at the moment it runs,
+  so today's earlier departures are missing. For screenshots, reset a throwaway copy with `now`
+  at 04:00 Lagos time, as the nightly job does.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-27 · 19d The README and the demo script.
 - 2026-11-27 · 19c-3 Landmarks and main headings: axe's best practice too.
 - 2026-11-27 · 19c-2 The staff app's script split; the trip day's heading (19c done).
 - 2026-11-26 · 19c-1 Accessibility checks on every guest page (WCAG 2.1 AA, axe).
