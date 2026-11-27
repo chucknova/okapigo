@@ -164,7 +164,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19b-2a          | Photos in the staff app: a tour's Photos section (cover, order, describe, credit, remove asks under 3 on sale), New tour with photos, a draft's "Before it goes on sale" checklist, the list's "needs 1 more photo", the logo and hero in Business details; uploads with progress (XHR)                                                                | `c08497c`           | 19b-2a         |
 | 19b-2b          | Photos and the logo for guests: the logo in every header, the website's hero photo and card covers with a footer of credits, a tour page's swipeable photos with the shown photo's credit, the trip page's cover; posters (Seats left, Offer) and link previews with the cover and its credit                                                          | `d001a1b`           | 19b-2b         |
 | 19c-1           | Accessibility: axe checks every guest page against WCAG 2.1 AA in the browser (3 styles × light/dark, phone and desk; checkout with errors; trip, payment link, widget, not found); fixed: the photo strip unreachable by keyboard, date buttons whose names didn't contain their visible words                                                        | `9a96566`           | 19c-1          |
-| 19c-2           | The staff app's script split: the office's screens in their own file (`screens/office.js`, React.lazy), main script 552 → 334 kB (158 → 105 kB compressed), offline kept (precache lists it); the trip day's page heading; the dashboard test and the accessibility journey no longer depend on the clock                                              | `(this commit)`     | 19c-2          |
+| 19c-2           | The staff app's script split: the office's screens in their own file (`screens/office.js`, React.lazy), main script 552 → 334 kB (158 → 105 kB compressed), offline kept (precache lists it); the trip day's page heading; the dashboard test and the accessibility journey no longer depend on the clock                                              | `050352c`           | 19c-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -513,7 +513,7 @@ checkout's phone steps and the widget) are beyond WCAG AA: **yours to decide** w
 
 ## 7. Where we are
 
-- **Last done:** 19c-2, the staff app's script split, committed `(this commit)`. **19c done.**
+- **Last done:** 19c-2, the staff app's script split, committed `050352c`. **19c done.**
 - **Next:** **19d**, the README and the demo script. Or first, if you want: axe's best-practice
   fixes (landmarks, main headings on checkout's phone steps and the widget).
 - **The flaky WhatsApp paying tests are fixed on a branch**, `claude/reverent-snyder-a98e81`
