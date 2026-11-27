@@ -110,7 +110,7 @@ export function EmbedTour({ params }) {
     : null;
 
   return (
-    <section className="okg-embed__tour" aria-label={tour.title}>
+    <main className="okg-embed__tour" aria-label={tour.title}>
       <div className="okg-embed__head">
         <h1 className="okg-embed__title">{tour.title}</h1>
         {tour.fromPriceKobo !== null && (
@@ -153,7 +153,7 @@ export function EmbedTour({ params }) {
         {headline ? ` · ${headline.charAt(0).toLowerCase()}${headline.slice(1)}` : ''}
       </p>
       <Credit />
-    </section>
+    </main>
   );
 }
 
@@ -199,7 +199,10 @@ export function EmbedTours({ params }) {
   if (!view) return error ? <ErrorState error={error} onRetry={retry} /> : <WidgetSkeleton />;
   const { operator, tours } = view;
   return (
-    <section className="okg-embed__tours" aria-label={`${operator.name}: tours`}>
+    // The widget's main content, with its main heading (hidden: the design shows the rows
+    // alone). 19c-3.
+    <main className="okg-embed__tours" aria-label={`${operator.name}: tours`}>
+      <h1 className="okg-visually-hidden">{operator.name}: tours</h1>
       {close && (
         <div className="okg-embed__bar">
           <span className="okg-strong">{operator.name}</span>
@@ -248,7 +251,7 @@ export function EmbedTours({ params }) {
         </ul>
       )}
       <Credit />
-    </section>
+    </main>
   );
 }
 

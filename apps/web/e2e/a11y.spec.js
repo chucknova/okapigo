@@ -30,6 +30,8 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 /** WCAG 2.0 and 2.1, levels A and AA: what the PRD asks for. */
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+/** axe's best-practice rules too (19c-3): landmarks, one main heading, and more. */
+const RULES = [...WCAG, 'best-practice'];
 const STYLES = ['lagoon', 'classic', 'earth'];
 const MODES = ['light', 'dark'];
 
@@ -61,7 +63,7 @@ test.afterAll(async () => {
  * @param {string} what  for the failure message ("the website, earth dark")
  */
 async function check(page, what) {
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+  const { violations } = await new AxeBuilder({ page }).withTags(RULES).analyze();
   const found = violations.map((v) => ({
     rule: v.id,
     impact: v.impact,
@@ -70,7 +72,8 @@ async function check(page, what) {
       .slice(0, 4)
       .map((n) => `${n.target.join(' ')}: ${n.failureSummary?.split('\n')[1]?.trim() ?? ''}`),
   }));
-  expect(found, `accessibility problems on ${what}`).toEqual([]);
+  // Soft: every page is checked and every problem listed, not just the first page's.
+  expect.soft(found, `accessibility problems on ${what}`).toEqual([]);
 }
 
 /** Waits until every picture on screen has loaded (contrast is measured over what's drawn). */

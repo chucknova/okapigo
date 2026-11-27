@@ -80,6 +80,8 @@
   color: var(--color-band-accent);
 }
 .okg-trip-today__title {
+  /* A heading since 19c-2 (the trip day's main heading), in the band's own font. */
+  font-family: inherit;
   margin-top: 2px;
   font-size: var(--text-xl);
   line-height: 1.25;

@@ -84,7 +84,8 @@ export function CheckoutFrame({
             </Link>
           )}
           <div className="okg-checkout__titles">
-            <p className="okg-checkout__title">{title}</p>
+            {/* The page's main heading on a phone (the desk's own is hidden there): 19c-3. */}
+            <h1 className="okg-checkout__title">{title}</h1>
             <p className="okg-label">{subtitle}</p>
           </div>
           {headerExtra}
@@ -122,7 +123,10 @@ export function CheckoutFrame({
           </ol>
         </div>
       </header>
-      <p className="okg-test-bar">Test mode · no real money moves</p>
+      {/* A named region, so nothing on the page sits outside one (19c-3). */}
+      <section aria-label="Test mode">
+        <p className="okg-test-bar">Test mode · no real money moves</p>
+      </section>
       <div className="okg-checkout__layout">
         <main className="okg-checkout__main">
           <h1 className="okg-checkout__h1 okg-desktop-only">{title}</h1>
@@ -130,7 +134,11 @@ export function CheckoutFrame({
         </main>
         {aside && <aside className="okg-checkout__aside okg-desktop-only">{aside}</aside>}
       </div>
-      {bottomBar && <div className="okg-sticky-bar okg-phone-only">{bottomBar}</div>}
+      {bottomBar && (
+        <section className="okg-sticky-bar okg-phone-only" aria-label="Total and next step">
+          {bottomBar}
+        </section>
+      )}
     </div>
   );
 }

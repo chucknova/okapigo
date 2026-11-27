@@ -20,6 +20,9 @@
   gap: 6px;
 }
 .okg-checkout__title {
+  /* A heading since 19c-3 (the page's main heading on a phone), drawn as the line it was. */
+  font-family: inherit;
+  font-size: inherit;
   font-weight: var(--weight-bold);
 }
 .okg-progress {

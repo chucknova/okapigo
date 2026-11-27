@@ -148,7 +148,11 @@ describe('step 1 → step 2', () => {
     fireEvent.click(row);
 
     await waitFor(() => expect(memory.history.at(-1)).toBe('/irin/walk/book/who'));
-    expect(await screen.findByText('Who’s coming?', { selector: 'p' })).toBeTruthy();
+    // The step's title is the page's main heading on a phone (19c-3). Without the stylesheet
+    // the desk's heading shows here too; in a browser only one does (a11y.spec.js checks it).
+    expect(
+      await screen.findAllByRole('heading', { level: 1, name: 'Who’s coming?' }),
+    ).not.toHaveLength(0);
     // Saved at once: a refresh here would still know the date.
     expect(JSON.parse(sessionStorage.getItem('okg-checkout:irin/walk')).departure.id).toBe('d1');
   });

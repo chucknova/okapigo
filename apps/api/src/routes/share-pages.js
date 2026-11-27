@@ -205,7 +205,7 @@ function notFoundPage() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>Not found</title></head>
 <body style="font-family: system-ui, sans-serif; max-width: 36rem; margin: 2rem auto; padding: 0 1rem">
-<h1>We couldn't find that page</h1><p>The link may be old, or the tour is no longer on sale.</p>
+<main><h1>We couldn't find that page</h1><p>The link may be old, or the tour is no longer on sale.</p></main>
 </body></html>`;
 }
 

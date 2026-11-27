@@ -91,7 +91,8 @@ export function TourPage({ params }) {
         <ShareButton title={tour.title} />
       </header>
 
-      <div className="okg-tour__layout">
+      {/* The page's main content (19c-3: screen readers jump straight here). */}
+      <main className="okg-tour__layout">
         {/* The photos swipe; with none, the style's pattern (desktop) as before (19b-2b). */}
         <div
           className={`okg-tour__band${tour.photos.length ? ' okg-tour__band--photos' : ' okg-tour__band--pattern'}`}
@@ -227,10 +228,11 @@ export function TourPage({ params }) {
             </section>
           )}
         </div>
-      </div>
+      </main>
 
-      {/* Phone: the price and Book stay in reach at the bottom of the screen. */}
-      <div className="okg-sticky-bar okg-phone-only">
+      {/* Phone: the price and Book stay in reach at the bottom of the screen. A named region,
+          so nothing on the page sits outside one (19c-3). */}
+      <section className="okg-sticky-bar okg-phone-only" aria-label="Price and book">
         {tour.fromPriceKobo !== null && (
           <div>
             <div className="okg-label">from</div>
@@ -240,7 +242,7 @@ export function TourPage({ params }) {
         <a className="okg-btn okg-btn--primary okg-btn--auto" href={bookHref}>
           Book
         </a>
-      </div>
+      </section>
     </div>
   );
 }
