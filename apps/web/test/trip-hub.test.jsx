@@ -238,6 +238,10 @@ describe('on the day and after', () => {
     renderHub();
 
     expect(await screen.findByText('Starts at 09:00 · Meet at Tinubu Square')).toBeTruthy();
+    // The page's main heading that day (19c-2: the page had none on the trip's own day).
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Starts at 09:00 · Meet at Tinubu Square' }),
+    ).toBeTruthy();
     expect(screen.getByText('2 travellers · Adaeze Okafor')).toBeTruthy();
     expect(screen.getByText('Turn your screen brightness up. Works without signal.')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Directions in Google Maps' })).toBeTruthy();

@@ -138,7 +138,10 @@ test('checkout, each step (with a form showing its errors), then the paid trip p
 
   const token = new URL(page.url()).pathname.split('/')[2];
   await page.goto(`/trip/${token}`);
-  await expect(page.getByRole('heading', { level: 1, name: /Heritage Walk/ })).toBeVisible();
+  // Any main heading: on the trip's own day (booked early in the morning) it says so instead
+  // of the tour's name (found at 08:00 on a Friday, 19c-2).
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page.getByText(/Heritage Walk/).first()).toBeVisible();
   await pictures(page);
   await check(page, 'the trip page (paid: ticket, map, companion)');
   await page.goto(`/trip/${token}/change`);

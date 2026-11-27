@@ -9,22 +9,13 @@
  * The sign-in running out (30 days) while offline doesn't stop anything: the app works as
  * normal, and once there's signal a sheet asks to sign in again to send the changes.
  */
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Route, Router, Switch } from 'wouter';
 import { ConnectionStrip } from './components/ConnectionStrip.jsx';
 import { TabBar, SideNav } from './components/TabBar.jsx';
 import { NotAllowed } from './components/LiveFrame.jsx';
 import { useLive } from './lib/live.js';
 import { isOffice } from './lib/roles.js';
-import { ManagerToday } from './screens/ManagerToday.jsx';
-import { More } from './screens/More.jsx';
-import { Schedule } from './screens/Schedule.jsx';
-import { Departure } from './screens/Departure.jsx';
-import { Bookings } from './screens/Bookings.jsx';
-import { Inbox } from './screens/Inbox.jsx';
-import { Settings } from './screens/Settings.jsx';
-import { Posters } from './screens/Posters.jsx';
-import { Dashboard } from './screens/Dashboard.jsx';
 import { Sheet } from './components/Sheet.jsx';
 import { useEngine, useSync } from './lib/engine.jsx';
 import { REFRESH_EVERY_MS } from './lib/sync.js';
@@ -35,6 +26,24 @@ import { Sync } from './screens/Sync.jsx';
 import { Later } from './screens/Later.jsx';
 import { Manifest } from './screens/Manifest.jsx';
 import { Scan } from './screens/Scan.jsx';
+
+/**
+ * The office's screens load from their own file, the first time one is opened (19c-2;
+ * screens/office.js). One import for all of them: the browser fetches the file once.
+ */
+const office = () => import('./screens/office.js');
+/** @param {keyof Awaited<ReturnType<typeof office>>} name */
+const officeScreen = (name) =>
+  lazy(() => office().then((m) => ({ default: /** @type {any} */ (m[name]) })));
+const ManagerToday = officeScreen('ManagerToday');
+const Schedule = officeScreen('Schedule');
+const Departure = officeScreen('Departure');
+const Bookings = officeScreen('Bookings');
+const Inbox = officeScreen('Inbox');
+const Dashboard = officeScreen('Dashboard');
+const Posters = officeScreen('Posters');
+const Settings = officeScreen('Settings');
+const More = officeScreen('More');
 
 /** @param {{ base?: string }} props */
 export function App({ base = '/app' }) {
@@ -92,61 +101,70 @@ function Shell() {
       <div className="app-main">
         <ConnectionStrip timeZone={tz} />
         <div className="app-body">
-          <Switch>
-            <Route path="/">{() => (office ? <ManagerToday /> : <Today />)}</Route>
-            <Route path="/sync" component={Sync} />
-            <Route path="/scan" component={Scan} />
-            <Route path="/scan/:id" component={Scan} />
-            <Route path="/departures/:id">{() => (office ? <Departure /> : <Manifest />)}</Route>
-            <Route path="/schedule">
-              {officeOnly(() => (
-                <Schedule />
-              ))}
-            </Route>
-            {/* One route for the list and an open booking: the search and filter are kept
+          {/* While an office screen's file arrives (once; then it's in memory). */}
+          <Suspense
+            fallback={
+              <p className="muted" role="status">
+                Loading…
+              </p>
+            }
+          >
+            <Switch>
+              <Route path="/">{() => (office ? <ManagerToday /> : <Today />)}</Route>
+              <Route path="/sync" component={Sync} />
+              <Route path="/scan" component={Scan} />
+              <Route path="/scan/:id" component={Scan} />
+              <Route path="/departures/:id">{() => (office ? <Departure /> : <Manifest />)}</Route>
+              <Route path="/schedule">
+                {officeOnly(() => (
+                  <Schedule />
+                ))}
+              </Route>
+              {/* One route for the list and an open booking: the search and filter are kept
                 while you open bookings one after another. */}
-            <Route path="/bookings/:id?">
-              {officeOnly(() => (
-                <Bookings />
-              ))}
-            </Route>
-            <Route path="/inbox/alerts">
-              {officeOnly(() => (
-                <Inbox tab="alerts" />
-              ))}
-            </Route>
-            <Route path="/inbox/requests/:rid?">
-              {officeOnly(() => (
-                <Inbox tab="requests" />
-              ))}
-            </Route>
-            <Route path="/inbox/:id?">
-              {officeOnly(() => (
-                <Inbox tab="chats" />
-              ))}
-            </Route>
-            <Route path="/dashboard">
-              {officeOnly(() => (
-                <Dashboard />
-              ))}
-            </Route>
-            <Route path="/posters">
-              {officeOnly(() => (
-                <Posters />
-              ))}
-            </Route>
-            <Route path="/settings/:section?/:item?">
-              {officeOnly(() => (
-                <Settings />
-              ))}
-            </Route>
-            <Route path="/more">
-              {officeOnly(() => (
-                <More />
-              ))}
-            </Route>
-            <Route>{() => <Later title="Not found" what="This page" stage="" back />}</Route>
-          </Switch>
+              <Route path="/bookings/:id?">
+                {officeOnly(() => (
+                  <Bookings />
+                ))}
+              </Route>
+              <Route path="/inbox/alerts">
+                {officeOnly(() => (
+                  <Inbox tab="alerts" />
+                ))}
+              </Route>
+              <Route path="/inbox/requests/:rid?">
+                {officeOnly(() => (
+                  <Inbox tab="requests" />
+                ))}
+              </Route>
+              <Route path="/inbox/:id?">
+                {officeOnly(() => (
+                  <Inbox tab="chats" />
+                ))}
+              </Route>
+              <Route path="/dashboard">
+                {officeOnly(() => (
+                  <Dashboard />
+                ))}
+              </Route>
+              <Route path="/posters">
+                {officeOnly(() => (
+                  <Posters />
+                ))}
+              </Route>
+              <Route path="/settings/:section?/:item?">
+                {officeOnly(() => (
+                  <Settings />
+                ))}
+              </Route>
+              <Route path="/more">
+                {officeOnly(() => (
+                  <More />
+                ))}
+              </Route>
+              <Route>{() => <Later title="Not found" what="This page" stage="" back />}</Route>
+            </Switch>
+          </Suspense>
         </div>
       </div>
       <TabBar badges={badges} />

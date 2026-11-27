@@ -374,9 +374,11 @@ function TodayBand({ b }) {
   return (
     <section className="okg-trip-today" aria-label="Today">
       <p className="okg-trip-today__label">TODAY</p>
-      <p className="okg-trip-today__title">
+      {/* The page's main heading on the trip's own day (the usual heading section, with the
+          tour's name, isn't shown then): found by the accessibility check, 19c-2. */}
+      <h1 className="okg-trip-today__title">
         Starts at {b.departure.localTime} · {b.pickupPoint ? 'Pickup' : 'Meet'} at {place}
-      </p>
+      </h1>
       <p className="okg-trip-today__sub">
         {b.tour.title} · {travellersWord(b.travellers.length)}
       </p>

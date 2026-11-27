@@ -164,6 +164,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19b-2a          | Photos in the staff app: a tour's Photos section (cover, order, describe, credit, remove asks under 3 on sale), New tour with photos, a draft's "Before it goes on sale" checklist, the list's "needs 1 more photo", the logo and hero in Business details; uploads with progress (XHR)                                                                | `c08497c`           | 19b-2a         |
 | 19b-2b          | Photos and the logo for guests: the logo in every header, the website's hero photo and card covers with a footer of credits, a tour page's swipeable photos with the shown photo's credit, the trip page's cover; posters (Seats left, Offer) and link previews with the cover and its credit                                                          | `d001a1b`           | 19b-2b         |
 | 19c-1           | Accessibility: axe checks every guest page against WCAG 2.1 AA in the browser (3 styles × light/dark, phone and desk; checkout with errors; trip, payment link, widget, not found); fixed: the photo strip unreachable by keyboard, date buttons whose names didn't contain their visible words                                                        | `9a96566`           | 19c-1          |
+| 19c-2           | The staff app's script split: the office's screens in their own file (`screens/office.js`, React.lazy), main script 552 → 334 kB (158 → 105 kB compressed), offline kept (precache lists it); the trip day's page heading; the dashboard test and the accessibility journey no longer depend on the clock                                              | `(this commit)`     | 19c-2          |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -504,11 +505,17 @@ so every stage is checked for WCAG 2.1 AA problems a tool can find. A date butto
 its own text now (no `aria-label`): the parts not shown are visually hidden between the shown
 ones. axe-core is pinned to 4.14.0 (its 4.14.1 was under two weeks old).
 
+**With 19c-2 (2026-11-27):** the office's screens load from their own file the first time one
+is opened; a guide's phone starts a third less code; offline is unchanged (the build's
+precache list has every file). axe's best-practice findings (landmarks, a main heading on
+checkout's phone steps and the widget) are beyond WCAG AA: **yours to decide** whether to fix.
+**Session 19c is done.**
+
 ## 7. Where we are
 
-- **Last done:** 19c-1, the accessibility checks, committed `9a96566`.
-- **Next:** **19c-2**, polish: the staff app's script over 500 kB (split it so a guide's phone
-  loads less).
+- **Last done:** 19c-2, the staff app's script split, committed `(this commit)`. **19c done.**
+- **Next:** **19d**, the README and the demo script. Or first, if you want: axe's best-practice
+  fixes (landmarks, main headings on checkout's phone steps and the widget).
 - **The flaky WhatsApp paying tests are fixed on a branch**, `claude/reverent-snyder-a98e81`
   (`cc9f1c8`, from its own session), not merged here. It also found two more flaky tests:
   `octo-bookings` (a sort tie) and the ledger's race test.
@@ -657,11 +664,14 @@ ones. axe-core is pinned to 4.14.0 (its 4.14.1 was under two weeks old).
   (19c-1: the widget's "Book now" journey). Pick the first or the last.
 - **An accessible name trims each part's edges, and Chrome spaces flex items**: put spaces
   outside visually hidden text, and punctuation inside the item it follows (19c-1).
+- **Tests that use "today" meet the seed's own trips** (19c-2): the dashboard's "today" test
+  counted the Friday food crawl at 08:00. Call the seed's other trips off, or use a quiet day.
 - Throwing inside a Prisma transaction rolls back everything in it: keep a record (e.g. a cash
   report) by committing first, then raising the conflict.
 
 ## 9. Changelog (newest first)
 
+- 2026-11-27 · 19c-2 The staff app's script split; the trip day's heading (19c done).
 - 2026-11-26 · 19c-1 Accessibility checks on every guest page (WCAG 2.1 AA, axe).
 - 2026-11-26 · 19b-2b Photos and the logo where guests see them (19b done).
 - 2026-11-23 · 19b-2a Photos and the logo in the staff app.

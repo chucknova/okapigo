@@ -303,6 +303,20 @@ describe('bookings, channels, seats, check-ins', () => {
     await set(0, '07:00', '10:00'); // ended
     await set(1, '11:00', '14:00'); // under way
     await set(2, '15:00', '18:00'); // to come
+    // The seed has its own trips today too (which ones depends on the weekday: the Friday food
+    // crawl, the morning walk…): called off, so only these three count (found on a Friday,
+    // 19c-2). Cancelled departures aren't counted.
+    await ctx.prisma.departure.updateMany({
+      where: {
+        operatorId: op,
+        id: { notIn: deps.map((d) => d.id) },
+        startsAt: {
+          gte: zonedTimeToUtc(today, '00:00', TZ),
+          lt: zonedTimeToUtc(addDays(today, 1), '00:00', TZ),
+        },
+      },
+      data: { status: 'cancelled' },
+    });
     const b = await madeBooking(s, 'web', zonedTimeToUtc(addDays(today, -3), '10:00', TZ));
     await ctx.prisma.booking.update({ where: { id: b.id }, data: { departureId: deps[1].id } });
     await ctx.prisma.traveller.createMany({
@@ -334,7 +348,7 @@ describe('bookings, channels, seats, check-ins', () => {
     });
     const f = await dashboardFigures(ctx.prisma, { operatorId: op, timeZone: TZ, now: noon });
     expect(f.today.departures).toMatchObject({ underWay: 1, toCome: 1, ended: 1 });
-    expect(f.today.departures.total).toBeGreaterThanOrEqual(3);
+    expect(f.today.departures.total).toBe(3);
     // A, B (late counts) of A, B, C and the guest from the checkout.
     expect(f.today.checkIns).toEqual({ done: 2, total: 4 });
     expect(f.today.bookings.total).toBe(0); // made three days ago
