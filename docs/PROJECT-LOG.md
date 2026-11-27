@@ -166,7 +166,7 @@ the user for the "OkapiGo Operator App — Designs (Sessions 15–16)" HTML file
 | 19c-1           | Accessibility: axe checks every guest page against WCAG 2.1 AA in the browser (3 styles × light/dark, phone and desk; checkout with errors; trip, payment link, widget, not found); fixed: the photo strip unreachable by keyboard, date buttons whose names didn't contain their visible words                                                        | `9a96566`           | 19c-1          |
 | 19c-2           | The staff app's script split: the office's screens in their own file (`screens/office.js`, React.lazy), main script 552 → 334 kB (158 → 105 kB compressed), offline kept (precache lists it); the trip day's page heading; the dashboard test and the accessibility journey no longer depend on the clock                                              | `050352c`           | 19c-2          |
 | 19c-3           | axe's best-practice rules too: a `<main>` on the tour page, the widget and the server's 404; the phone's checkout step title is the main heading; the widget's list has one (hidden); sticky bars and "Test mode" are named regions; nothing looks different                                                                                           | `4944a55`           | 19c-3          |
-| 19d             | The README rewritten (what it is, seven screenshots of the demo, how to run and sign in, how it's built, testing, honest limits) and `docs/demo-script.md` (15 minutes, eight parts), walked once and corrected                                                                                                                                        | (this commit)       | 19d            |
+| 19d             | The README rewritten (what it is, seven screenshots of the demo, how to run and sign in, how it's built, testing, honest limits) and `docs/demo-script.md` (15 minutes, eight parts), walked once and corrected                                                                                                                                        | `cab31e1`           | 19d            |
 
 **Still to come** (numbering decided 2026-11-21: OCTO is session 17, AI 18, the demo 19):
 
@@ -525,7 +525,7 @@ demo script was walked once; three small wording bugs it found are **left for yo
 
 ## 7. Where we are
 
-- **Last done:** 19d, the README and the demo script, committed (this commit).
+- **Last done:** 19d, the README and the demo script, committed `cab31e1`.
 - **Next:** the three wording bugs from the demo walk, if you want them (19d note §4: checkout's
   past "free cancellation" date, first run's "good until", the inbox's "replied by"); then
   **19e**, deploy, in December.
